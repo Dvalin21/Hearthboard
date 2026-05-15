@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    No cloud backup - all data stays local per F-Droid/privacy policy.
+    Users sync their own CalDAV server instead.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" />
+        <include domain="sharedpref" />
+    </device-transfer>
+</data-extraction-rules>

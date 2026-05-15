@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- OpenLight launcher icon: stylized calendar with sun rays, no emojis -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Background circle -->
+    <path
+        android:fillColor="#1565C0"
+        android:pathData="M54,54 m-54,0 a54,54 0 1,0 108,0 a54,54 0 1,0 -108,0" />
+
+    <!-- Calendar body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,36 L78,36 L78,78 L30,78 Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2" />
+
+    <!-- Calendar header -->
+    <path
+        android:fillColor="#E3F2FD"
+        android:pathData="M30,36 L78,36 L78,50 L30,50 Z" />
+
+    <!-- Spiral rings -->
+    <path
+        android:fillColor="#1565C0"
+        android:pathData="M40,30 L40,42 Q40,44 42,44 Q44,44 44,42 L44,30 Q44,28 42,28 Q40,28 40,30 Z" />
+    <path
+        android:fillColor="#1565C0"
+        android:pathData="M64,30 L64,42 Q64,44 66,44 Q68,44 68,42 L68,30 Q68,28 66,28 Q64,28 64,30 Z" />
+
+    <!-- Grid dots representing days -->
+    <path android:fillColor="#1565C0"
+        android:pathData="M36,56 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <path android:fillColor="#1565C0"
+        android:pathData="M46,56 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <path android:fillColor="#1565C0"
+        android:pathData="M56,56 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <path android:fillColor="#FF7043"
+        android:pathData="M66,56 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+
+    <path android:fillColor="#1565C0"
+        android:pathData="M36,66 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <path android:fillColor="#1565C0"
+        android:pathData="M46,66 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <path android:fillColor="#1565C0"
+        android:pathData="M56,66 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <path android:fillColor="#1565C0"
+        android:pathData="M66,66 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+
+    <!-- Month label bar (stylized) -->
+    <path
+        android:fillColor="#1565C0"
+        android:pathData="M37,42 L71,42 L71,48 L37,48 Z"
+        android:fillAlpha="0.3"/>
+</vector>

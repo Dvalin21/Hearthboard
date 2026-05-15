@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OpenLight</string>
+    <string name="app_description">Open-source family calendar &amp; task manager</string>
+
+    <!-- Navigation -->
+    <string name="nav_calendar">Calendar</string>
+    <string name="nav_tasks">Tasks</string>
+    <string name="nav_lists">Lists</string>
+    <string name="nav_meals">Meals</string>
+    <string name="nav_people">People</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Calendar -->
+    <string name="view_month">Month</string>
+    <string name="view_week">Week</string>
+    <string name="view_day">Day</string>
+    <string name="view_agenda">Agenda</string>
+    <string name="add_event">Add Event</string>
+    <string name="edit_event">Edit Event</string>
+    <string name="delete_event">Delete Event</string>
+    <string name="event_title">Title</string>
+    <string name="event_location">Location</string>
+    <string name="event_notes">Notes</string>
+    <string name="event_all_day">All Day</string>
+    <string name="event_repeat">Repeat</string>
+    <string name="event_reminder">Reminder</string>
+    <string name="countdown_to">Countdown to</string>
+
+    <!-- Tasks -->
+    <string name="add_task">Add Task</string>
+    <string name="task_title">Task Title</string>
+    <string name="mark_complete">Mark Complete</string>
+    <string name="due_date">Due Date</string>
+    <string name="assigned_to">Assigned To</string>
+    <string name="priority_high">High Priority</string>
+    <string name="priority_normal">Normal</string>
+
+    <!-- Lists -->
+    <string name="add_list">New List</string>
+    <string name="list_name">List Name</string>
+    <string name="add_item">Add Item</string>
+
+    <!-- Meals -->
+    <string name="meal_plan">Meal Plan</string>
+    <string name="add_meal">Add Meal</string>
+    <string name="breakfast">Breakfast</string>
+    <string name="lunch">Lunch</string>
+    <string name="dinner">Dinner</string>
+    <string name="snack">Snack</string>
+
+    <!-- People -->
+    <string name="add_person">Add Person</string>
+    <string name="person_name">Name</string>
+    <string name="person_color">Color</string>
+    <string name="person_initial">Initial</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_accounts">Calendar Accounts</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_sync">Sync Settings</string>
+    <string name="settings_launcher">Launcher Mode</string>
+    <string name="settings_advanced">Advanced</string>
+    <string name="settings_about">About OpenLight</string>
+    <string name="settings_dark_mode">Dark Mode</string>
+    <string name="settings_theme_color">Theme Color</string>
+    <string name="settings_font_size">Font Size</string>
+    <string name="settings_sync_interval">Sync Interval</string>
+    <string name="settings_parental_lock">Parental Lock</string>
+    <string name="settings_parental_lock_pin">Set PIN</string>
+    <string name="settings_first_day">First Day of Week</string>
+    <string name="settings_24hr">24-Hour Clock</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_default_reminder">Default Reminder</string>
+    <string name="settings_kiosk_mode">Kiosk / Launcher Mode</string>
+    <string name="settings_kiosk_desc">Lock device to OpenLight as the home screen</string>
+
+    <!-- Accounts -->
+    <string name="add_account">Add Account</string>
+    <string name="account_caldav">CalDAV Server</string>
+    <string name="account_google">Google Calendar (CalDAV)</string>
+    <string name="account_nextcloud">Nextcloud</string>
+    <string name="account_fastmail">Fastmail</string>
+    <string name="account_custom">Custom CalDAV</string>
+    <string name="account_server_url">Server URL</string>
+    <string name="account_username">Username / Email</string>
+    <string name="account_password">Password / App Password</string>
+    <string name="account_sync_now">Sync Now</string>
+    <string name="account_remove">Remove Account</string>
+    <string name="sync_success">Sync complete</string>
+    <string name="sync_error">Sync failed</string>
+    <string name="sync_in_progress">Syncing…</string>
+
+    <!-- General -->
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="edit">Edit</string>
+    <string name="done">Done</string>
+    <string name="today">Today</string>
+    <string name="tomorrow">Tomorrow</string>
+    <string name="no_events">No events</string>
+    <string name="no_tasks">No tasks</string>
+
+    <!-- About -->
+    <string name="about_version">Version</string>
+    <string name="about_license">License: GPL-3.0</string>
+    <string name="about_source">Source Code</string>
+    <string name="about_no_telemetry">Zero telemetry. No data collection. Ever.</string>
+</resources>
