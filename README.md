@@ -1,7 +1,8 @@
 # OpenLight — Open-Source Family Calendar
 
 **A privacy-first, open-source family calendar and task manager for Android 8+.**
-Inspired by Skylight Calendar. Zero telemetry. Fully CalDAV/VTODO compatible.
+
+CalDAV/VTODO sync. Material 3 adaptive design. Zero telemetry. GPL-3.0.
 
 ---
 
@@ -9,107 +10,73 @@ Inspired by Skylight Calendar. Zero telemetry. Fully CalDAV/VTODO compatible.
 
 | Feature | Details |
 |---|---|
-| **Calendar views** | Month, Week, Day, Agenda |
-| **Countdown timers** | Show "X days until…" widgets for special events |
-| **Tasks (VTODO)** | Full task management, synced via CalDAV |
-| **Checklists** | Color-coded shopping/to-do lists |
-| **Meal planner** | Weekly breakfast/lunch/dinner/snack grid |
-| **People** | Per-person color coding, all sizes 5.5"–14.5" |
-| **CalDAV sync** | Google, Fastmail, Nextcloud, iCloud, any CalDAV |
-| **Material 3** | Dynamic theming, light + dark mode |
-| **Launcher/Kiosk** | Lock device to OpenLight (tablet kiosk mode) |
-| **Parental PIN** | Restrict settings access |
-| **Zero telemetry** | No analytics, no crash reporters, no phone-home |
-| **F-Droid ready** | GPL-3.0, no proprietary SDKs |
+| **Calendar views** | Month, Week, Day, Agenda — adaptive to screen size |
+| **Tasks (VTODO)** | Full task management with priority, assignment, CalDAV sync |
+| **Countdown timers** | Show "X days until…" for special events |
+| **Checklists** | Color-coded shopping, to-do, grocery lists |
+| **Meal planner** | Weekly breakfast/lunch/dinner/snack grid per person |
+| **People** | Per-person color coding and task assignment |
+| **CalDAV sync** | Google Calendar, Fastmail, Nextcloud, iCloud, any CalDAV server |
+| **Delta sync** | CTag/ETag-based — only fetches what changed |
+| **Material 3** | Light + dark mode, seed color theming |
+| **Adaptive layout** | Bottom nav on phones, nav rail on tablets (5.5"–14.5") |
+| **Parental PIN** | Optional PIN to restrict settings access |
+| **Zero telemetry** | No analytics, no crash reporters, no network calls except to *your* CalDAV server |
+
+---
+
+## Privacy & Security
+
+OpenLight is designed for users who care about who has access to their family's data.
+
+| Property | Detail |
+|---|---|
+| **No telemetry** | Zero analytics SDKs. No Firebase. No crash reporters. No phone-home. |
+| **No Google Play Services** | No dependency on proprietary Google libraries. Works fully on de-Googled devices. |
+| **Network** | The only network requests are HTTP calls to your CalDAV server. Nothing else. |
+| **Password storage** | AES-256/GCM encryption backed by Android Keystore (hardware-backed on supported devices). Existing base64-stored passwords are transparently upgraded on first access. |
+| **Permissions** | Every permission has a documented purpose. No `REQUEST_INSTALL_PACKAGES` or other unnecessary permissions. |
+| **F-Droid compatible** | Single universal APK (no ABI split). No proprietary dependencies. GPL-3.0. |
+
+---
+
+## Screenshots
+
+<!-- Add screenshots here before F-Droid submission -->
 
 ---
 
 ## Requirements
 
-- **Android Studio** Hedgehog (2023.1.1) or newer
-- **JDK 17** (bundled with Android Studio)
-- **Android SDK** with API 34 platform
+- **JDK 17+**
+- **Android SDK** platform 34 + build-tools 34.0.0
+- **Gradle 8.7** (wrapped)
 
 ---
 
 ## Build Instructions
 
-### 1. Clone / unzip the project
-
 ```bash
-unzip OpenLight.zip -d OpenLight
-cd OpenLight
-```
-
-### 2. Open in Android Studio
-
-File → Open → select the `OpenLight` folder.
-Let Gradle sync finish (~2–5 minutes first time).
-
-### 3. Build debug APK
-
-```bash
+# Debug APK (unsigned)
 ./gradlew assembleDebug
+
+# APK location
+ls app/build/outputs/apk/debug/app-debug.apk
+
+# Install via ADB
+adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
-APK output: `app/build/outputs/apk/debug/app-debug.apk`
-
-### 4. Build release APK (for sideloading / F-Droid)
-
-First, create a signing keystore (one-time):
+For a signed release APK, create a keystore and add signing config to `app/build.gradle.kts`:
 
 ```bash
 keytool -genkey -v \
   -keystore openlight-release.jks \
   -alias openlight \
-  -keyalg RSA \
-  -keysize 2048 \
-  -validity 10000
+  -keyalg RSA -keysize 2048 -validity 10000
 ```
 
-Add signing config to `app/build.gradle.kts`:
-
-```kotlin
-signingConfigs {
-    create("release") {
-        storeFile     = file("../openlight-release.jks")
-        storePassword = "YOUR_STORE_PASS"
-        keyAlias      = "openlight"
-        keyPassword   = "YOUR_KEY_PASS"
-    }
-}
-buildTypes {
-    release {
-        signingConfig = signingConfigs.getByName("release")
-        ...
-    }
-}
-```
-
-Then build:
-
-```bash
-./gradlew assembleRelease
-```
-
-APK output: `app/build/outputs/apk/release/app-release.apk`
-
-### 5. Install on a device
-
-```bash
-adb install app/build/outputs/apk/debug/app-debug.apk
-```
-
----
-
-## Tablet Kiosk Setup (Android 12 tablets)
-
-1. Install OpenLight
-2. Open **Settings → Advanced → Kiosk / Launcher Mode** → toggle ON
-3. A system prompt will ask to set OpenLight as the **default home app**
-4. Optionally set a **Parental Lock PIN** to prevent kids accessing settings
-
-OpenLight intercepts the back button in kiosk mode to prevent leaving the app.
+Then build with `./gradlew assembleRelease`.
 
 ---
 
@@ -128,18 +95,7 @@ OpenLight intercepts the back button in kiosk mode to prevent leaving the app.
 
 **Nextcloud**: Settings → Security → Devices & Sessions → create an app token.
 
-**VTODO (Tasks)**: Any CalDAV server that supports the `VTODO` component will sync tasks automatically. This includes Nextcloud Tasks, Fastmail, and DAViCal.
-
----
-
-## Screen Size Compatibility
-
-| Screen Size | Layout |
-|---|---|
-| 5.5" – 6.7" (phones) | Bottom navigation bar |
-| 7" – 14.5" (tablets) | Left Navigation Rail |
-
-The layout switches automatically using Jetpack `WindowSizeClass`.
+**VTODO (Tasks)**: Any CalDAV server that supports the `VTODO` component will sync tasks automatically. Nextcloud Tasks, Fastmail, and DAViCal all support this.
 
 ---
 
@@ -149,47 +105,66 @@ The layout switches automatically using Jetpack `WindowSizeClass`.
 OpenLightApp (Application class)
 ├── data/
 │   ├── model/          Room entities (Person, CalendarEvent, Task, etc.)
-│   ├── db/             Room database + DAOs
-│   ├── repository/     Data access layer
-│   ├── preferences/    DataStore settings
-│   └── sync/           CalDAVClient, ICalParser, SyncWorker
+│   ├── db/             Room database + DAOs with singleton lifecycle
+│   ├── repository/     Data access layer for events, tasks, people, accounts
+│   ├── preferences/    DataStore settings + AES-256/GCM password encryption
+│   └── sync/           CalDAVClient (OkHttp), ICalParser, WorkManager sync worker
 └── ui/
-    ├── theme/          Material 3 theme
+    ├── theme/          Material 3 dynamic/seed theming
     ├── components/     Shared composables
-    ├── navigation/     Adaptive nav (Rail + BottomBar)
-    ├── viewmodel/      State holders
+    ├── navigation/     Adaptive nav rail / bottom bar via WindowSizeClass
+    ├── viewmodel/      State holders exposing StateFlow
     └── screens/
         ├── calendar/   Month/Week/Day/Agenda + EventEditDialog
         ├── tasks/      Task list + TaskEditDialog
         ├── lists/      Color-coded checklists
         ├── meals/      Weekly meal planner
         ├── people/     Person management with color picker
-        └── settings/   Full settings + AccountEditDialog
+        └── settings/   Account management, theme, PIN, sync controls
 ```
+
+### Key design decisions
+
+- **Manual DI** — No Hilt/Dagger. Keeps the APK small and avoids proprietary annotation processors.
+- **Single Room instance** — Both UI screens and background sync workers share one database connection.
+- **No destructive migrations** — Schema changes require explicit Room migrations. The app will not silently delete user data.
+- **Delta sync** — CalDAV CTag/ETag comparison determines what changed; only modified resources are fetched via REPORT multi-get.
 
 ---
 
-## Privacy Policy
+## Screen Size Compatibility
 
-**OpenLight collects zero data. Period.**
+| Screen Class | Width | Navigation |
+|---|---|---|
+| Compact (phones) | < 600dp | Bottom navigation bar |
+| Medium (small tablets) | 600–840dp | Navigation rail |
+| Expanded (large tablets) | > 840dp | Navigation rail |
 
-- No analytics SDK
-- No crash reporter
-- No network requests except to your own CalDAV server
-- No Google Play Services dependency
-- No Firebase
-- Passwords stored base64-encoded locally (upgrade path: Android Keystore)
+The layout adapts automatically via Jetpack `WindowSizeClass`.
+
+---
+
+## Background Sync
+
+OpenLight uses Android `WorkManager` for periodic CalDAV sync:
+
+- **Interval**: Every 30 minutes (configurable per account)
+- **Constraints**: Network connection required
+- **Backoff**: Exponential backoff starting at 5 minutes on failure
+- **Reboot**: Sync reschedules automatically after device restart
+- **Manual**: "Sync now" button in Settings triggers immediate one-shot sync
 
 ---
 
 ## License
 
 GPL-3.0 — Free and open source software.
-See [LICENSE](LICENSE) for full text.
+See [LICENSE](LICENSE) for the full text.
 
 ---
 
 ## Contributing
 
-PRs welcome. See `CONTRIBUTING.md`.
-Build passes on Android Studio Hedgehog / Gradle 8.7 / AGP 8.5.2.
+PRs welcome. Build passes on JDK 17, AGP 8.5.2, Kotlin 2.0.0.
+
+Code style: Standard Kotlin with 4-space indent. Compose UI follows Material 3 guidelines.

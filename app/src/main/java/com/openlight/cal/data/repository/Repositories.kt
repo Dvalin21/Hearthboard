@@ -1,8 +1,8 @@
 package com.openlight.cal.data.repository
 
-import android.util.Base64
 import com.openlight.cal.data.db.AppDatabase
 import com.openlight.cal.data.model.*
+import com.openlight.cal.data.preferences.EncryptedPassword
 import com.openlight.cal.data.sync.CalDAVClient
 import com.openlight.cal.data.sync.CalDAVSyncWorker
 import com.openlight.cal.data.sync.ICalParser
@@ -14,7 +14,10 @@ import java.time.*
 // ─────────────────────────────────────────────────────────────
 // Calendar Repository
 // ─────────────────────────────────────────────────────────────
-class CalendarRepository(private val db: AppDatabase) {
+class CalendarRepository(
+    private val db: AppDatabase,
+    private val encryptor: EncryptedPassword
+) {
 
     fun getEventsInRange(start: Long, end: Long): Flow<List<CalendarEvent>> =
         db.calendarEventDao().getInRangeFlow(start, end)
@@ -36,7 +39,7 @@ class CalendarRepository(private val db: AppDatabase) {
                     val ical = ICalParser.serializeEvent(saved)
                     val path = "${account.calendarPath.trimEnd('/')}/$uid.ics"
                     val client = CalDAVClient(account.serverUrl, account.username,
-                        String(Base64.decode(account.passwordEncrypted, Base64.DEFAULT)))
+                        encryptor.decrypt(account.passwordEncrypted))
                     val newEtag = client.putIcs(path, ical, if (event.etag.isBlank()) null else event.etag)
                     if (newEtag != null) {
                         db.calendarEventDao().insert(saved.copy(etag = newEtag, calendarPath = path))
@@ -53,7 +56,7 @@ class CalendarRepository(private val db: AppDatabase) {
             if (event.calendarPath.isNotBlank() && event.accountId > 0) {
                 val account = db.calendarAccountDao().getById(event.accountId) ?: return@withContext
                 val client  = CalDAVClient(account.serverUrl, account.username,
-                    String(Base64.decode(account.passwordEncrypted, Base64.DEFAULT)))
+                    encryptor.decrypt(account.passwordEncrypted))
                 client.deleteIcs(event.calendarPath, event.etag.ifBlank { null })
             }
         }
@@ -71,7 +74,10 @@ class CalendarRepository(private val db: AppDatabase) {
 // ─────────────────────────────────────────────────────────────
 // Task Repository
 // ─────────────────────────────────────────────────────────────
-class TaskRepository(private val db: AppDatabase) {
+class TaskRepository(
+    private val db: AppDatabase,
+    private val encryptor: EncryptedPassword
+) {
 
     fun getAllTasksFlow(): Flow<List<Task>> = db.taskDao().getAllFlow()
     fun getActiveFlow(): Flow<List<Task>>   = db.taskDao().getActiveFlow()
@@ -90,7 +96,7 @@ class TaskRepository(private val db: AppDatabase) {
                     val ical   = ICalParser.serializeTask(saved)
                     val path   = "${account.calendarPath.trimEnd('/')}/$uid.ics"
                     val client = CalDAVClient(account.serverUrl, account.username,
-                        String(Base64.decode(account.passwordEncrypted, Base64.DEFAULT)))
+                        encryptor.decrypt(account.passwordEncrypted))
                     val newEtag = client.putIcs(path, ical, if (task.etag.isBlank()) null else task.etag)
                     if (newEtag != null) {
                         db.taskDao().insert(saved.copy(etag = newEtag, calendarPath = path))
@@ -112,7 +118,7 @@ class TaskRepository(private val db: AppDatabase) {
             if (task.calendarPath.isNotBlank() && task.accountId > 0) {
                 val account = db.calendarAccountDao().getById(task.accountId) ?: return@withContext
                 val client  = CalDAVClient(account.serverUrl, account.username,
-                    String(Base64.decode(account.passwordEncrypted, Base64.DEFAULT)))
+                    encryptor.decrypt(account.passwordEncrypted))
                 client.deleteIcs(task.calendarPath, task.etag.ifBlank { null })
             }
         }
@@ -144,7 +150,10 @@ class PersonRepository(private val db: AppDatabase) {
 // ─────────────────────────────────────────────────────────────
 // Account Repository
 // ─────────────────────────────────────────────────────────────
-class AccountRepository(private val db: AppDatabase) {
+class AccountRepository(
+    private val db: AppDatabase,
+    private val encryptor: EncryptedPassword
+) {
 
     fun getAllFlow(): Flow<List<CalendarAccount>> = db.calendarAccountDao().getAllFlow()
 

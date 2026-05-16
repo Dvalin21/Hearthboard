@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.openlight.cal.ui.screens.settings
 
 import android.content.Context
@@ -250,7 +252,7 @@ fun SettingsScreen(
             subtitle = "GPL-3.0 — Free & open source",
             onClick  = {
                 context.startActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/openlight/openlight"))
+                    Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Dvalin21/OpenLight"))
                 )
             }
         )
@@ -538,7 +540,7 @@ fun AccountEditDialog(
                 label         = { Text("Account name") },
                 modifier      = Modifier.fillMaxWidth(),
                 singleLine    = true,
-                leadingIcon   = { Icon(Icons.Default.Label, null) }
+                leadingIcon = { Icon(Icons.Default.Label, null) }
             )
             Spacer(Modifier.height(10.dp))
 

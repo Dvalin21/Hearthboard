@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.openlight.cal.ui.screens.tasks
 
 import androidx.compose.foundation.layout.*
@@ -193,7 +195,7 @@ fun TaskEditDialog(
                 onValueChange = { description = it },
                 label         = { Text("Notes (optional)") },
                 modifier      = Modifier.fillMaxWidth().height(80.dp),
-                leadingIcon   = { Icon(Icons.Default.Notes, null) }
+                leadingIcon = { Icon(Icons.Default.Notes, null) }
             )
 
             Spacer(Modifier.height(12.dp))

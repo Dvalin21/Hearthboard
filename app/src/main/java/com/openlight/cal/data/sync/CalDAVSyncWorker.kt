@@ -1,12 +1,13 @@
 package com.openlight.cal.data.sync
 
 import android.content.Context
-import android.util.Base64
 import android.util.Log
 import androidx.work.*
 import com.openlight.cal.data.db.AppDatabase
 import com.openlight.cal.data.model.CalendarAccount
 import com.openlight.cal.data.model.CalendarEvent
+import com.openlight.cal.data.model.Task
+import com.openlight.cal.data.preferences.EncryptedPassword
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
@@ -60,7 +61,7 @@ class CalDAVSyncWorker(
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val db          = AppDatabase.getInstance(applicationContext)
         val accountId   = inputData.getLong(KEY_ACCOUNT_ID, -1L)
-        val accounts    = if (accountId == -1L) {
+        val accounts: List<CalendarAccount> = if (accountId == -1L) {
             db.calendarAccountDao().getAll().filter { it.enabled }
         } else {
             listOfNotNull(db.calendarAccountDao().getById(accountId))
@@ -83,8 +84,9 @@ class CalDAVSyncWorker(
     }
 
     private suspend fun syncAccount(account: CalendarAccount, db: AppDatabase) {
-        val pass   = decodePassword(account.passwordEncrypted)
-        val client = CalDAVClient(account.serverUrl, account.username, pass)
+        val encryptor = EncryptedPassword(applicationContext)
+        val pass      = encryptor.decrypt(account.passwordEncrypted)
+        val client    = CalDAVClient(account.serverUrl, account.username, pass)
 
         // If calendar path not discovered yet, discover it
         val path = account.calendarPath.ifBlank {
@@ -100,18 +102,17 @@ class CalDAVSyncWorker(
         }
 
         // Get server ETag list
-        val serverEtags = client.getETagList(path)
-        val localEvents = db.calendarEventDao().getByAccount(account.id)
-        val localByHref = localEvents.associateBy { it.calendarPath }
-        val localTasks  = db.taskDao().run {
-            // Get tasks by account (using listId=accountId as workaround)
-            emptyList<com.openlight.cal.data.model.Task>()  // fetched below via VTODO
-        }
+        val serverEtags  = client.getETagList(path)
+        val localEvents  = db.calendarEventDao().getByAccount(account.id)
+        val localByHref  = localEvents.associateBy { it.calendarPath }
+        val localTasks   = db.taskDao().getByAccount(account.id)
+        val localTasksByHref = localTasks.associateBy { it.calendarPath }
 
-        // Find new/changed items
+        // Find new/changed items — fetch if no local resource matches the etag
         val toFetch = serverEtags.filter { (href, etag) ->
-            val local = localByHref[href]
-            local == null || local.etag != etag
+            val eventMatch = localByHref[href]?.etag == etag
+            val taskMatch  = localTasksByHref[href]?.etag == etag
+            !eventMatch && !taskMatch
         }.map { it.href }
 
         // Multi-get changed items
@@ -147,7 +148,7 @@ class CalDAVSyncWorker(
             }
         }
 
-        // Delete items removed from server
+        // Delete events removed from server
         val serverHrefs = serverEtags.map { it.href }.toSet()
         for (event in localEvents) {
             if (event.calendarPath !in serverHrefs && event.calendarPath.isNotBlank()) {
@@ -155,17 +156,16 @@ class CalDAVSyncWorker(
             }
         }
 
+        // Delete tasks removed from server
+        for (task in localTasks) {
+            if (task.calendarPath !in serverHrefs && task.calendarPath.isNotBlank()) {
+                db.taskDao().delete(task)
+            }
+        }
+
         // Update ctag
         if (newCtag.isNotBlank()) {
             db.calendarAccountDao().update(account.copy(ctag = newCtag, calendarPath = path))
-        }
-    }
-
-    private fun decodePassword(encoded: String): String {
-        return try {
-            String(Base64.decode(encoded, Base64.DEFAULT))
-        } catch (e: Exception) {
-            encoded
         }
     }
 }

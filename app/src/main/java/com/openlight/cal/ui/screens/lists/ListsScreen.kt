@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.openlight.cal.ui.screens.lists
 
 import androidx.compose.animation.*

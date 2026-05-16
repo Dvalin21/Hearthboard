@@ -1,7 +1,11 @@
+@file:Suppress("DEPRECATION")
+
 package com.openlight.cal.ui.screens.calendar
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -15,7 +19,7 @@ import com.openlight.cal.data.model.CalendarEvent
 import com.openlight.cal.data.model.Person
 import com.openlight.cal.ui.components.ColorPickerGrid
 import com.openlight.cal.ui.components.PersonChip
-import com.openlight.cal.ui.sync.ICalParser
+import com.openlight.cal.data.sync.ICalParser
 import java.time.*
 import java.time.format.DateTimeFormatter
 
@@ -61,6 +65,9 @@ fun EventEditDialog(
     var showColorPicker   by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var titleError        by remember { mutableStateOf(false) }
+
+    // ── Interactive date/time picker state ────────────────────
+    var activePicker by remember { mutableStateOf<PickerTarget?>(null) }
 
     val dateFmt = DateTimeFormatter.ofPattern("MMM d, yyyy")
     val timeFmt = DateTimeFormatter.ofPattern("h:mm a")
@@ -144,24 +151,46 @@ fun EventEditDialog(
 
             Spacer(Modifier.height(8.dp))
 
-            // Start date/time
+            // Start date/time (interactive pickers)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedCard(modifier = Modifier.weight(1f), onClick = {}) {
+                OutlinedCard(
+                    modifier = Modifier.weight(1f),
+                    onClick  = { activePicker = PickerTarget.START_DATE }
+                ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text("Start", style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary)
                         Text(startDate.format(dateFmt), style = MaterialTheme.typography.bodyMedium)
-                        if (!isAllDay) Text(startTime.format(timeFmt), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (!isAllDay) {
+                            OutlinedCard(
+                                onClick = { activePicker = PickerTarget.START_TIME },
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                Text(startTime.format(timeFmt), style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                            }
+                        }
                     }
                 }
-                OutlinedCard(modifier = Modifier.weight(1f), onClick = {}) {
+                OutlinedCard(
+                    modifier = Modifier.weight(1f),
+                    onClick  = { activePicker = PickerTarget.END_DATE }
+                ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text("End", style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary)
                         Text(endDate.format(dateFmt), style = MaterialTheme.typography.bodyMedium)
-                        if (!isAllDay) Text(endTime.format(timeFmt), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (!isAllDay) {
+                            OutlinedCard(
+                                onClick = { activePicker = PickerTarget.END_TIME },
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                Text(endTime.format(timeFmt), style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                            }
+                        }
                     }
                 }
             }
@@ -186,7 +215,7 @@ fun EventEditDialog(
                 onValueChange = { description = it },
                 label         = { Text("Notes (optional)") },
                 modifier      = Modifier.fillMaxWidth().height(100.dp),
-                leadingIcon   = { Icon(Icons.Default.Notes, null) }
+                leadingIcon = { Icon(Icons.Default.Notes, null) }
             )
 
             Spacer(Modifier.height(12.dp))
@@ -230,7 +259,7 @@ fun EventEditDialog(
                     if (c != null) {
                         Box(modifier = Modifier
                             .size(24.dp)
-                            .background(c, androidx.compose.foundation.shape.CircleShape)
+                            .background(c, CircleShape)
                         )
                     }
                 }
@@ -302,6 +331,31 @@ fun EventEditDialog(
         }
     }
 
+    // ── Date/time picker dialogs ──────────────────────────────
+    when (activePicker) {
+        PickerTarget.START_DATE -> DatePickerAlert(
+            currentDate  = startDate,
+            onDateSelected = { startDate = it },
+            onDismiss    = { activePicker = null }
+        )
+        PickerTarget.END_DATE -> DatePickerAlert(
+            currentDate  = endDate,
+            onDateSelected = { endDate = it },
+            onDismiss    = { activePicker = null }
+        )
+        PickerTarget.START_TIME -> TimePickerAlert(
+            currentTime   = startTime,
+            onTimeSelected = { startTime = it },
+            onDismiss     = { activePicker = null }
+        )
+        PickerTarget.END_TIME -> TimePickerAlert(
+            currentTime   = endTime,
+            onTimeSelected = { endTime = it },
+            onDismiss     = { activePicker = null }
+        )
+        null -> { /* no picker visible */ }
+    }
+
     if (showDeleteConfirm && event != null) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
@@ -315,6 +369,76 @@ fun EventEditDialog(
             dismissButton    = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") } }
         )
     }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Picker targets
+// ─────────────────────────────────────────────────────────────
+private enum class PickerTarget { START_DATE, START_TIME, END_DATE, END_TIME }
+
+// ─────────────────────────────────────────────────────────────
+// Date Picker Dialog wrapper
+// ─────────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DatePickerAlert(
+    currentDate: LocalDate,
+    onDateSelected: (LocalDate) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val initialMillis = currentDate
+        .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val state = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+
+    androidx.compose.material3.DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                state.selectedDateMillis?.let { millis ->
+                    onDateSelected(Instant.ofEpochMilli(millis)
+                        .atZone(ZoneId.systemDefault()).toLocalDate())
+                }
+                onDismiss()
+            }) { Text("OK") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    ) {
+        DatePicker(state = state)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Time Picker Dialog wrapper
+// ─────────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimePickerAlert(
+    currentTime: LocalTime,
+    onTimeSelected: (LocalTime) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val state = rememberTimePickerState(
+        initialHour   = currentTime.hour,
+        initialMinute = currentTime.minute,
+        is24Hour      = false
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title    = { Text("Select time") },
+        text     = { TimePicker(state = state) },
+        confirmButton = {
+            TextButton(onClick = {
+                onTimeSelected(LocalTime.of(state.hour, state.minute))
+                onDismiss()
+            }) { Text("OK") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 // Shim to let EventEditDialog use ICalParser.generateUid without full import path collision

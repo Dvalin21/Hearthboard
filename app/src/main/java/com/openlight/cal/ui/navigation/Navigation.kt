@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.openlight.cal.ui.navigation
 
 import androidx.compose.foundation.layout.*
@@ -35,7 +37,7 @@ sealed class Screen(
 ) {
     object Calendar : Screen("calendar", "Calendar",  Icons.Filled.CalendarMonth,   Icons.Outlined.CalendarMonth)
     object Tasks    : Screen("tasks",    "Tasks",     Icons.Filled.CheckCircle,      Icons.Outlined.CheckCircle)
-    object Lists    : Screen("lists",    "Lists",     Icons.Filled.List,             Icons.Outlined.List)
+    object Lists    : Screen("lists",    "Lists",     Icons.Filled.List,               Icons.Outlined.List)
     object Meals    : Screen("meals",    "Meals",     Icons.Filled.Restaurant,       Icons.Outlined.Restaurant)
     object People   : Screen("people",   "People",    Icons.Filled.Group,            Icons.Outlined.Group)
     object Settings : Screen("settings", "Settings",  Icons.Filled.Settings,         Icons.Outlined.Settings)
@@ -66,7 +68,8 @@ fun OpenLightNavHost(app: OpenLightApp) {
     val adaptiveInfo = currentWindowAdaptiveInfo()
     val useNavRail   = adaptiveInfo.windowSizeClass.windowWidthSizeClass != WindowWidthSizeClass.COMPACT
 
-    val mainNav: @Composable RowScope.(Modifier) -> Unit = { mod ->
+    @Composable
+    fun MainNav(mod: Modifier) {
         NavHost(
             navController    = navController,
             startDestination = Screen.Calendar.route,
@@ -127,7 +130,7 @@ fun OpenLightNavHost(app: OpenLightApp) {
                 }
                 Spacer(Modifier.weight(1f))
             }
-            mainNav(Modifier.weight(1f))
+            MainNav(Modifier.weight(1f))
         }
     }
     // ── Phone / small screen: BottomNav ───────────────────────
@@ -159,7 +162,7 @@ fun OpenLightNavHost(app: OpenLightApp) {
             }
         ) { padding ->
             Box(modifier = Modifier.padding(padding)) {
-                mainNav(Modifier.fillMaxSize())
+                MainNav(Modifier.fillMaxSize())
             }
         }
     }

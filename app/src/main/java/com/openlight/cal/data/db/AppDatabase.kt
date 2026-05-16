@@ -1,5 +1,6 @@
 package com.openlight.cal.data.db
 
+import android.content.Context
 import androidx.room.*
 import com.openlight.cal.data.db.dao.*
 import com.openlight.cal.data.model.*
@@ -25,6 +26,22 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun checkListDao(): CheckListDao
     abstract fun mealPlanDao(): MealPlanDao
+
+    companion object {
+        @Volatile private var INSTANCE: AppDatabase? = null
+
+        fun getInstance(context: Context): AppDatabase {
+            return INSTANCE ?: synchronized(this) {
+                Room.databaseBuilder(
+                    context.applicationContext,
+                    AppDatabase::class.java,
+                    "openlight.db"
+                )
+                    .build()
+                    .also { INSTANCE = it }
+            }
+        }
+    }
 }
 
 class Converters {

@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -89,9 +90,15 @@ val OpenLightTypography = Typography(
 fun OpenLightTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,   // disable dynamic color — we use seeded M3
+    seedColor: Color? = null,        // user-chosen theme seed from settings
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
+        seedColor != null -> {
+            // Apply user-chosen seed as primary accent in the base scheme
+            val base = if (darkTheme) DarkColorScheme else LightColorScheme
+            base.copy(primary = seedColor)
+        }
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             // Dynamic color disabled intentionally — full user control via settings
             if (darkTheme) DarkColorScheme else LightColorScheme

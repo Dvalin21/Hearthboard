@@ -1,13 +1,14 @@
 package com.openlight.cal.ui.viewmodel
 
 import android.app.Application
-import android.util.Base64
 import androidx.lifecycle.*
 import com.openlight.cal.OpenLightApp
 import com.openlight.cal.data.model.*
 import com.openlight.cal.data.preferences.AppPreferences
+import com.openlight.cal.data.preferences.EncryptedPassword
 import com.openlight.cal.data.repository.*
 import com.openlight.cal.data.sync.CalDAVSyncWorker
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.*
@@ -31,6 +32,7 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
     private val _editEvent = MutableStateFlow<CalendarEvent?>(null)
     val editEvent: StateFlow<CalendarEvent?> = _editEvent
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val eventsThisMonth: StateFlow<List<CalendarEvent>> = _selectedDate
         .flatMapLatest { date ->
             val (start, end) = repo.getMonthRange(date.year, date.monthValue)
@@ -92,7 +94,7 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
 class TaskViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo    = (app as OpenLightApp).taskRepository
-    private val personR = app.personRepository
+    private val personR = (app as OpenLightApp).personRepository
 
     val activeTasks: StateFlow<List<Task>> = repo.getActiveFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -155,7 +157,7 @@ class PersonViewModel(app: Application) : AndroidViewModel(app) {
 class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     private val prefs  = (app as OpenLightApp).preferences
-    private val accR   = app.accountRepository
+    private val accR   = (app as OpenLightApp).accountRepository
 
     val darkMode       = prefs.darkMode.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
     val themeSeedColor = prefs.themeSeedColor.stateIn(viewModelScope, SharingStarted.Eagerly, "#2196F3")
@@ -199,7 +201,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun encodePassword(raw: String): String =
-        Base64.encodeToString(raw.toByteArray(), Base64.DEFAULT)
+        EncryptedPassword(getApplication()).encrypt(raw)
 
     suspend fun testConnection(url: String, user: String, pass: String) =
         accR.testConnection(url, user, pass)

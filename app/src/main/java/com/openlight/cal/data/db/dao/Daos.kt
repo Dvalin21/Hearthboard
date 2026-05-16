@@ -122,6 +122,9 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE uid = :uid AND accountId = :accountId LIMIT 1")
     suspend fun getByUid(uid: String, accountId: Long): Task?
 
+    @Query("SELECT * FROM tasks WHERE accountId = :accountId")
+    suspend fun getByAccount(accountId: Long): List<Task>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(task: Task): Long
 

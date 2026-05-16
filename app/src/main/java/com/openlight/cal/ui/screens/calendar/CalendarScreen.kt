@@ -393,15 +393,15 @@ fun WeekView(
                             .atZone(ZoneId.systemDefault()).hour
                         val startMin  = Instant.ofEpochMilli(event.startMs)
                             .atZone(ZoneId.systemDefault()).minute
-                        val durationMin = ((event.endMs - event.startMs) / 60_000).coerceAtLeast(30)
+                        val durationMin = ((event.endMs - event.startMs) / 60_000).coerceAtLeast(30L)
                         val topOffset   = (startHour * 60 + startMin).dp
-                        val height      = (durationMin).coerceAtMost(120).dp
+                        val heightDp    = (durationMin.toInt()).coerceAtMost(120).dp
 
                         val color = eventColor(event, people)
                         Box(
                             modifier = Modifier
                                 .offset(y = topOffset)
-                                .height(height)
+                                .height(heightDp)
                                 .fillMaxWidth()
                                 .padding(1.dp)
                                 .clip(RoundedCornerShape(4.dp))
@@ -477,7 +477,7 @@ fun DayView(
                 timed.forEach { event ->
                     val startZdt = Instant.ofEpochMilli(event.startMs).atZone(ZoneId.systemDefault())
                     val topOffset = (startZdt.hour * 60 + startZdt.minute).dp
-                    val duration  = ((event.endMs - event.startMs) / 60_000).coerceAtLeast(30).dp
+                    val duration  = (((event.endMs - event.startMs) / 60_000).coerceAtLeast(30L).toInt()).dp
                     val color     = eventColor(event, people)
                     Box(
                         modifier = Modifier
