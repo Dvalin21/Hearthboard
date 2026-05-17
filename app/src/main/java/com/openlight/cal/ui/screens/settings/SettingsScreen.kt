@@ -260,7 +260,7 @@ fun SettingsScreen(
         SettingsClickRow(
             icon     = Icons.Default.AppSettingsAlt,
             title    = "Version",
-            subtitle = "OpenLight 1.0.0",
+            subtitle = "OpenLight 1.0.0-alpha",
             onClick  = {}
         )
 
