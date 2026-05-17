@@ -177,50 +177,58 @@ class CalDAVClient(
 
     // ─────────────────────────────────────────────────────────
     // Multi-get: fetch multiple .ics at once (RFC 4791 §7.9)
-    // ─────────────────────────────────────────────────────────
-    // Fetch ALL events from calendar using calendar-query REPORT
-    // This is more reliable than ETag list + multiget for some servers
+// ─────────────────────────────────────────────────────────
+    // Fetch ALL events from calendar using PROPFIND for .ics files + individual GETs
+    // This is what works with SOGo - calendar-query REPORT is buggy
     fun fetchAllEvents(calendarPath: String): List<IcsResource> {
         val url = buildUrl(calendarPath)
         val xml = """
             <?xml version="1.0" encoding="utf-8"?>
-            <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
-              <D:prop>
-                <D:getetag/>
-                <C:calendar-data/>
-              </D:prop>
-              <C:filter>
-                <C:comp-filter name="VCALENDAR">
-                  <C:comp-filter name="VEVENT"/>
-                </C:comp-filter>
-              </C:filter>
-            </C:calendar-query>
+            <D:propfind xmlns:D="DAV:">
+              <D:prop><D:href/></D:prop>
+            </D:propfind>
         """.trimIndent()
-
+        
         return try {
+            // Use PROPFIND depth=1 to get all resource URLs in calendar
             val req = Request.Builder()
                 .url(url)
-                .method("REPORT", xml.toRequestBody(XML_MEDIA_TYPE))
+                .method("PROPFIND", xml.toRequestBody(XML_MEDIA_TYPE))
                 .header("Depth", "1")
                 .build()
-            Log.d(TAG, "Fetching all events with calendar-query REPORT")
+            Log.d(TAG, "PROPFIND for .ics files at: $url")
+            
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) {
-                    Log.e(TAG, "calendar-query failed: ${resp.code} ${resp.message}")
+                    Log.e(TAG, "PROPFIND failed: ${resp.code} ${resp.message}")
                     return emptyList()
                 }
+                
                 val body = resp.body?.string() ?: return emptyList()
-                Log.d(TAG, "calendar-query response (first 500 chars): ${body.take(500)}")
-                val blocks = body.split("<D:response>").drop(1)
-                Log.d(TAG, "Found ${blocks.size} events in calendar-query")
-                blocks.mapNotNull { block ->
-                    val href  = extractXml(block, "D:href") ?: extractXml(block, "href")
-                    val etag  = extractXml(block, "D:getetag")?.trim('"') ?: extractXml(block, "getetag")?.trim('"') ?: ""
-                    val ical  = extractXml(block, "C:calendar-data") ?: return@mapNotNull null
-                    if (href != null && ical.isNotBlank()) {
-                        IcsResource(href, etag, ical)
-                    } else null
+                Log.d(TAG, "PROPFIND response (first 800 chars): ${body.take(800)}")
+                
+                // Parse all hrefs from response - look for .ics files
+                val hrefs = mutableListOf<String>()
+                val responseBlocks = body.split("<D:response>").drop(1)
+                Log.d(TAG, "PROPFIND returned ${responseBlocks.size} response blocks")
+                
+                for (block in responseBlocks) {
+                    val href = extractXml(block, "D:href") ?: extractXml(block, "href")
+                    if (href != null && href.endsWith(".ics")) {
+                        hrefs.add(href)
+                        Log.d(TAG, "Found .ics file: $href")
+                    }
                 }
+                
+                Log.d(TAG, "Found ${hrefs.size} .ics files")
+                
+                // Now fetch each .ics file individually - this is what works with SOGo
+                val resources = mutableListOf<IcsResource>()
+                for (href in hrefs) {
+                    fetchIcs(href)?.let { resources.add(it) }
+                }
+                
+                resources
             }
         } catch (e: Exception) {
             Log.e(TAG, "fetchAllEvents failed: ${e.message}")

@@ -115,36 +115,31 @@ class CalDAVSyncWorker(
             !eventMatch && !taskMatch
         }.map { it.href }
 
-        // Multi-get changed items
-        if (toFetch.isNotEmpty()) {
-            val chunks = toFetch.chunked(50)
-            for (chunk in chunks) {
-                val resources = client.multiGet(path, chunk)
-                for (res in resources) {
-                    val parsed = ICalParser.parse(res.ical, account.id, res.href)
-                    // Upsert events
-                    for (event in parsed.events) {
-                        val existing = db.calendarEventDao().getByUid(event.uid, account.id)
-                        db.calendarEventDao().insert(
-                            event.copy(
-                                id           = existing?.id ?: 0,
-                                etag         = res.etag,
-                                calendarPath = res.href
-                            )
-                        )
-                    }
-                    // Upsert tasks
-                    for (task in parsed.tasks) {
-                        val existing = db.taskDao().getByUid(task.uid, account.id)
-                        db.taskDao().insert(
-                            task.copy(
-                                id           = existing?.id ?: 0,
-                                etag         = res.etag,
-                                calendarPath = res.href
-                            )
-                        )
-                    }
-                }
+        // Fetch changed items via individual GET (not multiGet REPORT - SOGo returns 501)
+        for (href in toFetch) {
+            val res = client.fetchIcs(href) ?: continue
+            val parsed = ICalParser.parse(res.ical, account.id, res.href)
+            // Upsert events
+            for (event in parsed.events) {
+                val existing = db.calendarEventDao().getByUid(event.uid, account.id)
+                db.calendarEventDao().insert(
+                    event.copy(
+                        id           = existing?.id ?: 0,
+                        etag         = res.etag,
+                        calendarPath = res.href
+                    )
+                )
+            }
+            // Upsert tasks
+            for (task in parsed.tasks) {
+                val existing = db.taskDao().getByUid(task.uid, account.id)
+                db.taskDao().insert(
+                    task.copy(
+                        id           = existing?.id ?: 0,
+                        etag         = res.etag,
+                        calendarPath = res.href
+                    )
+                )
             }
         }
 
