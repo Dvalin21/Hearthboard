@@ -272,9 +272,11 @@ fun SettingsScreen(
         AccountEditDialog(
             account   = null,
             onSave    = { account ->
-                viewModel.saveAccount(account)
-                viewModel.syncNow(context)
-                showAddAccount = false
+                scope.launch {
+                    viewModel.saveAccountSync(account)
+                    viewModel.syncNow(context)
+                    showAddAccount = false
+                }
             },
             onDismiss = { showAddAccount = false },
             encodePassword = viewModel::encodePassword
@@ -285,8 +287,10 @@ fun SettingsScreen(
         AccountEditDialog(
             account   = acc,
             onSave    = { updated ->
-                viewModel.saveAccount(updated)
-                editAccount = null
+                scope.launch {
+                    viewModel.saveAccountSync(updated)
+                    editAccount = null
+                }
             },
             onDismiss = { editAccount = null },
             encodePassword = viewModel::encodePassword

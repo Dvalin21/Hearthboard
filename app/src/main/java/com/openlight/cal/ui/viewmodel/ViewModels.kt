@@ -187,6 +187,10 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setDefaultView(v: String)      = viewModelScope.launch { prefs.set(AppPreferences.KEY_DEFAULT_VIEW, v) }
     fun setShowWeekends(v: Boolean)    = viewModelScope.launch { prefs.set(AppPreferences.KEY_SHOW_WEEKENDS, v) }
 
+    suspend fun saveAccountSync(account: CalendarAccount) {
+        accR.save(account)
+    }
+
     fun saveAccount(account: CalendarAccount) {
         viewModelScope.launch { accR.save(account) }
     }

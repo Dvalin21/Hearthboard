@@ -63,6 +63,7 @@ fun OpenLightNavHost(app: OpenLightApp) {
     val accounts by settingsVm.accounts.collectAsState()
     val showAddEvent by calVm.showAddEvent.collectAsState()
     val editEvent    by calVm.editEvent.collectAsState()
+    val selectedDate by calVm.selectedDate.collectAsState()
 
     // ── Adaptive layout ───────────────────────────────────────
     val adaptiveInfo = currentWindowAdaptiveInfo()
@@ -173,7 +174,7 @@ fun OpenLightNavHost(app: OpenLightApp) {
             event            = editEvent,
             people           = people,
             accounts         = accounts,
-            preselectedDate  = calVm.selectedDate.value,
+            preselectedDate  = selectedDate,
             onSave           = { event, accountId ->
                 calVm.saveEvent(event, accountId)
             },
