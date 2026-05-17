@@ -11,6 +11,7 @@ import com.openlight.cal.data.preferences.EncryptedPassword
 import com.openlight.cal.data.repository.*
 import com.openlight.cal.data.sync.CalDAVClient
 import com.openlight.cal.data.sync.CalDAVSyncWorker
+import com.openlight.cal.data.sync.ICalParser
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -230,6 +231,8 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
             var successCount = 0
             var failCount = 0
+            var eventsImported = 0
+            var tasksImported = 0
             var lastError = ""
 
             for (account in accounts) {
@@ -237,19 +240,76 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                     val pass = encryptor.decrypt(account.passwordEncrypted)
                     val client = CalDAVClient(account.serverUrl, account.username, pass)
 
-                    // Try to discover calendars - this will fail fast with bad credentials
+                    // Step 1: Discover calendars - this will fail fast with bad credentials
                     val cals = client.discoverCalendars()
                     if (cals.isEmpty()) {
                         failCount++
-                        lastError = "No calendars found on server"
+                        lastError = "No calendars found - check server URL and credentials"
                         continue
                     }
 
-                    // For now just mark as synced - full event sync would go here
+                    // Step 2: Get the first calendar path (or let user specify)
+                    val calendarPath = account.calendarPath.ifBlank { cals.first().path }
+                    
+                    // Step 3: Get server ETags to find what needs syncing
+                    val serverEtags = client.getETagList(calendarPath)
+                    if (serverEtags.isEmpty()) {
+                        // Calendar exists but is empty - that's fine
+                        Log.d("SyncDirect", "Calendar is empty for ${account.displayName}")
+                    } else {
+                        // Step 4: Fetch new/changed items via multiget
+                        val localEvents = db.calendarEventDao().getByAccount(account.id)
+                        val localTasks = db.taskDao().getByAccount(account.id)
+                        val localEventPaths = localEvents.associateBy { it.calendarPath }
+                        val localTaskPaths = localTasks.associateBy { it.calendarPath }
+
+                        // Find items we don't have or that have changed
+                        val toFetch = serverEtags.filter { (href, etag) ->
+                            val eventMatch = localEventPaths[href]?.etag == etag
+                            val taskMatch = localTaskPaths[href]?.etag == etag
+                            !eventMatch && !taskMatch
+                        }.map { it.href }
+
+                        if (toFetch.isNotEmpty()) {
+                            // Fetch in chunks
+                            val chunks = toFetch.chunked(50)
+                            for (chunk in chunks) {
+                                val resources = client.multiGet(calendarPath, chunk)
+                                for (res in resources) {
+                                    val parsed = ICalParser.parse(res.ical, account.id, res.href)
+                                    
+                                    // Insert events
+                                    for (event in parsed.events) {
+                                        val existing = db.calendarEventDao().getByUid(event.uid, account.id)
+                                        db.calendarEventDao().insert(
+                                            event.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href)
+                                        )
+                                        eventsImported++
+                                    }
+                                    
+                                    // Insert tasks
+                                    for (task in parsed.tasks) {
+                                        val existing = db.taskDao().getByUid(task.uid, account.id)
+                                        db.taskDao().insert(
+                                            task.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href)
+                                        )
+                                        tasksImported++
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Step 5: Update account with sync timestamp and discovered path
                     db.calendarAccountDao().update(
-                        account.copy(lastSyncMs = System.currentTimeMillis())
+                        account.copy(
+                            lastSyncMs = System.currentTimeMillis(),
+                            calendarPath = calendarPath
+                        )
                     )
                     successCount++
+                    Log.i("SyncDirect", "Synced ${account.displayName}: $eventsImported events, $tasksImported tasks")
+
                 } catch (e: Exception) {
                     Log.e("SyncDirect", "Failed for ${account.displayName}: ${e.message}")
                     failCount++
@@ -258,7 +318,13 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             when {
-                successCount > 0 && failCount == 0 -> "Sync complete: $successCount account(s)"
+                successCount > 0 && failCount == 0 -> {
+                    if (eventsImported == 0 && tasksImported == 0) {
+                        "Sync complete: connected to $successCount account(s), no new events"
+                    } else {
+                        "Sync complete: $eventsImported events, $tasksImported tasks imported"
+                    }
+                }
                 successCount > 0 && failCount > 0 -> "Partially synced: $successCount ok, $failCount failed"
                 failCount > 0 -> "Sync failed: $lastError"
                 else -> "Sync failed: check credentials and server URL"

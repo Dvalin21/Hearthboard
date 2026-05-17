@@ -13,7 +13,7 @@ data class Person(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val colorHex: String,           // e.g. "#4CAF50" – user-modifiable
-    val initial: String = name.take(1).uppercase(),
+    val initial: String = name.firstOrNull()?.uppercase() ?: "?",
     val isDefault: Boolean = false, // "Everyone" / unassigned slot
     val sortOrder: Int = 0
 )

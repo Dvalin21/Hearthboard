@@ -293,14 +293,30 @@ class CalDAVClient(
 
     private fun extractXml(xml: String, tag: String): String? {
         // Handle both prefixed and local tags
-        val patterns = listOf(
-            Regex("<$tag[^>]*>([^<]+)</$tag>", RegexOption.IGNORE_CASE),
-            Regex("<${tag.substringAfter(':')}[^>]*>([^<]+)</${tag.substringAfter(':')}>", RegexOption.IGNORE_CASE)
-        )
+        // Examples: <D:href>/path</D:href>, <href>/path</href>
+        val simpleTag = tag.substringAfter(':')  // "D:href" -> "href"
+        
+        // Try multiple patterns for robustness
+        val patterns = mutableListOf<Regex>()
+        
+        // Pattern 1: <tag>value</tag> (with potential attributes)
+        patterns.add(Regex("<$tag[^>]*>([^<]*)</$tag>", RegexOption.IGNORE_CASE))
+        
+        // Pattern 2: <simpleTag>value</simpleTag>
+        if (simpleTag != tag) {
+            patterns.add(Regex("<$simpleTag[^>]*>([^<]*)</$simpleTag>", RegexOption.IGNORE_CASE))
+        }
+        
         for (p in patterns) {
             val m = p.find(xml)
-            if (m != null) return m.groupValues[1].trim()
+            if (m != null && m.groupValues[1].isNotBlank()) {
+                return m.groupValues[1].trim()
+            }
         }
-        return null
+        
+        // Fallback: find any tag containing the simple name with any prefix
+        val fallbackPattern = Regex("<[^:]*:$simpleTag[^>]*>([^<]+)</[^:]*:$simpleTag>", RegexOption.IGNORE_CASE)
+        val fallback = fallbackPattern.find(xml)
+        return fallback?.groupValues?.getOrNull(1)?.trim()
     }
 }
