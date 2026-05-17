@@ -130,12 +130,20 @@ class CalDAVClient(
         """.trimIndent()
         return try {
             val resp = propfind(url, xml, depth = "1")
+            Log.d(TAG, "ETag PROPFIND response (first 1000 chars): ${resp.take(1000)}")
+            
             val blocks = resp.split("<D:response>").drop(1)
-            blocks.mapNotNull { block ->
-                val href  = extractXml(block, "D:href") ?: return@mapNotNull null
-                val etag  = extractXml(block, "D:getetag")?.trim('"') ?: ""
-                if (href.endsWith(".ics")) ETagEntry(href, etag) else null
+            Log.d(TAG, "Found ${blocks.size} response blocks in ETag list")
+            
+            val results = blocks.mapNotNull { block ->
+                val href  = extractXml(block, "D:href") ?: extractXml(block, "href")
+                val etag  = extractXml(block, "D:getetag")?.trim('"') ?: extractXml(block, "getetag")?.trim('"') ?: ""
+                if (href != null && href.isNotBlank()) {
+                    ETagEntry(href, etag)
+                } else null
             }
+            Log.d(TAG, "ETag entries parsed: ${results.size}")
+            results
         } catch (e: Exception) {
             Log.e(TAG, "getETagList failed: ${e.message}")
             emptyList()
@@ -169,6 +177,57 @@ class CalDAVClient(
 
     // ─────────────────────────────────────────────────────────
     // Multi-get: fetch multiple .ics at once (RFC 4791 §7.9)
+    // ─────────────────────────────────────────────────────────
+    // Fetch ALL events from calendar using calendar-query REPORT
+    // This is more reliable than ETag list + multiget for some servers
+    fun fetchAllEvents(calendarPath: String): List<IcsResource> {
+        val url = buildUrl(calendarPath)
+        val xml = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+              <D:prop>
+                <D:getetag/>
+                <C:calendar-data/>
+              </D:prop>
+              <C:filter>
+                <C:comp-filter name="VCALENDAR">
+                  <C:comp-filter name="VEVENT"/>
+                </C:comp-filter>
+              </C:filter>
+            </C:calendar-query>
+        """.trimIndent()
+
+        return try {
+            val req = Request.Builder()
+                .url(url)
+                .method("REPORT", xml.toRequestBody(XML_MEDIA_TYPE))
+                .header("Depth", "1")
+                .build()
+            Log.d(TAG, "Fetching all events with calendar-query REPORT")
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    Log.e(TAG, "calendar-query failed: ${resp.code} ${resp.message}")
+                    return emptyList()
+                }
+                val body = resp.body?.string() ?: return emptyList()
+                Log.d(TAG, "calendar-query response (first 500 chars): ${body.take(500)}")
+                val blocks = body.split("<D:response>").drop(1)
+                Log.d(TAG, "Found ${blocks.size} events in calendar-query")
+                blocks.mapNotNull { block ->
+                    val href  = extractXml(block, "D:href") ?: extractXml(block, "href")
+                    val etag  = extractXml(block, "D:getetag")?.trim('"') ?: extractXml(block, "getetag")?.trim('"') ?: ""
+                    val ical  = extractXml(block, "C:calendar-data") ?: return@mapNotNull null
+                    if (href != null && ical.isNotBlank()) {
+                        IcsResource(href, etag, ical)
+                    } else null
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "fetchAllEvents failed: ${e.message}")
+            emptyList()
+        }
+    }
+
     // ─────────────────────────────────────────────────────────
     fun multiGet(calendarPath: String, hrefs: List<String>): List<IcsResource> {
         if (hrefs.isEmpty()) return emptyList()

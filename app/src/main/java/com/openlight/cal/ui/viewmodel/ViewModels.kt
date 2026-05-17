@@ -287,59 +287,82 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                     
                     Log.d("SyncDirect", "Final calendar path: $calendarPath")
                     
-                    // Step 3: Get server ETags to find what needs syncing
-                    Log.d("SyncDirect", "Fetching ETag list...")
-                    val serverEtags = client.getETagList(calendarPath)
-                    Log.d("SyncDirect", "ETag list returned ${serverEtags.size} items")
+                    // Step 3: Get all events using calendar-query REPORT (more reliable)
+                    Log.d("SyncDirect", "Fetching all events via calendar-query REPORT...")
+                    val resources = client.fetchAllEvents(calendarPath)
+                    Log.d("SyncDirect", "calendar-query returned ${resources.size} items")
                     
-                    if (serverEtags.isEmpty()) {
-                        // Calendar exists but is empty - that's fine
-                        Log.d("SyncDirect", "Calendar is empty for ${account.displayName}")
-                        // Still mark as success if we got here
-                        db.calendarAccountDao().update(
-                            account.copy(lastSyncMs = System.currentTimeMillis(), calendarPath = calendarPath)
-                        )
-                        successCount++
-                    } else {
-                        // Step 4: Fetch new/changed items via multiget
-                        val localEvents = db.calendarEventDao().getByAccount(account.id)
-                        val localTasks = db.taskDao().getByAccount(account.id)
-                        val localEventPaths = localEvents.associateBy { it.calendarPath }
-                        val localTaskPaths = localTasks.associateBy { it.calendarPath }
-
-                        // Find items we don't have or that have changed
-                        val toFetch = serverEtags.filter { (href, etag) ->
-                            val eventMatch = localEventPaths[href]?.etag == etag
-                            val taskMatch = localTaskPaths[href]?.etag == etag
-                            !eventMatch && !taskMatch
-                        }.map { it.href }
-
-                        if (toFetch.isNotEmpty()) {
-                            // Fetch in chunks
-                            val chunks = toFetch.chunked(50)
-                            for (chunk in chunks) {
-                                val resources = client.multiGet(calendarPath, chunk)
-                                for (res in resources) {
-                                    val parsed = ICalParser.parse(res.ical, account.id, res.href)
-                                    
-                                    // Insert events
-                                    for (event in parsed.events) {
-                                        val existing = db.calendarEventDao().getByUid(event.uid, account.id)
-                                        db.calendarEventDao().insert(
-                                            event.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href)
-                                        )
-                                        eventsImported++
-                                    }
-                                    
-                                    // Insert tasks
-                                    for (task in parsed.tasks) {
-                                        val existing = db.taskDao().getByUid(task.uid, account.id)
-                                        db.taskDao().insert(
-                                            task.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href)
-                                        )
-                                        tasksImported++
+                    if (resources.isEmpty()) {
+                        // Try the old ETag method as fallback
+                        Log.d("SyncDirect", "Trying ETag list as fallback...")
+                        val serverEtags = client.getETagList(calendarPath)
+                        Log.d("SyncDirect", "ETag list returned ${serverEtags.size} items")
+                        if (serverEtags.isEmpty()) {
+                            Log.d("SyncDirect", "Calendar is empty for ${account.displayName}")
+                            db.calendarAccountDao().update(
+                                account.copy(lastSyncMs = System.currentTimeMillis(), calendarPath = calendarPath)
+                            )
+                            successCount++
+                        } else {
+                            // Handle via etag list path
+                            val localEvents = db.calendarEventDao().getByAccount(account.id)
+                            val localTasks = db.taskDao().getByAccount(account.id)
+                            val localEventPaths = localEvents.associateBy { it.calendarPath }
+                            val localTaskPaths = localTasks.associateBy { it.calendarPath }
+                            
+                            val toFetch = serverEtags.filter { (href, etag) ->
+                                val eventMatch = localEventPaths[href]?.etag == etag
+                                val taskMatch = localTaskPaths[href]?.etag == etag
+                                !eventMatch && !taskMatch
+                            }.map { it.href }
+                            
+                            if (toFetch.isNotEmpty()) {
+                                val chunks = toFetch.chunked(50)
+                                for (chunk in chunks) {
+                                    val fetched = client.multiGet(calendarPath, chunk)
+                                    for (res in fetched) {
+                                        val parsed = ICalParser.parse(res.ical, account.id, res.href)
+                                        for (event in parsed.events) {
+                                            val existing = db.calendarEventDao().getByUid(event.uid, account.id)
+                                            db.calendarEventDao().insert(event.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href))
+                                            eventsImported++
+                                        }
+                                        for (task in parsed.tasks) {
+                                            val existing = db.taskDao().getByUid(task.uid, account.id)
+                                            db.taskDao().insert(task.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href))
+                                            tasksImported++
+                                        }
                                     }
                                 }
+                            }
+                            
+                            db.calendarAccountDao().update(
+                                account.copy(lastSyncMs = System.currentTimeMillis(), calendarPath = calendarPath)
+                            )
+                            successCount++
+                        }
+                    } else {
+                        // We got events from fetchAllEvents - import them directly
+                        Log.d("SyncDirect", "Importing ${resources.size} events from calendar-query")
+                        for (res in resources) {
+                            val parsed = ICalParser.parse(res.ical, account.id, res.href)
+                            
+                            // Insert events
+                            for (event in parsed.events) {
+                                val existing = db.calendarEventDao().getByUid(event.uid, account.id)
+                                db.calendarEventDao().insert(
+                                    event.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href)
+                                )
+                                eventsImported++
+                            }
+                            
+                            // Insert tasks
+                            for (task in parsed.tasks) {
+                                val existing = db.taskDao().getByUid(task.uid, account.id)
+                                db.taskDao().insert(
+                                    task.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href)
+                                )
+                                tasksImported++
                             }
                         }
                     }
