@@ -230,6 +230,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
             var successCount = 0
             var failCount = 0
+            var lastError = ""
 
             for (account in accounts) {
                 try {
@@ -240,6 +241,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                     val cals = client.discoverCalendars()
                     if (cals.isEmpty()) {
                         failCount++
+                        lastError = "No calendars found on server"
                         continue
                     }
 
@@ -251,12 +253,14 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 } catch (e: Exception) {
                     Log.e("SyncDirect", "Failed for ${account.displayName}: ${e.message}")
                     failCount++
+                    lastError = e.message ?: "Unknown error"
                 }
             }
 
             when {
                 successCount > 0 && failCount == 0 -> "Sync complete: $successCount account(s)"
                 successCount > 0 && failCount > 0 -> "Partially synced: $successCount ok, $failCount failed"
+                failCount > 0 -> "Sync failed: $lastError"
                 else -> "Sync failed: check credentials and server URL"
             }
         } catch (e: Exception) {

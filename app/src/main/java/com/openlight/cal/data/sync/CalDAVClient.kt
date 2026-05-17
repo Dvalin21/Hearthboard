@@ -277,6 +277,9 @@ class CalDAVClient(
             .header("Depth", depth)
             .build()
         client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                throw IOException("HTTP ${resp.code}: ${resp.message}")
+            }
             return resp.body?.string() ?: ""
         }
     }
