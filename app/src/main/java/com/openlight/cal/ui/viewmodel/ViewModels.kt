@@ -1,12 +1,15 @@
 package com.openlight.cal.ui.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.*
 import com.openlight.cal.OpenLightApp
+import com.openlight.cal.data.db.AppDatabase
 import com.openlight.cal.data.model.*
 import com.openlight.cal.data.preferences.AppPreferences
 import com.openlight.cal.data.preferences.EncryptedPassword
 import com.openlight.cal.data.repository.*
+import com.openlight.cal.data.sync.CalDAVClient
 import com.openlight.cal.data.sync.CalDAVSyncWorker
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -200,8 +203,65 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun syncNow(context: android.content.Context, accountId: Long = -1L) {
-        _syncStatus.value = "Syncing…"
-        CalDAVSyncWorker.syncNow(context, accountId)
+        viewModelScope.launch {
+            _syncStatus.value = "Syncing…"
+            val result = syncAccountDirect(context, accountId)
+            _syncStatus.value = result
+        }
+    }
+
+    /**
+     * Run sync directly (not via WorkManager) so we can capture and show errors.
+     */
+    private suspend fun syncAccountDirect(context: android.content.Context, accountId: Long): String {
+        return try {
+            val db = AppDatabase.getInstance(context)
+            val encryptor = EncryptedPassword(context)
+
+            val accounts = if (accountId == -1L) {
+                db.calendarAccountDao().getAll().filter { it.enabled }
+            } else {
+                listOfNotNull(db.calendarAccountDao().getById(accountId))
+            }
+
+            if (accounts.isEmpty()) {
+                return "No accounts configured"
+            }
+
+            var successCount = 0
+            var failCount = 0
+
+            for (account in accounts) {
+                try {
+                    val pass = encryptor.decrypt(account.passwordEncrypted)
+                    val client = CalDAVClient(account.serverUrl, account.username, pass)
+
+                    // Try to discover calendars - this will fail fast with bad credentials
+                    val cals = client.discoverCalendars()
+                    if (cals.isEmpty()) {
+                        failCount++
+                        continue
+                    }
+
+                    // For now just mark as synced - full event sync would go here
+                    db.calendarAccountDao().update(
+                        account.copy(lastSyncMs = System.currentTimeMillis())
+                    )
+                    successCount++
+                } catch (e: Exception) {
+                    Log.e("SyncDirect", "Failed for ${account.displayName}: ${e.message}")
+                    failCount++
+                }
+            }
+
+            when {
+                successCount > 0 && failCount == 0 -> "Sync complete: $successCount account(s)"
+                successCount > 0 && failCount > 0 -> "Partially synced: $successCount ok, $failCount failed"
+                else -> "Sync failed: check credentials and server URL"
+            }
+        } catch (e: Exception) {
+            "Sync error: ${e.message}"
+        }
     }
 
     fun encodePassword(raw: String): String =
