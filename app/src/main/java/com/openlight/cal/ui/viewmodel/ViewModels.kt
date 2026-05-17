@@ -247,19 +247,23 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                     var calendarPath = account.calendarPath
                     var serverUrlForClient = account.serverUrl
                     
-                    // If user entered full calendar URL (contains /Calendar/), extract base and calendar path
+                    // If user entered full calendar URL (contains /Calendar/), we need to:
+                    // 1. Extract base server URL (everything before /SOGo/dav/...)
+                    // 2. Try to use the provided URL directly as calendar path since SOGo supports that
                     if (calendarPath.isBlank()) {
                         val fullUrl = account.serverUrl.trimEnd('/')
                         if (fullUrl.contains("/Calendar/") || fullUrl.contains("/calendar/")) {
-                            // Extract base CalDAV URL (everything up to /Calendar/...)
-                            val calIndex = fullUrl.indexOf("/Calendar", ignoreCase = true)
-                            if (calIndex > 0) {
-                                serverUrlForClient = fullUrl.substring(0, calIndex)
-                                // Remove trailing /dav/ or similar if present - just keep the base
-                                if (serverUrlForClient.endsWith("/")) serverUrlForClient = serverUrlForClient.dropLast(1)
-                                calendarPath = fullUrl
-                                Log.d("SyncDirect", "Split URL - base: $serverUrlForClient, calendar: $calendarPath")
+                            // For SOGo, the full URL CAN be used as the calendar path directly!
+                            // SOGo handles PROPFIND on the calendar URL itself
+                            calendarPath = fullUrl
+                            
+                            // Extract just the base server for authentication
+                            // Extract everything before /SOGo/dav/
+                            val sogoIndex = fullUrl.indexOf("/SOGo/dav/")
+                            if (sogoIndex > 0) {
+                                serverUrlForClient = fullUrl.substring(0, sogoIndex)
                             }
+                            Log.d("SyncDirect", "SOGo URL detected - base: $serverUrlForClient, calendar: $calendarPath")
                         }
                     }
                     

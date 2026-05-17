@@ -285,9 +285,21 @@ class CalDAVClient(
     }
 
     private fun buildUrl(path: String): String {
+        // If it's already a full URL, use it directly
         if (path.startsWith("http://") || path.startsWith("https://")) return path
+        
+        // For relative paths, combine with server base
+        // But handle SOGo-specific path structure
         val base = serverUrl.trimEnd('/')
-        val p    = path.trimStart('/')
+        val p = path.trimStart('/')
+        
+        // Special handling: if path starts with SOGo/dav, prepend whole server path
+        if (p.startsWith("SOGo/dav") || p.startsWith("SOGo/")) {
+            // User provided full calendar URL but we stripped it to base
+            // Need to reconstruct the proper path
+            return "$base/$p"
+        }
+        
         return "$base/$p"
     }
 
