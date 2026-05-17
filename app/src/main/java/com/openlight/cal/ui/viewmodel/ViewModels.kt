@@ -240,16 +240,32 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                     val pass = encryptor.decrypt(account.passwordEncrypted)
                     val client = CalDAVClient(account.serverUrl, account.username, pass)
 
-                    // Step 1: Discover calendars - this will fail fast with bad credentials
-                    val cals = client.discoverCalendars()
-                    if (cals.isEmpty()) {
-                        failCount++
-                        lastError = "No calendars found - check server URL and credentials"
-                        continue
+                    // Determine calendar path - three options:
+                    // 1. Already saved in account (from previous sync)
+                    // 2. Extract from serverUrl (if user entered calendar URL directly)
+                    // 3. Discover via CalDAV PROPFIND
+                    var calendarPath = account.calendarPath
+                    
+                    if (calendarPath.isBlank()) {
+                        // Try to extract calendar path from URL - check if URL looks like calendar
+                        val serverUrl = account.serverUrl.trimEnd('/')
+                        if (serverUrl.contains("/Calendar/") || serverUrl.contains("/calendar/")) {
+                            // User entered URL with calendar path already in it
+                            calendarPath = serverUrl
+                        } else {
+                            // Need to discover calendars
+                            val cals = client.discoverCalendars()
+                            if (cals.isEmpty()) {
+                                // Discovery failed - try raw PROPFIND on server URL as last resort
+                                Log.d("SyncDirect", "Discovery empty, trying server URL as path")
+                                calendarPath = serverUrl
+                            } else {
+                                calendarPath = cals.first().path
+                            }
+                        }
                     }
-
-                    // Step 2: Get the first calendar path (or let user specify)
-                    val calendarPath = account.calendarPath.ifBlank { cals.first().path }
+                    
+                    Log.d("SyncDirect", "Using calendar path: $calendarPath")
                     
                     // Step 3: Get server ETags to find what needs syncing
                     val serverEtags = client.getETagList(calendarPath)
@@ -311,9 +327,9 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                     Log.i("SyncDirect", "Synced ${account.displayName}: $eventsImported events, $tasksImported tasks")
 
                 } catch (e: Exception) {
-                    Log.e("SyncDirect", "Failed for ${account.displayName}: ${e.message}")
+                    Log.e("SyncDirect", "Failed for ${account.displayName}: ${e.message}", e)
                     failCount++
-                    lastError = e.message ?: "Unknown error"
+                    lastError = e.message ?: e.toString()
                 }
             }
 
