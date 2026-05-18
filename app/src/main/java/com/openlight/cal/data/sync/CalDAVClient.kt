@@ -2,10 +2,14 @@ package com.openlight.cal.data.sync
 
 import android.util.Base64
 import android.util.Log
+import android.util.Xml
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserException
 import java.io.IOException
+import java.io.StringReader
 import java.util.concurrent.TimeUnit
 
 /**
@@ -120,30 +124,21 @@ class CalDAVClient(
     // ─────────────────────────────────────────────────────────
     data class ETagEntry(val href: String, val etag: String)
 
+    // PROPFIND response: one resource entry from a multistatus response
+    private data class PropfindResource(
+        val href: String,
+        val etag: String,
+        val contentType: String
+    )
+
     fun getETagList(calendarPath: String): List<ETagEntry> {
-        val url = buildUrl(calendarPath)
-        val xml = """
-            <?xml version="1.0" encoding="utf-8"?>
-            <D:propfind xmlns:D="DAV:">
-              <D:prop><D:getetag/></D:prop>
-            </D:propfind>
-        """.trimIndent()
         return try {
-            val resp = propfind(url, xml, depth = "1")
-            Log.d(TAG, "ETag PROPFIND response (first 1000 chars): ${resp.take(1000)}")
-            
-            val blocks = resp.split("<D:response>").drop(1)
-            Log.d(TAG, "Found ${blocks.size} response blocks in ETag list")
-            
-            val results = blocks.mapNotNull { block ->
-                val href  = extractXml(block, "D:href") ?: extractXml(block, "href")
-                val etag  = extractXml(block, "D:getetag")?.trim('"') ?: extractXml(block, "getetag")?.trim('"') ?: ""
-                if (href != null && href.isNotBlank()) {
-                    ETagEntry(href, etag)
-                } else null
+            propfindResources(calendarPath).mapNotNull { rsrc ->
+                // Skip collection entries (have no etag, end with /)
+                if (rsrc.href.isNotBlank() && rsrc.etag.isNotBlank())
+                    ETagEntry(rsrc.href, rsrc.etag)
+                else null
             }
-            Log.d(TAG, "ETag entries parsed: ${results.size}")
-            results
         } catch (e: Exception) {
             Log.e(TAG, "getETagList failed: ${e.message}")
             emptyList()
@@ -172,105 +167,6 @@ class CalDAVClient(
         } catch (e: IOException) {
             Log.e(TAG, "fetchIcs failed for $href: ${e.message}")
             null
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────
-    // Multi-get: fetch multiple .ics at once (RFC 4791 §7.9)
-// ─────────────────────────────────────────────────────────
-    // Fetch ALL events from calendar using PROPFIND for .ics files + individual GETs
-    // This is what works with SOGo - calendar-query REPORT is buggy
-    fun fetchAllEvents(calendarPath: String): List<IcsResource> {
-        val url = buildUrl(calendarPath)
-        val xml = """
-            <?xml version="1.0" encoding="utf-8"?>
-            <D:propfind xmlns:D="DAV:">
-              <D:prop><D:href/></D:prop>
-            </D:propfind>
-        """.trimIndent()
-        
-        return try {
-            // Use PROPFIND depth=1 to get all resource URLs in calendar
-            val req = Request.Builder()
-                .url(url)
-                .method("PROPFIND", xml.toRequestBody(XML_MEDIA_TYPE))
-                .header("Depth", "1")
-                .build()
-            Log.d(TAG, "PROPFIND for .ics files at: $url")
-            
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) {
-                    Log.e(TAG, "PROPFIND failed: ${resp.code} ${resp.message}")
-                    return emptyList()
-                }
-                
-                val body = resp.body?.string() ?: return emptyList()
-                Log.d(TAG, "PROPFIND response (first 800 chars): ${body.take(800)}")
-                
-                // Parse all hrefs from response - look for .ics files
-                val hrefs = mutableListOf<String>()
-                val responseBlocks = body.split("<D:response>").drop(1)
-                Log.d(TAG, "PROPFIND returned ${responseBlocks.size} response blocks")
-                
-                for (block in responseBlocks) {
-                    val href = extractXml(block, "D:href") ?: extractXml(block, "href")
-                    if (href != null && href.endsWith(".ics")) {
-                        hrefs.add(href)
-                        Log.d(TAG, "Found .ics file: $href")
-                    }
-                }
-                
-                Log.d(TAG, "Found ${hrefs.size} .ics files")
-                
-                // Now fetch each .ics file individually - this is what works with SOGo
-                val resources = mutableListOf<IcsResource>()
-                for (href in hrefs) {
-                    fetchIcs(href)?.let { resources.add(it) }
-                }
-                
-                resources
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "fetchAllEvents failed: ${e.message}")
-            emptyList()
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────
-    fun multiGet(calendarPath: String, hrefs: List<String>): List<IcsResource> {
-        if (hrefs.isEmpty()) return emptyList()
-        val url = buildUrl(calendarPath)
-        val hrefLines = hrefs.joinToString("") { "  <D:href>$it</D:href>\n" }
-        val xml = """
-            <?xml version="1.0" encoding="utf-8"?>
-            <C:calendar-multiget xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
-              <D:prop>
-                <D:getetag/>
-                <C:calendar-data/>
-              </D:prop>
-              $hrefLines
-            </C:calendar-multiget>
-        """.trimIndent()
-
-        return try {
-            val req = Request.Builder()
-                .url(url)
-                .method("REPORT", xml.toRequestBody(XML_MEDIA_TYPE))
-                .header("Depth", "1")
-                .build()
-            client.newCall(req).execute().use { resp ->
-                val body = resp.body?.string() ?: return emptyList()
-                val blocks = body.split("<D:response>").drop(1)
-                blocks.mapNotNull { block ->
-                    val href  = extractXml(block, "D:href") ?: return@mapNotNull null
-                    val etag  = extractXml(block, "D:getetag")?.trim('"') ?: ""
-                    val ical  = extractXml(block, "C:calendar-data") ?: return@mapNotNull null
-                    IcsResource(href, etag, ical)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "multiGet failed: ${e.message}")
-            emptyList()
         }
     }
 
@@ -349,6 +245,101 @@ class CalDAVClient(
             }
             return resp.body?.string() ?: ""
         }
+    }
+
+    // ── XML response parsing via XmlPullParser ──────────────
+    // No regex. No namespace assumptions. Handles any prefix.
+
+    private fun propfindResources(calendarPath: String): List<PropfindResource> {
+        val url = buildUrl(calendarPath)
+        val xml = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <D:propfind xmlns:D="DAV:">
+              <D:prop>
+                <D:getetag/>
+                <D:getcontenttype/>
+                <D:resourcetype/>
+              </D:prop>
+            </D:propfind>
+        """.trimIndent()
+        val req = Request.Builder()
+            .url(url)
+            .method("PROPFIND", xml.toRequestBody(XML_MEDIA_TYPE))
+            .header("Depth", "1")
+            .build()
+        return client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                Log.w(TAG, "PROPFIND resources failed: ${resp.code} on $calendarPath")
+                return emptyList()
+            }
+            val body = resp.body?.string() ?: return emptyList()
+            if (body.isBlank()) return emptyList()
+            parsePropfindMultistatus(body)
+        }
+    }
+
+    /**
+     * Parse a DAV:multistatus XML response into a list of PropfindResource.
+     *
+     * Uses XmlPullParser which ignores namespace prefixes, handles nested
+     * elements, and is robust against whitespace / CDATA / attribute variations.
+     * This replaces the old regex-based extractXml() approach.
+     */
+    private fun parsePropfindMultistatus(xml: String): List<PropfindResource> {
+        val results = mutableListOf<PropfindResource>()
+        try {
+            val parser: XmlPullParser = Xml.newPullParser()
+            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+            parser.setInput(StringReader(xml))
+
+            var href: String? = null
+            var etag: String? = null
+            var contentType: String? = null
+            var depth = 0
+            var ok = false
+
+            while (parser.next() != XmlPullParser.END_DOCUMENT) {
+                when (parser.eventType) {
+                    XmlPullParser.START_TAG -> {
+                        depth++
+                        when (parser.name.lowercase()) {
+                            "response" -> {
+                                href = null; etag = null; contentType = null; ok = false
+                            }
+                            "href" -> {
+                                href = safeText(parser)
+                            }
+                            "getetag" -> {
+                                etag = safeText(parser)?.trim('"', ' ')
+                            }
+                            "getcontenttype" -> {
+                                contentType = safeText(parser)
+                            }
+                            "status" -> {
+                                val s = safeText(parser)
+                                if (s?.contains("200") == true) ok = true
+                            }
+                        }
+                    }
+                    XmlPullParser.END_TAG -> {
+                        depth--
+                        if (parser.name.lowercase() == "response" && href != null && href.isNotBlank()) {
+                            results.add(PropfindResource(href!!, etag ?: "", contentType ?: ""))
+                        }
+                    }
+                }
+            }
+        } catch (e: XmlPullParserException) {
+            Log.w(TAG, "Failed to parse PROPFIND response: ${e.message}")
+        } catch (e: IOException) {
+            Log.w(TAG, "IO error parsing PROPFIND response: ${e.message}")
+        }
+        return results
+    }
+
+    /** Read element text content safely (handles empty elements). */
+    private fun safeText(parser: XmlPullParser): String? {
+        return if (parser.next() == XmlPullParser.TEXT) parser.text?.trim() else null
     }
 
     private fun buildUrl(path: String): String {

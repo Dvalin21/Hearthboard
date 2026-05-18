@@ -287,79 +287,59 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                     
                     Log.d("SyncDirect", "Final calendar path: $calendarPath")
                     
-                    // Step 3: Get all events using calendar-query REPORT (more reliable)
-                    Log.d("SyncDirect", "Fetching all events via calendar-query REPORT...")
-                    val resources = client.fetchAllEvents(calendarPath)
-                    Log.d("SyncDirect", "calendar-query returned ${resources.size} items")
+                    // Step 3: Get server ETag list (uses PROPFIND for getetag + XmlPullParser)
+                    // This works with SOGo where REPORT returns 501.
+                    Log.d("SyncDirect", "Fetching ETag list...")
+                    val serverEtags = client.getETagList(calendarPath)
+                    Log.d("SyncDirect", "ETag list returned ${serverEtags.size} items")
                     
-                    if (resources.isEmpty()) {
-                        // Try the old ETag method as fallback
-                        Log.d("SyncDirect", "Trying ETag list as fallback...")
-                        val serverEtags = client.getETagList(calendarPath)
-                        Log.d("SyncDirect", "ETag list returned ${serverEtags.size} items")
-                        if (serverEtags.isEmpty()) {
-                            Log.d("SyncDirect", "Calendar is empty for ${account.displayName}")
-                            db.calendarAccountDao().update(
-                                account.copy(lastSyncMs = System.currentTimeMillis(), calendarPath = calendarPath)
-                            )
-                            successCount++
-                        } else {
-                            // Handle via etag list path
-                            val localEvents = db.calendarEventDao().getByAccount(account.id)
-                            val localTasks = db.taskDao().getByAccount(account.id)
-                            val localEventPaths = localEvents.associateBy { it.calendarPath }
-                            val localTaskPaths = localTasks.associateBy { it.calendarPath }
-                            
-                            val toFetch = serverEtags.filter { (href, etag) ->
-                                val eventMatch = localEventPaths[href]?.etag == etag
-                                val taskMatch = localTaskPaths[href]?.etag == etag
-                                !eventMatch && !taskMatch
-                            }.map { it.href }
-                            
-                            // Fetch changed items via individual GET (not multiGet REPORT - SOGo returns 501)
-                            for (href in toFetch) {
-                                val res = client.fetchIcs(href) ?: continue
-                                val parsed = ICalParser.parse(res.ical, account.id, res.href)
-                                for (event in parsed.events) {
-                                    val existing = db.calendarEventDao().getByUid(event.uid, account.id)
-                                    db.calendarEventDao().insert(event.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href))
-                                    eventsImported++
-                                }
-                                for (task in parsed.tasks) {
-                                    val existing = db.taskDao().getByUid(task.uid, account.id)
-                                    db.taskDao().insert(task.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href))
-                                    tasksImported++
-                                }
-                            }
-                            
-                            db.calendarAccountDao().update(
-                                account.copy(lastSyncMs = System.currentTimeMillis(), calendarPath = calendarPath)
-                            )
-                            successCount++
+                    if (serverEtags.isEmpty()) {
+                        Log.d("SyncDirect", "Calendar is empty for ${account.displayName}")
+                        db.calendarAccountDao().update(
+                            account.copy(lastSyncMs = System.currentTimeMillis(), calendarPath = calendarPath)
+                        )
+                        successCount++
+                        continue
+                    }
+                    
+                    // Step 4: Compare with local state to find new/changed items
+                    val localEvents = db.calendarEventDao().getByAccount(account.id)
+                    val localTasks = db.taskDao().getByAccount(account.id)
+                    val localEventPaths = localEvents.associateBy { it.calendarPath }
+                    val localTaskPaths = localTasks.associateBy { it.calendarPath }
+                    
+                    val toFetch = serverEtags.filter { (href, etag) ->
+                        val eventMatch = localEventPaths[href]?.etag == etag
+                        val taskMatch = localTaskPaths[href]?.etag == etag
+                        !eventMatch && !taskMatch
+                    }.map { it.href }
+                    
+                    // Step 5: Fetch changed items via individual GET
+                    for (href in toFetch) {
+                        val res = client.fetchIcs(href) ?: continue
+                        val parsed = ICalParser.parse(res.ical, account.id, res.href)
+                        for (event in parsed.events) {
+                            val existing = db.calendarEventDao().getByUid(event.uid, account.id)
+                            db.calendarEventDao().insert(event.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href))
+                            eventsImported++
                         }
-                    } else {
-                        // We got events from fetchAllEvents - import them directly
-                        Log.d("SyncDirect", "Importing ${resources.size} events from calendar-query")
-                        for (res in resources) {
-                            val parsed = ICalParser.parse(res.ical, account.id, res.href)
-                            
-                            // Insert events
-                            for (event in parsed.events) {
-                                val existing = db.calendarEventDao().getByUid(event.uid, account.id)
-                                db.calendarEventDao().insert(
-                                    event.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href)
-                                )
-                                eventsImported++
-                            }
-                            
-                            // Insert tasks
-                            for (task in parsed.tasks) {
-                                val existing = db.taskDao().getByUid(task.uid, account.id)
-                                db.taskDao().insert(
-                                    task.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href)
-                                )
-                                tasksImported++
-                            }
+                        for (task in parsed.tasks) {
+                            val existing = db.taskDao().getByUid(task.uid, account.id)
+                            db.taskDao().insert(task.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href))
+                            tasksImported++
+                        }
+                    }
+                    
+                    // Step 6: Delete items removed from server
+                    val serverHrefs = serverEtags.map { it.href }.toSet()
+                    for (event in localEvents) {
+                        if (event.calendarPath !in serverHrefs && event.calendarPath.isNotBlank()) {
+                            db.calendarEventDao().delete(event)
+                        }
+                    }
+                    for (task in localTasks) {
+                        if (task.calendarPath !in serverHrefs && task.calendarPath.isNotBlank()) {
+                            db.taskDao().delete(task)
                         }
                     }
 
