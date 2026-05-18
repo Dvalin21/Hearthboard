@@ -316,11 +316,17 @@ class CalDAVClient(
             var depth = 0
             var ok = false
 
+            // With FEATURE_PROCESS_NAMESPACES=false, parser.name returns
+            // qualified names with prefix (e.g. "D:response") — strip prefix
+            // before comparing against unqualified local names.
+            fun localName(parser: XmlPullParser): String =
+                parser.name.substringAfter(':')
+
             while (parser.next() != XmlPullParser.END_DOCUMENT) {
                 when (parser.eventType) {
                     XmlPullParser.START_TAG -> {
                         depth++
-                        when (parser.name.lowercase()) {
+                        when (localName(parser).lowercase()) {
                             "response" -> {
                                 href = null; etag = null; contentType = null; ok = false
                             }
@@ -341,7 +347,7 @@ class CalDAVClient(
                     }
                     XmlPullParser.END_TAG -> {
                         depth--
-                        if (parser.name.lowercase() == "response" && href != null && href.isNotBlank()) {
+                        if (localName(parser).lowercase() == "response" && href != null && href.isNotBlank()) {
                             results.add(PropfindResource(href!!, etag ?: "", contentType ?: ""))
                         }
                     }
