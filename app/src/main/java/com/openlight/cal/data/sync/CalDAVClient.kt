@@ -251,7 +251,10 @@ class CalDAVClient(
     // No regex. No namespace assumptions. Handles any prefix.
 
     private fun propfindResources(calendarPath: String): List<PropfindResource> {
-        val url = buildUrl(calendarPath)
+        // Ensure collection URL ends with / for PROPFIND
+        val url = buildUrl(calendarPath).let { u ->
+            if (!u.endsWith("/")) "$u/" else u
+        }
         val xml = """
             <?xml version="1.0" encoding="utf-8"?>
             <D:propfind xmlns:D="DAV:">
@@ -262,6 +265,7 @@ class CalDAVClient(
               </D:prop>
             </D:propfind>
         """.trimIndent()
+        Log.d(TAG, "PROPFIND resources at: $url")
         val req = Request.Builder()
             .url(url)
             .method("PROPFIND", xml.toRequestBody(XML_MEDIA_TYPE))
@@ -269,12 +273,21 @@ class CalDAVClient(
             .build()
         return client.newCall(req).execute().use { resp ->
             if (!resp.isSuccessful) {
-                Log.w(TAG, "PROPFIND resources failed: ${resp.code} on $calendarPath")
+                Log.w(TAG, "PROPFIND resources failed: ${resp.code} ${resp.message} on $url")
                 return emptyList()
             }
-            val body = resp.body?.string() ?: return emptyList()
-            if (body.isBlank()) return emptyList()
-            parsePropfindMultistatus(body)
+            val body = resp.body?.string() ?: run {
+                Log.w(TAG, "PROPFIND returned empty body from $url")
+                return emptyList()
+            }
+            if (body.isBlank()) {
+                Log.w(TAG, "PROPFIND returned blank body from $url")
+                return emptyList()
+            }
+            Log.d(TAG, "PROPFIND response (first 600 chars): ${body.take(600)}")
+            val results = parsePropfindMultistatus(body)
+            Log.d(TAG, "Parsed ${results.size} resources from PROPFIND")
+            results
         }
     }
 
