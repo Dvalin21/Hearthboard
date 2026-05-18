@@ -140,7 +140,7 @@ class CalDAVClient(
                 else null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "getETagList failed: ${e.message}")
+            Log.e(TAG, "getETagList exception (${e::class.simpleName}): ${e.message}", e)
             emptyList()
         }
     }
@@ -271,23 +271,28 @@ class CalDAVClient(
             .method("PROPFIND", xml.toRequestBody(XML_MEDIA_TYPE))
             .header("Depth", "1")
             .build()
-        return client.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) {
-                Log.w(TAG, "PROPFIND resources failed: ${resp.code} ${resp.message} on $url")
-                return emptyList()
+        return try {
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    Log.w(TAG, "PROPFIND resources failed: ${resp.code} ${resp.message} on $url")
+                    return@use emptyList<PropfindResource>()
+                }
+                val body = resp.body?.string() ?: run {
+                    Log.w(TAG, "PROPFIND returned empty body from $url")
+                    return@use emptyList<PropfindResource>()
+                }
+                if (body.isBlank()) {
+                    Log.w(TAG, "PROPFIND returned blank body from $url")
+                    return@use emptyList<PropfindResource>()
+                }
+                Log.d(TAG, "PROPFIND response (first 600 chars): ${body.take(600)}")
+                val results = parsePropfindMultistatus(body)
+                Log.d(TAG, "Parsed ${results.size} resources from PROPFIND")
+                results
             }
-            val body = resp.body?.string() ?: run {
-                Log.w(TAG, "PROPFIND returned empty body from $url")
-                return emptyList()
-            }
-            if (body.isBlank()) {
-                Log.w(TAG, "PROPFIND returned blank body from $url")
-                return emptyList()
-            }
-            Log.d(TAG, "PROPFIND response (first 600 chars): ${body.take(600)}")
-            val results = parsePropfindMultistatus(body)
-            Log.d(TAG, "Parsed ${results.size} resources from PROPFIND")
-            results
+        } catch (e: Exception) {
+            Log.e(TAG, "propfindResources exception (${e::class.simpleName}): ${e.message}", e)
+            emptyList()
         }
     }
 
@@ -360,14 +365,11 @@ class CalDAVClient(
         if (path.startsWith("http://") || path.startsWith("https://")) return path
         
         // For relative paths, combine with server base
-        // But handle SOGo-specific path structure
         val base = serverUrl.trimEnd('/')
         val p = path.trimStart('/')
         
         // Special handling: if path starts with SOGo/dav, prepend whole server path
         if (p.startsWith("SOGo/dav") || p.startsWith("SOGo/")) {
-            // User provided full calendar URL but we stripped it to base
-            // Need to reconstruct the proper path
             return "$base/$p"
         }
         
