@@ -238,40 +238,64 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             for (account in accounts) {
                 try {
                     val pass = encryptor.decrypt(account.passwordEncrypted)
-                    val client = CalDAVClient(account.serverUrl, account.username, pass)
-
-                    // Determine calendar path - three options:
-                    // 1. Already saved in account (from previous sync)
-                    // 2. Extract from serverUrl (if user entered calendar URL directly)
-                    // 3. Discover via CalDAV PROPFIND
-                    var calendarPath = account.calendarPath
                     
+                    Log.d("SyncDirect", "=== Starting sync for ${account.displayName} ===")
+                    Log.d("SyncDirect", "Server URL: ${account.serverUrl}")
+                    Log.d("SyncDirect", "Existing calendarPath: ${account.calendarPath}")
+
+                    // Determine calendar path and base server URL
+                    var calendarPath = account.calendarPath
+                    var serverUrlForClient = account.serverUrl
+                    
+                    // If user entered full calendar URL (contains /Calendar/), extract base and calendar path
                     if (calendarPath.isBlank()) {
-                        // Try to extract calendar path from URL - check if URL looks like calendar
-                        val serverUrl = account.serverUrl.trimEnd('/')
-                        if (serverUrl.contains("/Calendar/") || serverUrl.contains("/calendar/")) {
-                            // User entered URL with calendar path already in it
-                            calendarPath = serverUrl
-                        } else {
-                            // Need to discover calendars
-                            val cals = client.discoverCalendars()
-                            if (cals.isEmpty()) {
-                                // Discovery failed - try raw PROPFIND on server URL as last resort
-                                Log.d("SyncDirect", "Discovery empty, trying server URL as path")
-                                calendarPath = serverUrl
-                            } else {
-                                calendarPath = cals.first().path
+                        val fullUrl = account.serverUrl.trimEnd('/')
+                        if (fullUrl.contains("/Calendar/") || fullUrl.contains("/calendar/")) {
+                            // Extract base CalDAV URL (everything up to /Calendar/...)
+                            val calIndex = fullUrl.indexOf("/Calendar", ignoreCase = true)
+                            if (calIndex > 0) {
+                                serverUrlForClient = fullUrl.substring(0, calIndex)
+                                // Remove trailing /dav/ or similar if present - just keep the base
+                                if (serverUrlForClient.endsWith("/")) serverUrlForClient = serverUrlForClient.dropLast(1)
+                                calendarPath = fullUrl
+                                Log.d("SyncDirect", "Split URL - base: $serverUrlForClient, calendar: $calendarPath")
                             }
                         }
                     }
                     
-                    Log.d("SyncDirect", "Using calendar path: $calendarPath")
+                    // Create client with appropriate base URL
+                    val client = CalDAVClient(serverUrlForClient, account.username, pass)
+                    
+                    // If calendar path not set, try to discover it
+                    if (calendarPath.isBlank()) {
+                        Log.d("SyncDirect", "Attempting calendar discovery...")
+                        val cals = client.discoverCalendars()
+                        Log.d("SyncDirect", "Discovery returned ${cals.size} calendars")
+                        if (cals.isEmpty()) {
+                            // Discovery failed - use server URL as fallback
+                            Log.d("SyncDirect", "Discovery empty, using server URL")
+                            calendarPath = serverUrlForClient
+                        } else {
+                            calendarPath = cals.first().path
+                            Log.d("SyncDirect", "Using discovered calendar: $calendarPath")
+                        }
+                    }
+                    
+                    Log.d("SyncDirect", "Final calendar path: $calendarPath")
                     
                     // Step 3: Get server ETags to find what needs syncing
+                    Log.d("SyncDirect", "Fetching ETag list...")
                     val serverEtags = client.getETagList(calendarPath)
+                    Log.d("SyncDirect", "ETag list returned ${serverEtags.size} items")
+                    
                     if (serverEtags.isEmpty()) {
                         // Calendar exists but is empty - that's fine
                         Log.d("SyncDirect", "Calendar is empty for ${account.displayName}")
+                        // Still mark as success if we got here
+                        db.calendarAccountDao().update(
+                            account.copy(lastSyncMs = System.currentTimeMillis(), calendarPath = calendarPath)
+                        )
+                        successCount++
                     } else {
                         // Step 4: Fetch new/changed items via multiget
                         val localEvents = db.calendarEventDao().getByAccount(account.id)
