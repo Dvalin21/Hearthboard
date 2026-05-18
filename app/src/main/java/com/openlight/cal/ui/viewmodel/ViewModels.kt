@@ -12,9 +12,11 @@ import com.openlight.cal.data.repository.*
 import com.openlight.cal.data.sync.CalDAVClient
 import com.openlight.cal.data.sync.CalDAVSyncWorker
 import com.openlight.cal.data.sync.ICalParser
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.*
 
 // ─────────────────────────────────────────────────────────────
@@ -215,7 +217,8 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
      * Run sync directly (not via WorkManager) so we can capture and show errors.
      */
     private suspend fun syncAccountDirect(context: android.content.Context, accountId: Long): String {
-        return try {
+        return withContext(Dispatchers.IO) {
+            try {
             val db = AppDatabase.getInstance(context)
             val encryptor = EncryptedPassword(context)
 
@@ -226,7 +229,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             if (accounts.isEmpty()) {
-                return "No accounts configured"
+                return@withContext "No accounts configured"
             }
 
             var successCount = 0
@@ -372,8 +375,9 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 failCount > 0 -> "Sync failed: $lastError"
                 else -> "Sync failed: check credentials and server URL"
             }
-        } catch (e: Exception) {
-            "Sync error: ${e.message}"
+            } catch (e: Exception) {
+                "Sync error: ${e.message}"
+            }
         }
     }
 
