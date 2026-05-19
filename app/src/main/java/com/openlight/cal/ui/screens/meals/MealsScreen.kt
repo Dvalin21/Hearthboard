@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openlight.cal.data.db.AppDatabase
+import com.openlight.cal.data.model.CalendarEvent
 import com.openlight.cal.data.model.MealPlan
 import com.openlight.cal.data.model.MealSlot
 import kotlinx.coroutines.launch
@@ -44,122 +45,123 @@ fun MealsScreen(
                 .let { if (it.isAfter(LocalDate.now())) it.minusWeeks(1) else it }
         )
     }
+
+    // Observe meals for the current week
     val weekEnd = weekStart.plusDays(6)
+    val meals by dao.getWeekFlow(weekStart.toString(), weekEnd.toString())
+        .collectAsState(initial = emptyList())
 
-    val meals by dao.getWeekFlow(
-        weekStart.toString(),
-        weekEnd.toString()
-    ).collectAsState(initial = emptyList())
-
-    val mealMap = meals.associateBy { "${it.dateIso}_${it.slot}" }
+    val mealMap = remember(meals) {
+        meals.associateBy { "${it.dateIso}_${it.slot}" }
+    }
 
     var editTarget by remember { mutableStateOf<Pair<LocalDate, MealSlot>?>(null) }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        // Top bar with week nav
-        TopAppBar(
-            title = {
-                Text(
-                    text = weekLabel(weekStart),
-                    style = MaterialTheme.typography.titleMedium
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(weekLabel(weekStart)) },
+                navigationIcon = {
+                    IconButton(onClick = { weekStart = weekStart.minusWeeks(1) }) {
+                        Icon(Icons.Default.ChevronLeft, "Previous week")
+                    }
+                },
+                actions = {
+                    TextButton(onClick = {
+                        weekStart = LocalDate.now()
+                            .with(DayOfWeek.MONDAY)
+                            .let { if (it.isAfter(LocalDate.now())) it.minusWeeks(1) else it }
+                    }) { Text("This week") }
+                    IconButton(onClick = { weekStart = weekStart.plusWeeks(1) }) {
+                        Icon(Icons.Default.ChevronRight, "Next week")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
-            },
-            navigationIcon = {
-                IconButton(onClick = { weekStart = weekStart.minusWeeks(1) }) {
-                    Icon(Icons.Default.ChevronLeft, "Previous week")
-                }
-            },
-            actions = {
-                TextButton(onClick = {
-                    weekStart = LocalDate.now()
-                        .with(DayOfWeek.MONDAY)
-                        .let { if (it.isAfter(LocalDate.now())) it.minusWeeks(1) else it }
-                }) { Text("This week") }
-                IconButton(onClick = { weekStart = weekStart.plusWeeks(1) }) {
-                    Icon(Icons.Default.ChevronRight, "Next week")
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface
             )
-        )
+        },
+        modifier = modifier
+    ) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
 
-        HorizontalDivider()
+            HorizontalDivider()
 
-        // Slot header row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .padding(vertical = 6.dp)
-        ) {
-            Spacer(Modifier.width(64.dp))
-            MealSlot.values().forEach { slot ->
-                Text(
-                    text      = slot.name.lowercase().replaceFirstChar { it.uppercase() },
-                    modifier  = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                    style     = MaterialTheme.typography.labelSmall,
-                    color     = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-
-        // Days grid
-        val scrollState = rememberScrollState()
-        Column(modifier = Modifier.weight(1f).verticalScroll(scrollState)) {
-            val today = LocalDate.now()
-            for (dayOffset in 0..6L) {
-                val day = weekStart.plusDays(dayOffset)
-                val isToday = day == today
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(80.dp)
-                        .background(
-                            if (isToday) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
-                            else MaterialTheme.colorScheme.surface
-                        ),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Day label
-                    Column(
-                        modifier = Modifier.width(64.dp).padding(start = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isToday) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
-                        )
-                        Text(
-                            text = day.dayOfMonth.toString(),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isToday) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    // Meal slots
-                    MealSlot.values().forEach { slot ->
-                        val key  = "${day}_$slot"
-                        val meal = mealMap[key]
-                        MealCell(
-                            meal     = meal,
-                            onClick  = { editTarget = day to slot },
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .padding(2.dp)
-                        )
-                    }
+            // Slot header row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(vertical = 6.dp)
+            ) {
+                Spacer(Modifier.width(64.dp))
+                MealSlot.values().forEach { slot ->
+                    Text(
+                        text      = slot.name.lowercase().replaceFirstChar { it.uppercase() },
+                        modifier  = Modifier.weight(1f),
+                        textAlign = TextAlign.Center,
+                        style     = MaterialTheme.typography.labelSmall,
+                        color     = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
-                HorizontalDivider()
+            }
+
+            // Days grid
+            val scrollState = rememberScrollState()
+            Column(modifier = Modifier.weight(1f).verticalScroll(scrollState)) {
+                val today = LocalDate.now()
+                for (dayOffset in 0..6L) {
+                    val day = weekStart.plusDays(dayOffset)
+                    val isToday = day == today
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(80.dp)
+                            .background(
+                                if (isToday) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                                else MaterialTheme.colorScheme.surface
+                            ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Day label
+                        Column(
+                            modifier = Modifier.width(64.dp).padding(start = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isToday) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Text(
+                                text = day.dayOfMonth.toString(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isToday) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        // Meal slots
+                        MealSlot.values().forEach { slot ->
+                            val key  = "${day}_$slot"
+                            val meal = mealMap[key]
+                            MealCell(
+                                meal     = meal,
+                                onClick  = { editTarget = day to slot },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .padding(2.dp)
+                            )
+                        }
+                    }
+                    HorizontalDivider()
+                }
             }
         }
     }
@@ -175,16 +177,46 @@ fun MealsScreen(
                 scope.launch {
                     dao.upsert(MealPlan(dateIso = day.toString(), slot = slot,
                         title = title, notes = notes))
+                    // Create matching calendar event so meals show on calendar
+                    val (startH, startM, endH, endM) = mealSlotToTime(slot)
+                    val start = day.atTime(startH, startM)
+                        .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    val end   = day.atTime(endH, endM)
+                        .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    database.calendarEventDao().insert(
+                        CalendarEvent(
+                            uid        = "meal_${day}_$slot",
+                            title      = title,
+                            startMs    = start,
+                            endMs      = end,
+                            colorHex   = "#FF9800",
+                            isLocalOnly = true,
+                            description = notes
+                        )
+                    )
                 }
                 editTarget = null
             },
             onDelete  = if (existing != null) {
-                { scope.launch { dao.delete(existing) }; editTarget = null }
+                { scope.launch {
+                    dao.delete(existing)
+                    database.calendarEventDao().deleteByUid("meal_${day}_$slot")
+                }; editTarget = null }
             } else null,
             onDismiss = { editTarget = null }
         )
     }
 }
+
+/** Map meal slot to time-of-day range (hour, minute pairs). */
+private fun mealSlotToTime(slot: MealSlot): Quadruple<Int, Int, Int, Int> = when (slot) {
+    MealSlot.BREAKFAST -> Quadruple(7, 0, 8, 0)
+    MealSlot.LUNCH     -> Quadruple(12, 0, 13, 0)
+    MealSlot.DINNER    -> Quadruple(18, 0, 19, 0)
+    MealSlot.SNACK     -> Quadruple(15, 0, 15, 30)
+}
+
+private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
 @Composable
 private fun MealCell(
