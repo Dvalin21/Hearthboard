@@ -81,7 +81,7 @@ class CalDAVClient(
                 val name        = extractXml(block, "D:displayname") ?: path.split("/").lastOrNull { it.isNotBlank() } ?: path
                 val ctag        = extractXml(block, "CS:getctag") ?: extractXml(block, "getctag") ?: ""
                 val supportsVTODO = block.contains("VTODO")
-                if (block.contains("calendar") && !block.contains("inbox") && !block.contains("outbox")) {
+                if (block.contains("calendar")) {
                     calendars.add(CalendarInfo(
                         path         = path,
                         displayName  = name,

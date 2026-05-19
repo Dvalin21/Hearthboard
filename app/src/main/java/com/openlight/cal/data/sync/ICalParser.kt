@@ -72,6 +72,8 @@ object ICalParser {
                           }
             val status  = props["STATUS"] ?: ""
 
+            val organizerEmail = extractOrganizerEmail(props)
+
             CalendarEvent(
                 uid            = uid,
                 accountId      = accountId,
@@ -85,7 +87,8 @@ object ICalParser {
                 isAllDay       = allDay,
                 recurrenceRule = props["RRULE"] ?: "",
                 isCancelled    = status.equals("CANCELLED", ignoreCase = true),
-                rawIcal        = lines.joinToString("\r\n")
+                rawIcal        = lines.joinToString("\r\n"),
+                organizerEmail = organizerEmail
             )
         } catch (e: Exception) {
             Log.w(TAG, "Failed to parse VEVENT: ${e.message}")
@@ -153,8 +156,9 @@ object ICalParser {
             sb.appendLine("DTSTART:${start.format(utcFmt)}")
             sb.appendLine("DTEND:${end.format(utcFmt)}")
         }
-        if (event.description.isNotBlank()) sb.appendLine("DESCRIPTION:${foldLine(event.description)}")
-        if (event.location.isNotBlank())    sb.appendLine("LOCATION:${foldLine(event.location)}")
+        if (event.organizerEmail.isNotBlank()) sb.appendLine("ORGANIZER:mailto:${event.organizerEmail}")
+        if (event.description.isNotBlank())    sb.appendLine("DESCRIPTION:${foldLine(event.description)}")
+        if (event.location.isNotBlank())       sb.appendLine("LOCATION:${foldLine(event.location)}")
         if (event.recurrenceRule.isNotBlank()) sb.appendLine("RRULE:${event.recurrenceRule}")
         val dtstamp = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
             .format(Instant.now().atZone(ZoneOffset.UTC))
@@ -266,6 +270,12 @@ object ICalParser {
                     .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
             }
         }
+    }
+
+    /** Extract email from ORGANIZER property (handles ORGANIZER;CN=... format). */
+    private fun extractOrganizerEmail(props: Map<String, String>): String {
+        val entry = props.entries.firstOrNull { it.key.startsWith("ORGANIZER") } ?: return ""
+        return entry.value.removePrefix("mailto:").trim()
     }
 
     private fun foldLine(input: String): String =

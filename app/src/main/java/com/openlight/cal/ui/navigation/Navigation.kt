@@ -93,7 +93,7 @@ fun OpenLightNavHost(app: OpenLightApp) {
                 MealsScreen(database = app.database)
             }
             composable(Screen.People.route) {
-                PeopleScreen(viewModel = personVm)
+                PeopleScreen(viewModel = personVm, database = app.database)
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(viewModel = settingsVm)

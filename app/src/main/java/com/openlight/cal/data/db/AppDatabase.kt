@@ -2,6 +2,7 @@ package com.openlight.cal.data.db
 
 import android.content.Context
 import androidx.room.*
+import androidx.room.migration.Migration
 import com.openlight.cal.data.db.dao.*
 import com.openlight.cal.data.model.*
 
@@ -16,7 +17,7 @@ import com.openlight.cal.data.model.*
         CheckListItem::class,
         MealPlan::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -37,9 +38,20 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "openlight.db"
                 )
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }
+        }
+
+        private val MIGRATION_1_2 = Migration(1, 2) { db ->
+            db.execSQL("ALTER TABLE people ADD COLUMN role TEXT NOT NULL DEFAULT 'PARENT'")
+            db.execSQL("ALTER TABLE people ADD COLUMN caregiverPersonId INTEGER NOT NULL DEFAULT 0")
+        }
+
+        private val MIGRATION_2_3 = Migration(2, 3) { db ->
+            db.execSQL("ALTER TABLE people ADD COLUMN email TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE calendar_events ADD COLUMN organizerEmail TEXT NOT NULL DEFAULT ''")
         }
     }
 }
@@ -62,4 +74,10 @@ class Converters {
 
     @TypeConverter
     fun toMealSlot(value: String): MealSlot = MealSlot.valueOf(value)
+
+    @TypeConverter
+    fun fromPersonRole(value: PersonRole): String = value.name
+
+    @TypeConverter
+    fun toPersonRole(value: String): PersonRole = PersonRole.valueOf(value)
 }

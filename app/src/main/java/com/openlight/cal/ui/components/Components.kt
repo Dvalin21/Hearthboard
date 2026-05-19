@@ -310,8 +310,18 @@ fun TaskItem(
             Spacer(Modifier.width(8.dp))
         }
 
+        // Stars (chore reward)
+        if (task.starsEarned > 0) {
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "⭐".repeat(task.starsEarned),
+                fontSize = 12.sp
+            )
+        }
+
         // Person color dot
         if (personColor != null) {
+            Spacer(Modifier.width(6.dp))
             Box(
                 modifier = Modifier
                     .size(10.dp)

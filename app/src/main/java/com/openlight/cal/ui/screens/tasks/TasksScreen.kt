@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.openlight.cal.data.model.*
 import com.openlight.cal.ui.components.*
 import com.openlight.cal.ui.viewmodel.TaskViewModel
@@ -61,6 +62,31 @@ fun TasksScreen(
                     onSelect   = viewModel::setPersonFilter,
                     modifier   = Modifier.padding(vertical = 8.dp)
                 )
+                HorizontalDivider()
+            }
+
+            // Chore chart: total stars per person
+            val starsByPerson = people.filter { !it.isDefault }.associate { person ->
+                person to tasks.filter { it.assignedPersonId == person.id && it.isCompleted }
+                    .sumOf { it.starsEarned }
+            }
+            if (starsByPerson.any { it.value > 0 }) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    starsByPerson.forEach { (person, totalStars) ->
+                        if (totalStars > 0) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                PersonChip(person = person, selected = false)
+                                Spacer(Modifier.height(2.dp))
+                                Text("$totalStars ⭐", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
                 HorizontalDivider()
             }
 
@@ -145,6 +171,7 @@ fun TaskEditDialog(
     var description by remember { mutableStateOf(task?.description ?: "") }
     var priority    by remember { mutableStateOf(task?.priority ?: TaskPriority.NORMAL) }
     var assignedId  by remember { mutableStateOf(task?.assignedPersonId ?: 0L) }
+    var starsValue  by remember { mutableStateOf(task?.starsEarned ?: 0) }
     var titleError  by remember { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -170,7 +197,8 @@ fun TaskEditDialog(
                             title       = title.trim(),
                             description = description.trim(),
                             priority    = priority,
-                            assignedPersonId = assignedId
+                            assignedPersonId = assignedId,
+                            starsEarned = starsValue
                         )
                     )
                 }) { Text("Save") }
@@ -231,6 +259,23 @@ fun TaskEditDialog(
                             person   = person,
                             selected = assignedId == person.id,
                             onClick  = { assignedId = person.id }
+                        )
+                    }
+                }
+            }
+
+            // Stars (chore reward value)
+            Spacer(Modifier.height(12.dp))
+            Text("⭐ Stars earned on completion", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                for (i in 0..5) {
+                    IconButton(onClick = { starsValue = if (starsValue == i) 0 else i },
+                        modifier = Modifier.size(36.dp)) {
+                        Text(
+                            if (i <= starsValue) "⭐" else "☆",
+                            fontSize = 20.sp
                         )
                     }
                 }

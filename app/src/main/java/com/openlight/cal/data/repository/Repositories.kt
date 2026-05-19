@@ -110,6 +110,21 @@ class TaskRepository(
     suspend fun setCompleted(id: Long, done: Boolean) {
         val ts = if (done) System.currentTimeMillis() else null
         db.taskDao().setCompleted(id, done, ts)
+
+        // Push STATUS update to CalDAV if synced
+        withContext(Dispatchers.IO) {
+            val updated = db.taskDao().getById(id) ?: return@withContext
+            if (updated.accountId > 0 && updated.calendarPath.isNotBlank()) {
+                val account = db.calendarAccountDao().getById(updated.accountId) ?: return@withContext
+                val client  = CalDAVClient(account.serverUrl, account.username,
+                    encryptor.decrypt(account.passwordEncrypted))
+                val ical    = ICalParser.serializeTask(updated)
+                val newEtag = client.putIcs(updated.calendarPath, ical, updated.etag.ifBlank { null })
+                if (newEtag != null) {
+                    db.taskDao().insert(updated.copy(etag = newEtag))
+                }
+            }
+        }
     }
 
     suspend fun deleteTask(task: Task) {

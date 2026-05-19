@@ -69,10 +69,11 @@ fun SettingsScreen(
 
         accounts.forEach { account ->
             AccountRow(
-                account = account,
-                onSync  = { viewModel.syncNow(context, account.id) },
-                onEdit  = { editAccount = account },
-                onDelete = { viewModel.deleteAccount(account) }
+                account   = account,
+                isSyncing = syncStatus != null,
+                onSync    = { viewModel.syncNow(context, account.id) },
+                onEdit    = { editAccount = account },
+                onDelete  = { viewModel.deleteAccount(account) }
             )
         }
 
@@ -213,6 +214,90 @@ fun SettingsScreen(
             title   = "Sync all accounts now",
             onClick = { viewModel.syncNow(context) }
         )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        // ── WEATHER ────────────────────────────────────────────
+        SettingsSectionHeader("Weather", Icons.Default.Cloud)
+
+        val weatherLat by viewModel.weatherLat.collectAsState()
+        val weatherLon by viewModel.weatherLon.collectAsState()
+        val weatherEndpoint by viewModel.weatherEndpoint.collectAsState()
+
+        var editWeatherLat by remember { mutableStateOf(false) }
+        var editWeatherLon by remember { mutableStateOf(false) }
+        var editWxEndpoint by remember { mutableStateOf(false) }
+        var wxLatInput by remember { mutableStateOf(weatherLat) }
+        var wxLonInput by remember { mutableStateOf(weatherLon) }
+        var wxEndpointInput by remember { mutableStateOf(weatherEndpoint) }
+
+        // Latitude
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("Latitude", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            if (editWeatherLat) {
+                OutlinedTextField(value = wxLatInput, onValueChange = { wxLatInput = it },
+                    modifier = Modifier.width(120.dp), singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
+                IconButton(onClick = {
+                    viewModel.setWeatherLat(wxLatInput.trim())
+                    editWeatherLat = false
+                }) { Icon(Icons.Default.Check, "Save") }
+            } else {
+                Text(weatherLat.ifBlank { "not set" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                IconButton(onClick = { wxLatInput = weatherLat; editWeatherLat = true }) {
+                    Icon(Icons.Default.Edit, "Edit", Modifier.size(20.dp))
+                }
+            }
+        }
+
+        // Longitude
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("Longitude", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            if (editWeatherLon) {
+                OutlinedTextField(value = wxLonInput, onValueChange = { wxLonInput = it },
+                    modifier = Modifier.width(120.dp), singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
+                IconButton(onClick = {
+                    viewModel.setWeatherLon(wxLonInput.trim())
+                    editWeatherLon = false
+                }) { Icon(Icons.Default.Check, "Save") }
+            } else {
+                Text(weatherLon.ifBlank { "not set" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                IconButton(onClick = { wxLonInput = weatherLon; editWeatherLon = true }) {
+                    Icon(Icons.Default.Edit, "Edit", Modifier.size(20.dp))
+                }
+            }
+        }
+
+        // Custom endpoint
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("API Endpoint", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            if (editWxEndpoint) {
+                OutlinedTextField(value = wxEndpointInput, onValueChange = { wxEndpointInput = it },
+                    modifier = Modifier.width(180.dp), singleLine = true)
+                IconButton(onClick = {
+                    viewModel.setWeatherEndpoint(wxEndpointInput.trim())
+                    editWxEndpoint = false
+                }) { Icon(Icons.Default.Check, "Save") }
+            } else {
+                Text(weatherEndpoint.ifBlank { "Open-Meteo (default)" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1)
+                IconButton(onClick = { wxEndpointInput = weatherEndpoint; editWxEndpoint = true }) {
+                    Icon(Icons.Default.Edit, "Edit", Modifier.size(20.dp))
+                }
+            }
+        }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -392,6 +477,7 @@ private fun SettingsClickRow(
 @Composable
 private fun AccountRow(
     account: CalendarAccount,
+    isSyncing: Boolean = false,
     onSync: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
@@ -421,6 +507,7 @@ private fun AccountRow(
                 fontWeight = FontWeight.Medium)
             Text(
                 text = when {
+                    isSyncing -> "Syncing…"
                     account.lastSyncMs == 0L -> "Never synced"
                     else -> "Last synced: ${java.text.SimpleDateFormat("MMM d h:mm a",
                         java.util.Locale.getDefault()).format(java.util.Date(account.lastSyncMs))}"

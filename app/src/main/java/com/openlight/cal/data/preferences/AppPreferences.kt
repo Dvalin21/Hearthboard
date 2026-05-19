@@ -25,6 +25,10 @@ class AppPreferences(private val context: Context) {
         val KEY_SHOW_DECLINED   = booleanPreferencesKey("show_declined")
         val KEY_SHOW_WEEKENDS   = booleanPreferencesKey("show_weekends")
         val KEY_SETUP_DONE      = booleanPreferencesKey("setup_done")
+        // Weather
+        val KEY_WEATHER_LAT     = stringPreferencesKey("weather_lat")
+        val KEY_WEATHER_LON     = stringPreferencesKey("weather_lon")
+        val KEY_WEATHER_ENDPOINT= stringPreferencesKey("weather_endpoint")
         // No telemetry keys - period.
     }
 
@@ -41,6 +45,9 @@ class AppPreferences(private val context: Context) {
     val showDeclined: Flow<Boolean>   = context.dataStore.data.map { it[KEY_SHOW_DECLINED] ?: false }
     val showWeekends: Flow<Boolean>   = context.dataStore.data.map { it[KEY_SHOW_WEEKENDS] ?: true }
     val setupDone: Flow<Boolean>      = context.dataStore.data.map { it[KEY_SETUP_DONE] ?: false }
+    val weatherLat: Flow<String>      = context.dataStore.data.map { it[KEY_WEATHER_LAT] ?: "" }
+    val weatherLon: Flow<String>      = context.dataStore.data.map { it[KEY_WEATHER_LON] ?: "" }
+    val weatherEndpoint: Flow<String> = context.dataStore.data.map { it[KEY_WEATHER_ENDPOINT] ?: "" }
 
     suspend fun set(key: Preferences.Key<Int>, value: Int) {
         context.dataStore.edit { it[key] = value }

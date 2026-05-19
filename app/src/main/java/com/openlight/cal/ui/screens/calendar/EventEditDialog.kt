@@ -47,6 +47,7 @@ fun EventEditDialog(
             event?.personIds?.split(",")?.mapNotNull { it.trim().toLongOrNull() }?.toSet() ?: emptySet()
         )
     }
+    val organizerEmail = event?.organizerEmail ?: ""
     var selectedAccountId by remember { mutableStateOf(accounts.firstOrNull()?.id) }
 
     // Date/time state
@@ -65,6 +66,10 @@ fun EventEditDialog(
     var showColorPicker   by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var titleError        by remember { mutableStateOf(false) }
+
+    // ── Recurring event choice ─────────────────────────────────
+    val isRecurring = !isNew && event?.recurrenceRule?.isNotBlank() == true
+    var recurringChoice by remember { mutableStateOf<String?>(if (isRecurring) null else "ALL") }
 
     // ── Interactive date/time picker state ────────────────────
     var activePicker by remember { mutableStateOf<PickerTarget?>(null) }
@@ -98,18 +103,20 @@ fun EventEditDialog(
                     val endMs = endDate.atTime(if (isAllDay) LocalTime.MIDNIGHT else endTime)
                         .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                     val uid = event?.uid?.ifBlank { ICalParser.generateUid() } ?: ICalParser.generateUid()
+                    val effRrule = if (recurringChoice == "THIS") "" else (event?.recurrenceRule ?: "")
                     onSave(
                         (event ?: CalendarEvent(title = "", startMs = 0, endMs = 0)).copy(
-                            uid         = uid,
-                            title       = title.trim(),
-                            location    = location.trim(),
-                            description = description.trim(),
-                            isAllDay    = isAllDay,
-                            isCountdown = isCountdown,
-                            colorHex    = colorHex,
-                            startMs     = startMs,
-                            endMs       = endMs.coerceAtLeast(startMs + 1800_000),
-                            personIds   = selectedPersonIds.joinToString(",")
+                            uid            = uid,
+                            title          = title.trim(),
+                            location       = location.trim(),
+                            description    = description.trim(),
+                            isAllDay       = isAllDay,
+                            isCountdown    = isCountdown,
+                            colorHex       = colorHex,
+                            startMs        = startMs,
+                            endMs          = endMs.coerceAtLeast(startMs + 1800_000),
+                            personIds      = selectedPersonIds.joinToString(","),
+                            recurrenceRule = effRrule
                         ),
                         selectedAccountId
                     )
@@ -241,6 +248,19 @@ fun EventEditDialog(
                 Spacer(Modifier.height(12.dp))
             }
 
+            // Show organizer email from CalDAV (read-only, for synced events)
+            if (organizerEmail.isNotBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Email, null, modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(6.dp))
+                    Text("From: $organizerEmail",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
             // Color override
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -354,6 +374,31 @@ fun EventEditDialog(
             onDismiss     = { activePicker = null }
         )
         null -> { /* no picker visible */ }
+    }
+
+    // ── Recurring event choice dialog ─────────────────────────
+    if (isRecurring && recurringChoice == null) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            icon = { Icon(Icons.Default.Repeat, null) },
+            title = { Text("Recurring Event") },
+            text = { Text("This event repeats. Do you want to edit this single instance or all events in the series?") },
+            confirmButton = {
+                TextButton(onClick = { recurringChoice = "ALL" }) {
+                    Text("Edit All Events")
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { recurringChoice = "THIS"; onDismiss() }) {
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TextButton(onClick = { recurringChoice = "THIS" }) {
+                        Text("Edit This Only")
+                    }
+                }
+            }
+        )
     }
 
     if (showDeleteConfirm && event != null) {

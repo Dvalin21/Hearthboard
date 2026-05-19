@@ -88,79 +88,96 @@ class CalDAVSyncWorker(
         val pass      = encryptor.decrypt(account.passwordEncrypted)
         val client    = CalDAVClient(account.serverUrl, account.username, pass)
 
-        // If calendar path not discovered yet, discover it
-        val path = account.calendarPath.ifBlank {
-            val cals = client.discoverCalendars()
-            cals.firstOrNull()?.path ?: return
-        }
-
-        // Check ctag – if unchanged, skip
-        val newCtag = client.getCTag(path)
-        if (newCtag.isNotBlank() && newCtag == account.ctag) {
-            Log.d(TAG, "No changes for ${account.displayName} (ctag match)")
+        // Always run discovery to find ALL calendars (personal + inbox + shared)
+        val allCalendars = client.discoverCalendars()
+        if (allCalendars.isEmpty()) {
+            Log.w(TAG, "No calendars discovered for ${account.displayName}")
             return
         }
 
-        // Get server ETag list
-        val serverEtags  = client.getETagList(path)
-        val localEvents  = db.calendarEventDao().getByAccount(account.id)
-        val localByHref  = localEvents.associateBy { it.calendarPath }
-        val localTasks   = db.taskDao().getByAccount(account.id)
+        // Pre-fetch local state
+        val localEvents = db.calendarEventDao().getByAccount(account.id)
+        val localByHref = localEvents.associateBy { it.calendarPath }
+        val localTasks  = db.taskDao().getByAccount(account.id)
         val localTasksByHref = localTasks.associateBy { it.calendarPath }
 
-        // Find new/changed items — fetch if no local resource matches the etag
-        val toFetch = serverEtags.filter { (href, etag) ->
-            val eventMatch = localByHref[href]?.etag == etag
-            val taskMatch  = localTasksByHref[href]?.etag == etag
-            !eventMatch && !taskMatch
-        }.map { it.href }
+        // Build email→personId lookup for organizer matching
+        val emailToPersonId = db.personDao().getAll()
+            .filter { it.email.isNotBlank() }
+            .associateBy { it.email.lowercase() }
 
-        // Fetch changed items via individual GET (not multiGet REPORT - SOGo returns 501)
-        for (href in toFetch) {
-            val res = client.fetchIcs(href) ?: continue
-            val parsed = ICalParser.parse(res.ical, account.id, res.href)
-            // Upsert events
-            for (event in parsed.events) {
-                val existing = db.calendarEventDao().getByUid(event.uid, account.id)
-                db.calendarEventDao().insert(
-                    event.copy(
-                        id           = existing?.id ?: 0,
-                        etag         = res.etag,
-                        calendarPath = res.href
+        val masterServerHrefs = mutableSetOf<String>()
+
+        for (cal in allCalendars) {
+            Log.d(TAG, "Syncing calendar: ${cal.displayName} (${cal.path})")
+
+            // Get server ETag list for this calendar
+            val serverEtags = client.getETagList(cal.path)
+            masterServerHrefs.addAll(serverEtags.map { it.href })
+
+            if (serverEtags.isEmpty()) continue
+
+            // Find new/changed items
+            val toFetch = serverEtags.filter { (href, etag) ->
+                val eventMatch = localByHref[href]?.etag == etag
+                val taskMatch  = localTasksByHref[href]?.etag == etag
+                !eventMatch && !taskMatch
+            }.map { it.href }
+
+            // Fetch changed items via individual GET
+            for (href in toFetch) {
+                val res = client.fetchIcs(href) ?: continue
+                val parsed = ICalParser.parse(res.ical, account.id, res.href)
+                // Upsert events
+                for (event in parsed.events) {
+                    val existing = db.calendarEventDao().getByUid(event.uid, account.id)
+                    // Match organizer email to a known Person
+                    val personId = if (event.organizerEmail.isNotBlank() && existing?.personIds.isNullOrBlank()) {
+                        emailToPersonId[event.organizerEmail.lowercase()]?.id
+                    } else null
+                    db.calendarEventDao().insert(
+                        event.copy(
+                            id           = existing?.id ?: 0,
+                            etag         = res.etag,
+                            calendarPath = res.href,
+                            colorHex     = existing?.colorHex?.takeIf { it.isNotBlank() } ?: account.colorHex,
+                            personIds    = personId?.toString() ?: (existing?.personIds ?: "")
+                        )
                     )
-                )
-            }
-            // Upsert tasks
-            for (task in parsed.tasks) {
-                val existing = db.taskDao().getByUid(task.uid, account.id)
-                db.taskDao().insert(
-                    task.copy(
-                        id           = existing?.id ?: 0,
-                        etag         = res.etag,
-                        calendarPath = res.href
+                }
+                // Upsert tasks
+                for (task in parsed.tasks) {
+                    val existing = db.taskDao().getByUid(task.uid, account.id)
+                    db.taskDao().insert(
+                        task.copy(
+                            id           = existing?.id ?: 0,
+                            etag         = res.etag,
+                            calendarPath = res.href
+                        )
                     )
-                )
+                }
             }
         }
 
-        // Delete events removed from server
-        val serverHrefs = serverEtags.map { it.href }.toSet()
+        // Single deletion pass: remove items not present on ANY server calendar
         for (event in localEvents) {
-            if (event.calendarPath !in serverHrefs && event.calendarPath.isNotBlank()) {
+            if (event.calendarPath.isNotBlank() && event.calendarPath !in masterServerHrefs) {
                 db.calendarEventDao().delete(event)
             }
         }
-
-        // Delete tasks removed from server
         for (task in localTasks) {
-            if (task.calendarPath !in serverHrefs && task.calendarPath.isNotBlank()) {
+            if (task.calendarPath.isNotBlank() && task.calendarPath !in masterServerHrefs) {
                 db.taskDao().delete(task)
             }
         }
 
-        // Update ctag
+        // Update ctag from primary calendar
+        val primaryPath = allCalendars.first().path
+        val newCtag = client.getCTag(primaryPath)
         if (newCtag.isNotBlank()) {
-            db.calendarAccountDao().update(account.copy(ctag = newCtag, calendarPath = path))
+            db.calendarAccountDao().update(account.copy(ctag = newCtag, calendarPath = primaryPath))
+        } else {
+            db.calendarAccountDao().update(account.copy(calendarPath = primaryPath))
         }
     }
 }

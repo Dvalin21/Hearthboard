@@ -98,6 +98,9 @@ interface CalendarEventDao {
     @Query("DELETE FROM calendar_events WHERE accountId = :accountId")
     suspend fun deleteByAccount(accountId: Long)
 
+    @Query("DELETE FROM calendar_events WHERE uid = :uid")
+    suspend fun deleteByUid(uid: String)
+
     @Query("SELECT * FROM calendar_events WHERE isCountdown = 1 AND isCancelled = 0 AND startMs > :nowMs ORDER BY startMs LIMIT 10")
     fun getCountdownsFlow(nowMs: Long): Flow<List<CalendarEvent>>
 }
@@ -118,6 +121,9 @@ interface TaskDao {
 
     @Query("SELECT * FROM tasks WHERE listId = :listId ORDER BY isCompleted, sortOrder")
     fun getByListFlow(listId: Long): Flow<List<Task>>
+
+    @Query("SELECT * FROM tasks WHERE id = :id")
+    suspend fun getById(id: Long): Task?
 
     @Query("SELECT * FROM tasks WHERE uid = :uid AND accountId = :accountId LIMIT 1")
     suspend fun getByUid(uid: String, accountId: Long): Task?

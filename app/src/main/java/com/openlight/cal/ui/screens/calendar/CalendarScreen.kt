@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openlight.cal.data.model.*
+import com.openlight.cal.data.weather.DailyForecast
 import com.openlight.cal.ui.components.*
 import com.openlight.cal.ui.viewmodel.CalendarViewModel
 import java.time.*
@@ -38,10 +39,13 @@ fun CalendarScreen(
     onAddEvent: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val viewMode     by viewModel.viewMode.collectAsState()
-    val selectedDate by viewModel.selectedDate.collectAsState()
-    val events       by viewModel.eventsThisMonth.collectAsState()
-    val countdowns   by viewModel.countdowns.collectAsState()
+    val viewMode       by viewModel.viewMode.collectAsState()
+    val selectedDate   by viewModel.selectedDate.collectAsState()
+    val events         by viewModel.filteredEvents.collectAsState()
+    val countdowns     by viewModel.countdowns.collectAsState()
+    val pendingInvites by viewModel.pendingInvitations.collectAsState()
+    val forecasts      by viewModel.forecasts.collectAsState()
+    val personFilterId by viewModel.personFilter.collectAsState()
 
     Column(modifier = modifier.fillMaxSize()) {
 
@@ -69,14 +73,65 @@ fun CalendarScreen(
             HorizontalDivider()
         }
 
+        // ── Pending invitations (from CalDAV inbox) ──────────
+        if (pendingInvites.isNotEmpty()) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                Text("Pending Invitations", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(4.dp))
+                pendingInvites.forEach { inv ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f))
+                            .clickable { viewModel.editEvent(inv) }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Email, null,
+                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(inv.title, style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium, maxLines = 1)
+                            if (inv.organizerEmail.isNotBlank()) {
+                                Text("From: ${inv.organizerEmail}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        FilledTonalButton(
+                            onClick = { viewModel.acceptInvitation(inv) },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text("Accept", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                }
+            }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        }
+
+        // ── Person filter ────────────────────────────────────
+        if (people.size > 1) {
+            PersonFilterRow(
+                people     = people,
+                selectedId = personFilterId,
+                onSelect   = viewModel::setPersonFilter,
+                modifier   = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+        }
+
         // ── Calendar body ────────────────────────────────────
         Box(modifier = Modifier.weight(1f)) {
             when (viewMode) {
-                "MONTH"  -> MonthView(selectedDate, events, people, viewModel::setSelectedDate)
-                "WEEK"   -> WeekView(selectedDate, events, people, viewModel::setSelectedDate)
-                "DAY"    -> DayView(selectedDate, events, people)
+                "MONTH"  -> MonthView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent)
+                "WEEK"   -> WeekView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent)
+                "DAY"    -> DayView(selectedDate, events, people, onEventClick = viewModel::editEvent)
                 "AGENDA" -> AgendaView(events, people, viewModel::editEvent)
-                else     -> MonthView(selectedDate, events, people, viewModel::setSelectedDate)
+                else     -> MonthView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent)
             }
         }
     }
@@ -155,8 +210,10 @@ private fun calendarTitle(viewMode: String, date: LocalDate): String {
 fun MonthView(
     selectedDate: LocalDate,
     events: List<CalendarEvent>,
+    forecasts: Map<LocalDate, DailyForecast>,
     people: List<Person>,
     onDayClick: (LocalDate) -> Unit,
+    onEventClick: (CalendarEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val today     = LocalDate.now()
@@ -209,8 +266,10 @@ fun MonthView(
                         isToday        = isToday,
                         isSelected     = isSelected,
                         events         = dayEvents,
+                        forecasts      = forecasts,
                         people         = people,
                         onClick        = { onDayClick(day) },
+                        onEventClick   = onEventClick,
                         modifier       = Modifier.weight(1f)
                     )
                 }
@@ -226,40 +285,57 @@ private fun DayCell(
     isToday: Boolean,
     isSelected: Boolean,
     events: List<CalendarEvent>,
+    forecasts: Map<LocalDate, DailyForecast> = emptyMap(),
     people: List<Person>,
     onClick: () -> Unit,
+    onEventClick: (CalendarEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val wf = forecasts[day]
+
     Column(
         modifier = modifier
             .fillMaxHeight()
             .clickable(onClick = onClick)
             .padding(2.dp)
     ) {
-        // Day number
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier         = Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(
-                    when {
-                        isSelected -> MaterialTheme.colorScheme.primary
-                        isToday    -> MaterialTheme.colorScheme.secondaryContainer
-                        else       -> Color.Transparent
-                    }
-                )
+        // Day number + weather
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier         = Modifier.fillMaxWidth()
         ) {
-            Text(
-                text  = day.dayOfMonth.toString(),
-                style = MaterialTheme.typography.bodySmall,
-                color = when {
-                    isSelected      -> MaterialTheme.colorScheme.onPrimary
-                    !isCurrentMonth -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                    else            -> MaterialTheme.colorScheme.onSurface
-                },
-                fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal
-            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier         = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(
+                        when {
+                            isSelected -> MaterialTheme.colorScheme.primary
+                            isToday    -> MaterialTheme.colorScheme.secondaryContainer
+                            else       -> Color.Transparent
+                        }
+                    )
+            ) {
+                Text(
+                    text  = day.dayOfMonth.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = when {
+                        isSelected      -> MaterialTheme.colorScheme.onPrimary
+                        !isCurrentMonth -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        else            -> MaterialTheme.colorScheme.onSurface
+                    },
+                    fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal
+                )
+            }
+            if (wf != null && isCurrentMonth) {
+                Text(
+                    text  = "${wf.iconChar}${wf.tempHigh.toInt()}°",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
         }
 
         // Event dots / mini labels
@@ -271,6 +347,7 @@ private fun DayCell(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(2.dp))
                     .background(color.copy(alpha = 0.85f))
+                    .clickable { onEventClick(event) }
                     .padding(horizontal = 2.dp),
                 verticalAlignment   = Alignment.CenterVertically
             ) {
@@ -301,8 +378,10 @@ private fun DayCell(
 fun WeekView(
     selectedDate: LocalDate,
     events: List<CalendarEvent>,
+    forecasts: Map<LocalDate, DailyForecast>,
     people: List<Person>,
     onDayClick: (LocalDate) -> Unit,
+    onEventClick: (CalendarEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val weekStart = selectedDate.with(java.time.DayOfWeek.MONDAY)
@@ -316,6 +395,7 @@ fun WeekView(
             for (i in 0..6) {
                 val day = weekStart.plusDays(i.toLong())
                 val isToday = day == today
+                val wf = forecasts[day]
                 Column(
                     modifier            = Modifier.weight(1f),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -342,6 +422,13 @@ fun WeekView(
                             color      = if (isToday) MaterialTheme.colorScheme.onPrimary
                                          else MaterialTheme.colorScheme.onSurface,
                             fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                    if (wf != null) {
+                        Text(
+                            text  = "${wf.iconChar}${wf.tempHigh.toInt()}°",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -406,6 +493,7 @@ fun WeekView(
                                 .padding(1.dp)
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(color)
+                                .clickable { onEventClick(event) }
                                 .padding(4.dp)
                         ) {
                             Text(
@@ -430,6 +518,7 @@ fun DayView(
     date: LocalDate,
     events: List<CalendarEvent>,
     people: List<Person>,
+    onEventClick: (CalendarEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val dayEvents = events.filter { event ->
@@ -444,7 +533,7 @@ fun DayView(
         if (allDay.isNotEmpty()) {
             SectionHeader("All Day")
             allDay.forEach { event ->
-                EventCard(event = event, people = people, onClick = {}, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+                EventCard(event = event, people = people, onClick = { onEventClick(event) }, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         }
@@ -487,6 +576,7 @@ fun DayView(
                             .padding(horizontal = 4.dp, vertical = 1.dp)
                             .clip(RoundedCornerShape(6.dp))
                             .background(color)
+                            .clickable { onEventClick(event) }
                             .padding(8.dp)
                     ) {
                         Column {
@@ -579,12 +669,17 @@ fun AgendaView(
 // Utility
 // ─────────────────────────────────────────────────────────────
 private fun eventColor(event: CalendarEvent, people: List<Person>): Color {
+    // Event's own color (set at creation, preserved forever) takes precedence
     if (event.colorHex.isNotBlank()) {
         return runCatching { Color(android.graphics.Color.parseColor(event.colorHex)) }.getOrElse { Color(0xFF2196F3) }
     }
-    val firstId = event.personIds.split(",").firstOrNull()?.trim()?.toLongOrNull()
-    val person  = people.find { it.id == firstId }
-    return person?.let {
-        runCatching { Color(android.graphics.Color.parseColor(it.colorHex)) }.getOrElse { Color(0xFF2196F3) }
-    } ?: Color(0xFF2196F3)
+    // Fall back to person color if assigned (identity, not override)
+    if (event.personIds.isNotBlank()) {
+        val firstId = event.personIds.split(",").firstOrNull()?.trim()?.toLongOrNull()
+        val person  = people.find { it.id == firstId }
+        if (person != null) {
+            return runCatching { Color(android.graphics.Color.parseColor(person.colorHex)) }.getOrElse { Color(0xFF2196F3) }
+        }
+    }
+    return Color(0xFF2196F3)
 }

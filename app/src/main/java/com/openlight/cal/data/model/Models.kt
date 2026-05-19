@@ -7,15 +7,23 @@ import java.time.LocalDateTime
 
 // ─────────────────────────────────────────────────────────────
 // PERSON  – family member with color-coded identity
+// role: PARENT (manages own + dependents), CHILD (auto-accepts parent events),
+//        DEPENDENT (care recipient managed by caregiver)
+// caregiverPersonId: links DEPENDENT to the PARENT who manages their scheduling
 // ─────────────────────────────────────────────────────────────
+enum class PersonRole { PARENT, CHILD, DEPENDENT }
+
 @Entity(tableName = "people")
 data class Person(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
-    val colorHex: String,           // e.g. "#4CAF50" – user-modifiable
+    val colorHex: String,               // e.g. "#4CAF50" – user-modifiable
     val initial: String = name.firstOrNull()?.uppercase() ?: "?",
-    val isDefault: Boolean = false, // "Everyone" / unassigned slot
-    val sortOrder: Int = 0
+    val isDefault: Boolean = false,     // "Everyone" / unassigned slot
+    val sortOrder: Int = 0,
+    val role: PersonRole = PersonRole.PARENT,
+    val caregiverPersonId: Long = 0L,   // 0 = no caregiver (self-managed)
+    val email: String = ""              // matches ORGANIZER mailto from CalDAV
 )
 
 // ─────────────────────────────────────────────────────────────
@@ -62,7 +70,8 @@ data class CalendarEvent(
     val reminderMinutes: Int = -1,      // -1 = use default
     val isCancelled: Boolean = false,
     val rawIcal: String = "",           // store original VCALENDAR blob
-    val isLocalOnly: Boolean = false
+    val isLocalOnly: Boolean = false,
+    val organizerEmail: String = ""     // from ORGANIZER:mailto in ICS, for person matching
 )
 
 // ─────────────────────────────────────────────────────────────
