@@ -14,8 +14,11 @@ import javax.crypto.spec.GCMParameterSpec
  * Encrypts/decrypts CalDAV account passwords using AES-256/GCM
  * backed by Android Keystore (hardware-backed on supported devices).
  *
- * Backward-compatible: decodes existing base64-obfuscated passwords
- * by falling through to legacy decode on failure.
+ * CalDAV methods are backward-compatible: decodes existing base64-obfuscated
+ * passwords by falling through to legacy decode on failure.
+ *
+ * PIN methods use a versioned prefix ("v1:") so the format is self-describing;
+ * legacy plaintext PINs are handled transparently on verify.
  *
  * No telemetry. No proprietary SDKs.
  */
@@ -53,6 +56,10 @@ class EncryptedPassword(context: Context) {
         )
         return keyGenerator.generateKey()
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // CalDAV password methods (unchanged format — don't break userspace)
+    // ─────────────────────────────────────────────────────────────
 
     /**
      * Encrypt a plaintext password.
@@ -92,5 +99,59 @@ class EncryptedPassword(context: Context) {
                 encoded // plaintext fallthrough
             }
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // PIN methods — versioned format, backward-compatible with
+    // legacy plaintext storage.
+    // Format: "v1:" + base64(IV[12] + ciphertext[n])
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Encrypt a kiosk PIN for storage.
+     * Returns "v1:" + base64(IV + ciphertext), or "" for blank input.
+     *
+     * Use [verifyPin] for comparison — it handles both encrypted
+     * and legacy plaintext formats transparently.
+     */
+    fun encryptPin(pin: String): String {
+        if (pin.isBlank()) return ""
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, key)
+        val iv = cipher.iv
+        val ciphertext = cipher.doFinal(pin.toByteArray(Charsets.UTF_8))
+        return "v1:" + Base64.encodeToString(iv + ciphertext, Base64.NO_WRAP)
+    }
+
+    /**
+     * Verify a stored PIN against user input.
+     *
+     * Handles three storage formats transparently:
+     *   1. "v1:" + base64(IV + ciphertext) — current encrypted format
+     *   2. Legacy base64-obfuscated (pre-encryption migration)
+     *   3. Legacy plaintext (no encryption at all)
+     *
+     * Never throws. Returns false on any error or mismatch.
+     */
+    fun verifyPin(stored: String, input: String): Boolean {
+        if (stored.isBlank() || input.isBlank()) return false
+
+        // Format 1: versioned encrypted blob
+        if (stored.startsWith("v1:")) {
+            return try {
+                val decoded = Base64.decode(stored.substring("v1:".length), Base64.DEFAULT)
+                if (decoded.size < IV_LENGTH) return false
+                val iv = decoded.copyOfRange(0, IV_LENGTH)
+                val ct = decoded.copyOfRange(IV_LENGTH, decoded.size)
+                val cipher = Cipher.getInstance(TRANSFORMATION)
+                cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
+                String(cipher.doFinal(ct), Charsets.UTF_8) == input
+            } catch (_: Exception) {
+                false
+            }
+        }
+
+        // Format 2/3: legacy plaintext or base64-obfuscated
+        return stored == input
     }
 }

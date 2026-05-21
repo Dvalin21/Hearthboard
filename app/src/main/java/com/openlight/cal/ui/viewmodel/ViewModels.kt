@@ -233,8 +233,9 @@ class PersonViewModel(app: Application) : AndroidViewModel(app) {
 // ─────────────────────────────────────────────────────────────
 class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val prefs  = (app as OpenLightApp).preferences
-    private val accR   = (app as OpenLightApp).accountRepository
+    private val prefs      = (app as OpenLightApp).preferences
+    private val encryptor  = (app as OpenLightApp).encryptor
+    private val accR       = (app as OpenLightApp).accountRepository
 
     val darkMode       = prefs.darkMode.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
     val themeSeedColor = prefs.themeSeedColor.stateIn(viewModelScope, SharingStarted.Eagerly, "#2196F3")
@@ -262,7 +263,9 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setFirstDayMon(v: Boolean)     = viewModelScope.launch { prefs.set(AppPreferences.KEY_FIRST_DAY_MON, v) }
     fun set24Hr(v: Boolean)            = viewModelScope.launch { prefs.set(AppPreferences.KEY_24HR_CLOCK, v) }
     fun setKioskMode(v: Boolean)       = viewModelScope.launch { prefs.set(AppPreferences.KEY_KIOSK_MODE, v) }
-    fun setParentalPin(v: String)      = viewModelScope.launch { prefs.set(AppPreferences.KEY_PARENTAL_PIN, v) }
+    fun setParentalPin(v: String)      = viewModelScope.launch {
+        prefs.set(AppPreferences.KEY_PARENTAL_PIN, encryptor.encryptPin(v))
+    }
     fun setSyncWifiOnly(v: Boolean)    = viewModelScope.launch { prefs.set(AppPreferences.KEY_SYNC_WIFI_ONLY, v) }
     fun setDefaultView(v: String)      = viewModelScope.launch { prefs.set(AppPreferences.KEY_DEFAULT_VIEW, v) }
     fun setShowWeekends(v: Boolean)    = viewModelScope.launch { prefs.set(AppPreferences.KEY_SHOW_WEEKENDS, v) }

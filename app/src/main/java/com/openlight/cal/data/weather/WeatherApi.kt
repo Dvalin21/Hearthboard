@@ -1,5 +1,6 @@
 package com.openlight.cal.data.weather
 
+import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -9,6 +10,7 @@ import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 
 /** One day's weather forecast. */
+@Immutable
 data class DailyForecast(
     val date: LocalDate,
     val tempHigh: Double,

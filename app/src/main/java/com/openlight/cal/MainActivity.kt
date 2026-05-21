@@ -34,13 +34,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            val app   = application as OpenLightApp
-            val prefs = app.preferences
+            val app        = application as OpenLightApp
+            val prefs      = app.preferences
+            val encryptor  = app.encryptor
 
             val darkModePref by prefs.darkMode.collectAsStateWithLifecycle(initialValue = 0)
             val themeSeedHex by prefs.themeSeedColor.collectAsStateWithLifecycle(initialValue = "#2196F3")
             val kioskMode   by prefs.kioskMode.collectAsStateWithLifecycle(initialValue = false)
-            val pin         by prefs.parentalPin.collectAsStateWithLifecycle(initialValue = "")
+            val storedPin   by prefs.parentalPin.collectAsStateWithLifecycle(initialValue = "")
             val systemDark  = isSystemInDarkTheme()
 
             val isDark = when (darkModePref) {
@@ -54,14 +55,14 @@ class MainActivity : ComponentActivity() {
             }
 
             // ── Kiosk lock state ───────────────────────────────
-            var unlocked by remember { mutableStateOf(!kioskMode || pin.isBlank()) }
+            var unlocked by remember { mutableStateOf(!kioskMode || storedPin.isBlank()) }
 
             // Re-lock when app goes to background
             val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
             DisposableEffect(lifecycleOwner) {
                 val observer = LifecycleEventObserver { _, event ->
                     if (event == Lifecycle.Event.ON_STOP) {
-                        unlocked = !kioskMode || pin.isBlank()
+                        unlocked = !kioskMode || storedPin.isBlank()
                     }
                 }
                 lifecycleOwner.lifecycle.addObserver(observer)
@@ -69,8 +70,13 @@ class MainActivity : ComponentActivity() {
             }
 
             // Update unlocked when kiosk/pin settings change
-            LaunchedEffect(kioskMode, pin) {
-                if (!kioskMode || pin.isBlank()) unlocked = true
+            LaunchedEffect(kioskMode, storedPin) {
+                if (!kioskMode || storedPin.isBlank()) unlocked = true
+            }
+
+            // PIN verifier — handles encrypted and legacy plaintext storage
+            val verifyPin = remember(storedPin, encryptor) {
+                { input: String -> encryptor.verifyPin(storedPin, input) }
             }
 
             OpenLightTheme(darkTheme = isDark, seedColor = seedColor) {
@@ -79,10 +85,10 @@ class MainActivity : ComponentActivity() {
                         OpenLightNavHost(app = app)
 
                         // ── Kiosk PIN overlay ──────────────────
-                        if (kioskMode && pin.isNotBlank() && !unlocked) {
+                        if (kioskMode && storedPin.isNotBlank() && !unlocked) {
                             KioskPinOverlay(
-                                correctPin = pin,
-                                onUnlock   = { unlocked = true }
+                                onVerify  = verifyPin,
+                                onUnlock  = { unlocked = true }
                             )
                         }
                     }
@@ -115,7 +121,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun KioskPinOverlay(
-    correctPin: String,
+    onVerify: (String) -> Boolean,
     onUnlock: () -> Unit
 ) {
     var input by remember { mutableStateOf("") }
@@ -124,7 +130,7 @@ private fun KioskPinOverlay(
     // Auto-submit on 4 digits
     LaunchedEffect(input) {
         if (input.length == 4) {
-            if (input == correctPin) {
+            if (onVerify(input)) {
                 onUnlock()
             } else {
                 error = true

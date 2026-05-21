@@ -1,5 +1,6 @@
 package com.openlight.cal.data.model
 
+import androidx.compose.runtime.Immutable
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.time.LocalDate
@@ -13,6 +14,7 @@ import java.time.LocalDateTime
 // ─────────────────────────────────────────────────────────────
 enum class PersonRole { PARENT, CHILD, DEPENDENT }
 
+@Immutable
 @Entity(tableName = "people")
 data class Person(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -31,6 +33,7 @@ data class Person(
 // ─────────────────────────────────────────────────────────────
 enum class AccountType { CALDAV, ICS_URL, LOCAL }
 
+@Immutable
 @Entity(tableName = "calendar_accounts")
 data class CalendarAccount(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -44,12 +47,15 @@ data class CalendarAccount(
     val enabled: Boolean = true,
     val lastSyncMs: Long = 0L,
     val syncIntervalMinutes: Int = 30,
-    val ctag: String = ""                // CalDAV change-tag for delta sync
+    val ctag: String = "",               // CalDAV change-tag for delta sync
+    val syncFailCount: Int = 0,          // consecutive failures, drives backoff
+    val syncBackoffUntil: Long = 0       // epoch ms — skip sync until this time
 )
 
 // ─────────────────────────────────────────────────────────────
 // CALENDAR EVENT  – VEVENT mirror
 // ─────────────────────────────────────────────────────────────
+@Immutable
 @Entity(tableName = "calendar_events")
 data class CalendarEvent(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -79,6 +85,7 @@ data class CalendarEvent(
 // ─────────────────────────────────────────────────────────────
 enum class TaskPriority { HIGH, NORMAL, LOW }
 
+@Immutable
 @Entity(tableName = "tasks")
 data class Task(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -102,6 +109,7 @@ data class Task(
 // ─────────────────────────────────────────────────────────────
 // CHECKLIST  – custom color-coded list (groceries, to-dos, etc.)
 // ─────────────────────────────────────────────────────────────
+@Immutable
 @Entity(tableName = "checklists")
 data class CheckList(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -110,6 +118,7 @@ data class CheckList(
     val sortOrder: Int = 0
 )
 
+@Immutable
 @Entity(tableName = "checklist_items")
 data class CheckListItem(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -124,6 +133,7 @@ data class CheckListItem(
 // ─────────────────────────────────────────────────────────────
 enum class MealSlot { BREAKFAST, LUNCH, DINNER, SNACK }
 
+@Immutable
 @Entity(tableName = "meal_plans", primaryKeys = ["dateIso", "slot"])
 data class MealPlan(
     val dateIso: String,           // "2025-03-15"

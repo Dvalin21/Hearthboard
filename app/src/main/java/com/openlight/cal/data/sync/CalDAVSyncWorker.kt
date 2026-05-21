@@ -23,6 +23,17 @@ class CalDAVSyncWorker(
         const val WORK_NAME_ONETIME  = "caldav_onetime_sync"
         const val KEY_ACCOUNT_ID     = "account_id"  // -1 = sync all
 
+        // Per-account exponential backoff: 5min, 10min, 20min, 40min, 80min, 160min, 300min (capped)
+        private const val BACKOFF_BASE_MS = 300_000L     // 5 minutes
+        private const val BACKOFF_MAX_MS  = 18_000_000L   // 5 hours
+        private const val BACKOFF_MAX_SHIFT = 6           // 2^6 = 64, applied to 5min base
+
+        /** Calculate backoff delay in ms for a given consecutive failure count. */
+        fun backoffMs(failCount: Int): Long {
+            val shift = failCount.coerceIn(0, BACKOFF_MAX_SHIFT)
+            return minOf(BACKOFF_BASE_MS shl shift, BACKOFF_MAX_MS)
+        }
+
         fun schedulePeriodicSync(context: Context, intervalMinutes: Long = 30) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -31,7 +42,6 @@ class CalDAVSyncWorker(
                 intervalMinutes, TimeUnit.MINUTES
             )
                 .setConstraints(constraints)
-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 5, TimeUnit.MINUTES)
                 .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME_PERIODIC,
@@ -67,20 +77,49 @@ class CalDAVSyncWorker(
             listOfNotNull(db.calendarAccountDao().getById(accountId))
         }
 
-        var anyError = false
+        val now = System.currentTimeMillis()
+
         for (account in accounts) {
+            // Skip accounts in backoff period (but always allow manual sync)
+            if (account.syncBackoffUntil > now && accountId == -1L) {
+                Log.i(TAG, "Skipping ${account.displayName} (backoff until ${account.syncBackoffUntil})")
+                continue
+            }
+
             try {
                 syncAccount(account, db)
-                db.calendarAccountDao().update(
-                    account.copy(lastSyncMs = System.currentTimeMillis())
-                )
+                // Success: reset failure state
+                if (account.syncFailCount != 0 || account.syncBackoffUntil != 0L) {
+                    db.calendarAccountDao().update(
+                        account.copy(
+                            lastSyncMs       = now,
+                            syncFailCount    = 0,
+                            syncBackoffUntil = 0L
+                        )
+                    )
+                } else {
+                    db.calendarAccountDao().update(
+                        account.copy(lastSyncMs = now)
+                    )
+                }
                 Log.i(TAG, "Synced account: ${account.displayName}")
             } catch (e: Exception) {
-                Log.e(TAG, "Sync failed for ${account.displayName}: ${e.message}")
-                anyError = true
+                val newFailCount = account.syncFailCount + 1
+                val delayMs = backoffMs(newFailCount)
+                val backoffUntil = now + delayMs
+                Log.e(TAG, "Sync failed for ${account.displayName} " +
+                        "(fail #$newFailCount, backoff ${delayMs / 60_000}min): ${e.message}")
+                db.calendarAccountDao().update(
+                    account.copy(
+                        syncFailCount    = newFailCount,
+                        syncBackoffUntil = backoffUntil
+                    )
+                )
             }
         }
-        if (anyError) Result.retry() else Result.success()
+        // Always return success — per-account backoff is handled by the data model.
+        // WorkManager retry would resync ALL accounts, which is wasteful.
+        Result.success()
     }
 
     private suspend fun syncAccount(account: CalendarAccount, db: AppDatabase) {

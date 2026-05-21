@@ -52,6 +52,13 @@ android {
         compose = true
     }
 
+    composeCompiler {
+        // Strong Skipping Mode: composables with unstable params (like List<T>)
+        // still skip via equality comparison. Available since Compose Compiler 1.5.1,
+        // default since Kotlin 2.0.20. Explicit here for 2.0.0.
+        enableStrongSkippingMode = true
+    }
+
     // Adaptive layouts for large screens (tablets 14.5")
     splits {
         abi {
@@ -103,4 +110,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     debugImplementation(libs.androidx.ui.tooling)
+
+    // Test
+    testImplementation(libs.junit)
 }
