@@ -1,0 +1,27 @@
+HearthBoard is a privacy-first, open-source family calendar and task manager for Android 8+.
+
+Features:
+
+• Calendar views: Month, Week, Day, Agenda — adaptive to any screen size
+• CalDAV sync: Google Calendar, Fastmail, Nextcloud, iCloud, any CalDAV server
+• Delta sync: CTag/ETag-based — only fetches what changed
+• Tasks (VTODO): full task management with priority, assignment, and CalDAV sync
+• Star rewards: motivate kids by assigning stars to chores and tasks
+• Color-coded checklists: shopping, to-do, grocery lists
+• Meal planner: weekly breakfast/lunch/dinner/snack grid per person
+• People: per-person color coding, role management (parent/child/dependent), and task assignment
+• Countdown timers for birthdays, vacations, and special events
+• Material 3: light + dark mode, seed color theming
+• Adaptive layout: bottom nav on phones, nav rail on tablets (5.5"–14.5")
+• Kiosk mode: optional PIN to lock the app as the device launcher
+• AES-256/GCM encryption: CalDAV passwords encrypted with Android Keystore
+
+Privacy & Security:
+
+• Zero telemetry: no analytics SDKs, no Firebase, no crash reporters
+• No Google Play Services dependency — works on de-Googled devices
+• The only network requests are HTTP calls to your CalDAV server
+• Every permission has a documented purpose — no unnecessary permissions
+• F-Droid compatible: single universal APK, no proprietary dependencies
+
+Hearthboard is GPL-3.0 licensed. No subscriptions, no tracking, no account required.

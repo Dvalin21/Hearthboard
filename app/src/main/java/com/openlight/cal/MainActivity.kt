@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -24,8 +25,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.openlight.cal.ui.navigation.OpenLightNavHost
-import com.openlight.cal.ui.theme.OpenLightTheme
+import com.openlight.cal.ui.navigation.HearthboardNavHost
+import com.openlight.cal.ui.theme.HearthboardTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -34,7 +35,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            val app        = application as OpenLightApp
+            val app        = application as HearthboardApp
             val prefs      = app.preferences
             val encryptor  = app.encryptor
 
@@ -79,10 +80,15 @@ class MainActivity : ComponentActivity() {
                 { input: String -> encryptor.verifyPin(storedPin, input) }
             }
 
-            OpenLightTheme(darkTheme = isDark, seedColor = seedColor) {
+            HearthboardTheme(darkTheme = isDark, seedColor = seedColor) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize()) {
-                        OpenLightNavHost(app = app)
+                        HearthboardNavHost(app = app)
+
+                        // ── Kiosk: intercept back press to prevent leaving ──
+                        BackHandler(enabled = kioskMode && !unlocked) {
+                            // Blocked — PIN overlay handles it
+                        }
 
                         // ── Kiosk PIN overlay ──────────────────
                         if (kioskMode && storedPin.isNotBlank() && !unlocked) {
@@ -97,26 +103,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ── Kiosk: intercept back press to prevent leaving ────────
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        val app   = application as OpenLightApp
-        val kioskActive = runCatching {
-            var kiosk = false
-            kotlinx.coroutines.runBlocking {
-                app.preferences.kioskMode.collect {
-                    kiosk = it
-                    throw kotlinx.coroutines.CancellationException()
-                }
-            }
-            kiosk
-        }.getOrElse { false }
-
-        if (!kioskActive) {
-            @Suppress("DEPRECATION")
-            super.onBackPressed()
-        }
-    }
 }
 
 @Composable
@@ -156,7 +142,7 @@ private fun KioskPinOverlay(
             )
             Spacer(Modifier.height(24.dp))
             Text(
-                "OpenLight Locked",
+                "HearthBoard Locked",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onBackground
             )

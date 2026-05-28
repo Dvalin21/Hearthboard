@@ -1,27 +1,53 @@
-# OpenLight ProGuard rules
+# Hearthboard ProGuard rules
+#
+# R8 removes anything that looks unused. Room, serialization, and
+# Compose navigation use reflection at runtime — keep those paths.
 
-# Keep Room entities
+# ── Room entities + DAOs + database ──────────────────────────
 -keep class com.openlight.cal.data.model.** { *; }
 -keep class com.openlight.cal.data.db.** { *; }
+-keep class com.openlight.cal.data.db.dao.** { *; }
 
-# Keep OkHttp
+# ── Room type converters (called via reflection) ──────────────
+-keep class com.openlight.cal.data.db.Converters { *; }
+-keepclassmembers class * {
+    @androidx.room.TypeConverter <methods>;
+}
+
+# ── Preferences + encryption ─────────────────────────────────
+-keep class com.openlight.cal.data.preferences.** { *; }
+
+# ── Repositories + sync + weather + contacts ─────────────────
+-keep class com.openlight.cal.data.repository.** { *; }
+-keep class com.openlight.cal.data.sync.** { *; }
+-keep class com.openlight.cal.data.weather.** { *; }
+-keep class com.openlight.cal.data.contacts.** { *; }
+
+# ── Application class (manual DI entry point) ────────────────
+-keep class com.openlight.cal.HearthboardApp { *; }
+
+# ── OkHttp (used via reflection in some config paths) ────────
 -dontwarn okhttp3.**
 -dontwarn okio.**
 -keep class okhttp3.** { *; }
 -keep interface okhttp3.** { *; }
 
-# Keep Kotlin coroutines
+# ── Kotlin coroutines internals ───────────────────────────────
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-keep class kotlinx.coroutines.** { *; }
 
-# Keep WorkManager
+# ── WorkManager workers ──────────────────────────────────────
 -keep class * extends androidx.work.Worker
 -keep class * extends androidx.work.CoroutineWorker
+-keep class com.openlight.cal.data.sync.BootReceiver { *; }
+-keep class com.openlight.cal.data.sync.CalDAVSyncWorker { *; }
 
-# Keep DataStore
+# ── DataStore ────────────────────────────────────────────────
 -keep class androidx.datastore.** { *; }
 
-# Prevent stripping iCal parser
--keep class com.openlight.cal.data.sync.** { *; }
+# ── Compose Navigation + ViewModels ──────────────────────────
+-keep class * extends androidx.lifecycle.ViewModel
+-keep class * extends androidx.lifecycle.AndroidViewModel
 
-# No analytics / tracking SDKs to worry about — there are none.
+# ── No analytics / tracking SDKs to worry about — there are none.

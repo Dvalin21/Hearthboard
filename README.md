@@ -1,4 +1,4 @@
-# OpenLight — Open-Source Family Calendar
+# HearthBoard
 
 **A privacy-first, open-source family calendar and task manager for Android 8+.**
 
@@ -27,7 +27,7 @@ CalDAV/VTODO sync. Material 3 adaptive design. Zero telemetry. GPL-3.0.
 
 ## Privacy & Security
 
-OpenLight is designed for users who care about who has access to their family's data.
+Hearthboard is designed for users who care about who has access to their family's data.
 
 | Property | Detail |
 |---|---|
@@ -42,7 +42,20 @@ OpenLight is designed for users who care about who has access to their family's 
 
 ## Screenshots
 
-<!-- Add screenshots here before F-Droid submission -->
+<!--
+TODO: Add screenshots before F-Droid submission.
+Generate via `adb shell screencap` on a tablet emulator (1280x800 minimum).
+
+Suggested captures:
+  1. Month view with events and countdowns
+  2. Week/day/agenda views
+  3. Task list with star rewards and person assignment
+  4. Meal planner weekly grid
+  5. Color-coded checklists
+  6. Settings with CalDAV account configuration
+  
+Place images in app/src/main/play/listings/en-US/graphics/ or a /screenshots/ directory.
+-->
 
 ---
 
@@ -102,7 +115,7 @@ Then build with `./gradlew assembleRelease`.
 ## Architecture
 
 ```
-OpenLightApp (Application class)
+HearthboardApp (Application class)
 ├── data/
 │   ├── model/          Room entities (Person, CalendarEvent, Task, etc.)
 │   ├── db/             Room database + DAOs with singleton lifecycle
@@ -146,7 +159,7 @@ The layout adapts automatically via Jetpack `WindowSizeClass`.
 
 ## Background Sync
 
-OpenLight uses Android `WorkManager` for periodic CalDAV sync:
+Hearthboard uses Android `WorkManager` for periodic CalDAV sync:
 
 - **Interval**: Every 30 minutes (configurable per account)
 - **Constraints**: Network connection required

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">OpenLight</string>
+    <string name="app_name">HearthBoard</string>
     <string name="app_description">Open-source family calendar &amp; task manager</string>
 
     <!-- Navigation -->
@@ -62,7 +62,7 @@
     <string name="settings_sync">Sync Settings</string>
     <string name="settings_launcher">Launcher Mode</string>
     <string name="settings_advanced">Advanced</string>
-    <string name="settings_about">About OpenLight</string>
+    <string name="settings_about">About Hearthboard</string>
     <string name="settings_dark_mode">Dark Mode</string>
     <string name="settings_theme_color">Theme Color</string>
     <string name="settings_font_size">Font Size</string>
@@ -74,7 +74,7 @@
     <string name="settings_notifications">Notifications</string>
     <string name="settings_default_reminder">Default Reminder</string>
     <string name="settings_kiosk_mode">Kiosk / Launcher Mode</string>
-    <string name="settings_kiosk_desc">Lock device to OpenLight as the home screen</string>
+    <string name="settings_kiosk_desc">Lock device to Hearthboard as the home screen</string>
 
     <!-- Accounts -->
     <string name="add_account">Add Account</string>
@@ -108,4 +108,5 @@
     <string name="about_license">License: GPL-3.0</string>
     <string name="about_source">Source Code</string>
     <string name="about_no_telemetry">Zero telemetry. No data collection. Ever.</string>
+    <string name="widget_description">Shows today\'s date and upcoming events</string>
 </resources>
