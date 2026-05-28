@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -34,7 +35,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            val app = application as HearthboardApp
+            val app        = application as HearthboardApp
             val prefs      = app.preferences
             val encryptor  = app.encryptor
 
@@ -84,6 +85,11 @@ class MainActivity : ComponentActivity() {
                     Box(Modifier.fillMaxSize()) {
                         HearthboardNavHost(app = app)
 
+                        // ── Kiosk: intercept back press to prevent leaving ──
+                        BackHandler(enabled = kioskMode && !unlocked) {
+                            // Blocked — PIN overlay handles it
+                        }
+
                         // ── Kiosk PIN overlay ──────────────────
                         if (kioskMode && storedPin.isNotBlank() && !unlocked) {
                             KioskPinOverlay(
@@ -97,26 +103,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ── Kiosk: intercept back press to prevent leaving ────────
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        val app   = application as HearthboardApp
-        val kioskActive = runCatching {
-            var kiosk = false
-            kotlinx.coroutines.runBlocking {
-                app.preferences.kioskMode.collect {
-                    kiosk = it
-                    throw kotlinx.coroutines.CancellationException()
-                }
-            }
-            kiosk
-        }.getOrElse { false }
-
-        if (!kioskActive) {
-            @Suppress("DEPRECATION")
-            super.onBackPressed()
-        }
-    }
 }
 
 @Composable
@@ -156,7 +142,7 @@ private fun KioskPinOverlay(
             )
             Spacer(Modifier.height(24.dp))
             Text(
-                "Hearthboard Locked",
+                "HearthBoard Locked",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onBackground
             )

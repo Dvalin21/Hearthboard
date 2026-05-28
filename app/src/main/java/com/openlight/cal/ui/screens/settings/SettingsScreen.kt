@@ -5,6 +5,8 @@ package com.openlight.cal.ui.screens.settings
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -301,13 +303,101 @@ fun SettingsScreen(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+        // ── MEALIE INTEGRATION ────────────────────────────────
+        SettingsSectionHeader("Mealie Recipes", Icons.Default.Restaurant)
+        val mealieUrl   by viewModel.mealieUrl.collectAsState()
+        val mealieToken by viewModel.mealieToken.collectAsState()
+        var editMealieUrl   by remember { mutableStateOf(false) }
+        var editMealieToken by remember { mutableStateOf(false) }
+        var mealieUrlInput  by remember { mutableStateOf(mealieUrl) }
+        var mealieTknInput  by remember { mutableStateOf(mealieToken) }
+
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Dns, null, tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                if (editMealieUrl) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(value = mealieUrlInput, onValueChange = { mealieUrlInput = it },
+                            placeholder = { Text("https://mealie.yourdomain.com") },
+                            singleLine = true, modifier = Modifier.weight(1f),
+                            textStyle = MaterialTheme.typography.bodySmall)
+                        IconButton(onClick = {
+                            viewModel.setMealieUrl(mealieUrlInput.trim())
+                            editMealieUrl = false
+                        }) { Icon(Icons.Default.Check, "Save") }
+                    }
+                } else {
+                    Text("Server URL", style = MaterialTheme.typography.bodyMedium)
+                    Text(mealieUrl.ifBlank { "Not configured" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton(onClick = { mealieUrlInput = mealieUrl; editMealieUrl = true }) {
+                        Icon(Icons.Default.Edit, "Edit", Modifier.size(20.dp))
+                    }
+                }
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Key, null, tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                if (editMealieToken) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(value = mealieTknInput, onValueChange = { mealieTknInput = it },
+                            placeholder = { Text("API Token") },
+                            singleLine = true, modifier = Modifier.weight(1f),
+                            visualTransformation = PasswordVisualTransformation(),
+                            textStyle = MaterialTheme.typography.bodySmall)
+                        IconButton(onClick = {
+                            viewModel.setMealieToken(mealieTknInput.trim())
+                            editMealieToken = false
+                        }) { Icon(Icons.Default.Check, "Save") }
+                    }
+                } else {
+                    Text("API Token", style = MaterialTheme.typography.bodyMedium)
+                    Text(if (mealieToken.isNotBlank()) "••••••••" else "Not set",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton(onClick = { mealieTknInput = mealieToken; editMealieToken = true }) {
+                        Icon(Icons.Default.Edit, "Edit", Modifier.size(20.dp))
+                    }
+                }
+            }
+        }
+        // Test connection button
+        var testResult by remember { mutableStateOf<String?>(null) }
+        TextButton(onClick = {
+            scope.launch {
+                testResult = try {
+                    val api = com.openlight.cal.data.mealie.MealieApi(mealieUrl, mealieToken)
+                    if (api.checkConnection()) "✅ Connected!" else "❌ Connection failed"
+                } catch (e: Exception) { "❌ ${e.message}" }
+            }
+        }, enabled = mealieUrl.isNotBlank() && mealieToken.isNotBlank()) {
+            Icon(Icons.Default.NetworkCheck, null, Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Test Connection")
+        }
+        if (testResult != null) {
+            Text(testResult!!, style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp))
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
         // ── ADVANCED / KIOSK ─────────────────────────────────
         SettingsSectionHeader("Advanced", Icons.Default.Tune)
 
         SettingsToggleRow(
             icon     = Icons.Default.LockPerson,
             title    = "Kiosk / Launcher Mode",
-            subtitle = "Lock device to Hearthboard as home screen",
+            subtitle = "Lock device as home screen",
             checked  = kioskMode,
             onToggle = { viewModel.setKioskMode(it) }
         )
@@ -318,6 +408,108 @@ fun SettingsScreen(
             subtitle = "Restrict access to settings",
             onClick  = { showPinDialog = true }
         )
+
+        // ── Auto-archive ─────────────────────────────────────
+        val archiveMonths by viewModel.autoArchiveMonths.collectAsState()
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.AutoDelete, null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Auto-archive events", style = MaterialTheme.typography.bodyLarge)
+                Text("Delete completed events older than:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Spacer(Modifier.width(8.dp))
+            var expanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+                OutlinedTextField(
+                    value = if (archiveMonths == 0) "Never" else "${archiveMonths}mo",
+                    onValueChange = {},
+                    readOnly = true,
+                    modifier = Modifier.width(96.dp).menuAnchor(),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    singleLine = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }
+                )
+                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    listOf(0, 1, 3, 6, 12, 24).forEach { months ->
+                        DropdownMenuItem(
+                            text = { Text(if (months == 0) "Never" else "${months} months") },
+                            onClick = {
+                                scope.launch { viewModel.setAutoArchiveMonths(months) }
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── BACKUP & RESTORE ──────────────────────────────────
+        SettingsSectionHeader("Backup & Restore", Icons.Default.Save)
+
+        var exporting by remember { mutableStateOf(false) }
+        var importing by remember { mutableStateOf(false) }
+        var backupResult by remember { mutableStateOf<String?>(null) }
+
+        val backupLauncher = rememberLauncherForActivityResult(
+            contract = androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+        ) { uri ->
+            if (uri != null) {
+                exporting = true
+                scope.launch {
+                    val result = com.openlight.cal.data.backup.BackupManager.export(context, uri)
+                    backupResult = "${result.message} (${result.eventCount} events, ${result.taskCount} tasks)"
+                    exporting = false
+                }
+            }
+        }
+
+        val restoreLauncher = rememberLauncherForActivityResult(
+            contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+        ) { uri ->
+            if (uri != null) {
+                importing = true
+                scope.launch {
+                    val result = com.openlight.cal.data.backup.BackupManager.restore(context, uri)
+                    backupResult = result.message
+                    importing = false
+                }
+            }
+        }
+
+        SettingsClickRow(
+            icon     = Icons.Default.FileUpload,
+            title    = "Export backup",
+            subtitle = if (exporting) "Saving…" else "Save database to a file",
+            onClick  = {
+                backupResult = null
+                backupLauncher.launch(com.openlight.cal.data.backup.BackupManager.FILENAME)
+            }
+        )
+        SettingsClickRow(
+            icon     = Icons.Default.FileDownload,
+            title    = "Restore from backup",
+            subtitle = if (importing) "Restoring…" else "Replace all data from a file",
+            onClick  = {
+                backupResult = null
+                restoreLauncher.launch(arrayOf("application/json", "*/*"))
+            }
+        )
+        if (backupResult != null) {
+            Text(
+                text = backupResult!!,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+        }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -345,7 +537,7 @@ fun SettingsScreen(
         SettingsClickRow(
             icon     = Icons.Default.AppSettingsAlt,
             title    = "Version",
-            subtitle = "Hearthboard 1.0.0-alpha",
+            subtitle = "HearthBoard 1.0.0-alpha",
             onClick  = {}
         )
 
