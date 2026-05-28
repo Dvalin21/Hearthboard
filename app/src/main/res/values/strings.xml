@@ -108,5 +108,4 @@
     <string name="about_license">License: GPL-3.0</string>
     <string name="about_source">Source Code</string>
     <string name="about_no_telemetry">Zero telemetry. No data collection. Ever.</string>
-    <string name="widget_description">Shows today\'s date and upcoming events</string>
 </resources>

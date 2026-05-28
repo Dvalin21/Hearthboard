@@ -74,13 +74,6 @@ object ICalParser {
 
             val organizerEmail = extractOrganizerEmail(props)
 
-            // Try to read event color from ICS properties
-            // Apple/Nextcloud: X-APPLE-COLOR; iCloud: COLOR; Outlook: X-MICROSOFT-CALENDAR-CALCOLOR
-            val eventColorHex = props["X-APPLE-COLOR"]
-                ?: props["COLOR"]
-                ?: props["X-MICROSOFT-CALENDAR-CALCOLOR"]
-                ?: ""
-
             CalendarEvent(
                 uid            = uid,
                 accountId      = accountId,
@@ -93,7 +86,6 @@ object ICalParser {
                 endMs          = endMs,
                 isAllDay       = allDay,
                 recurrenceRule = props["RRULE"] ?: "",
-                colorHex       = eventColorHex,
                 isCancelled    = status.equals("CANCELLED", ignoreCase = true),
                 rawIcal        = lines.joinToString("\r\n"),
                 organizerEmail = organizerEmail
@@ -168,7 +160,6 @@ object ICalParser {
         if (event.description.isNotBlank())    sb.appendLine("DESCRIPTION:${foldLine(event.description)}")
         if (event.location.isNotBlank())       sb.appendLine("LOCATION:${foldLine(event.location)}")
         if (event.recurrenceRule.isNotBlank()) sb.appendLine("RRULE:${event.recurrenceRule}")
-        if (event.colorHex.isNotBlank())        sb.appendLine("X-APPLE-COLOR:${event.colorHex}")
         val dtstamp = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
             .format(Instant.now().atZone(ZoneOffset.UTC))
         sb.appendLine("DTSTAMP:$dtstamp")

@@ -6,12 +6,8 @@ import com.openlight.cal.data.preferences.AppPreferences
 import com.openlight.cal.data.preferences.EncryptedPassword
 import com.openlight.cal.data.repository.*
 import com.openlight.cal.data.sync.CalDAVSyncWorker
-import com.openlight.cal.data.sync.NotificationHelper
-import com.openlight.cal.data.sync.ReminderWorker
-import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class HearthboardApp : Application() {
@@ -34,12 +30,6 @@ class HearthboardApp : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // Initialize PDFBox for schedule import
-        PDFBoxResourceLoader.init(this)
-
-        // Create notification channel for event reminders
-        NotificationHelper.createChannel(this)
-
         // Seed default people on first launch
         CoroutineScope(Dispatchers.IO).launch {
             personRepository.seedDefaultPeople()
@@ -47,17 +37,5 @@ class HearthboardApp : Application() {
 
         // Schedule background CalDAV sync
         CalDAVSyncWorker.schedulePeriodicSync(this)
-
-        // Schedule periodic reminder check (every 15 min)
-        ReminderWorker.schedule(this)
-
-        // Auto-archive old events on startup
-        CoroutineScope(Dispatchers.IO).launch {
-            val months = preferences.autoArchiveMonths.first()
-            if (months > 0) {
-                val cutoff = System.currentTimeMillis() - (months * 30L * 24L * 3600_000L)
-                database.calendarEventDao().deleteBefore(cutoff)
-            }
-        }
     }
 }
