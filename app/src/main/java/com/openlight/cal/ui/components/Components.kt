@@ -396,6 +396,114 @@ fun CountdownCard(
 }
 
 // ─────────────────────────────────────────────────────────────
+// CountdownChip — compact horizontal-rail version (≤ 60dp tall)
+// Title + days inline. Designed for header strips above the calendar
+// where vertical space is at a premium.
+// ─────────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CountdownChip(
+    event: CalendarEvent,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val eventDate = remember(event.startMs) {
+        Instant.ofEpochMilli(event.startMs).atZone(ZoneId.systemDefault()).toLocalDate()
+    }
+    val daysLeft = remember(eventDate) {
+        ChronoUnit.DAYS.between(LocalDate.now(), eventDate)
+    }
+    val daysText = when {
+        daysLeft <  0L -> "${-daysLeft}d ago"
+        daysLeft == 0L -> "TODAY"
+        daysLeft == 1L -> "tomorrow"
+        else           -> "${daysLeft}d"
+    }
+    AssistChip(
+        onClick = onClick,
+        label   = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text       = event.title,
+                    style      = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines   = 1,
+                    overflow   = TextOverflow.Ellipsis,
+                    modifier   = Modifier.widthIn(max = 140.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text       = daysText,
+                    style      = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color      = MaterialTheme.colorScheme.primary
+                )
+            }
+        },
+        colors  = AssistChipDefaults.assistChipColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+        ),
+        modifier = modifier
+    )
+}
+
+// ─────────────────────────────────────────────────────────────
+// InvitationChip — compact pending-invite tile for header strip
+// ─────────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InvitationChip(
+    title: String,
+    organizer: String,
+    onAccept: () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+            .clickable(onClick = onClick)
+            .padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector        = Icons.Default.Email,
+            contentDescription = "Pending invitation",
+            tint               = MaterialTheme.colorScheme.primary,
+            modifier           = Modifier.size(16.dp)
+        )
+        Spacer(Modifier.width(6.dp))
+        Column(modifier = Modifier.widthIn(max = 160.dp)) {
+            Text(
+                text       = title,
+                style      = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                maxLines   = 1,
+                overflow   = TextOverflow.Ellipsis
+            )
+            if (organizer.isNotBlank()) {
+                Text(
+                    text     = organizer,
+                    style    = MaterialTheme.typography.labelSmall,
+                    color    = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        FilledTonalButton(
+            onClick        = onAccept,
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+            modifier       = Modifier.heightIn(min = 32.dp)
+        ) {
+            Text("Accept", style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
 // SectionHeader
 // ─────────────────────────────────────────────────────────────
 @Composable

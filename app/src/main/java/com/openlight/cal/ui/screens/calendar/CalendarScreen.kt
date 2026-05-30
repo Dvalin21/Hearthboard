@@ -60,58 +60,33 @@ fun CalendarScreen(
             onAdd      = onAddEvent
         )
 
-        // ── Countdown strip (if any) ─────────────────────────
-        if (countdowns.isNotEmpty()) {
+        // ── Compact header strips (60dp single row, hidden when empty) ──
+        // The original layout used a tall countdown LazyRow (120dp cards) and
+        // a vertical Column of full-width invitation rows. On a phone in
+        // landscape this could eat 200dp of vertical space before the
+        // calendar grid even rendered. We collapse both into a single 60dp
+        // chip rail above the calendar.
+        if (countdowns.isNotEmpty() || pendingInvites.isNotEmpty()) {
             LazyRow(
-                contentPadding       = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement= Arrangement.spacedBy(12.dp)
+                contentPadding        = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier              = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 60.dp)
             ) {
-                items(countdowns) { event ->
-                    CountdownCard(event = event, onClick = { viewModel.editEvent(event) })
+                items(countdowns, key = { "cd-${it.id}" }) { event ->
+                    CountdownChip(event = event, onClick = { viewModel.editEvent(event) })
+                }
+                items(pendingInvites, key = { "inv-${it.id}" }) { inv ->
+                    InvitationChip(
+                        title     = inv.title,
+                        organizer = inv.organizerEmail.takeIf { it.isNotBlank() }?.let { "from $it" } ?: "",
+                        onAccept  = { viewModel.acceptInvitation(inv) },
+                        onClick   = { viewModel.editEvent(inv) }
+                    )
                 }
             }
             HorizontalDivider()
-        }
-
-        // ── Pending invitations (from CalDAV inbox) ──────────
-        if (pendingInvites.isNotEmpty()) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                Text("Pending Invitations", style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(4.dp))
-                pendingInvites.forEach { inv ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f))
-                            .clickable { viewModel.editEvent(inv) }
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Email, null,
-                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(inv.title, style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium, maxLines = 1)
-                            if (inv.organizerEmail.isNotBlank()) {
-                                Text("From: ${inv.organizerEmail}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        FilledTonalButton(
-                            onClick = { viewModel.acceptInvitation(inv) },
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                        ) {
-                            Text("Accept", style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                }
-            }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
         }
 
         // ── Person filter ────────────────────────────────────

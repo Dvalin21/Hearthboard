@@ -188,7 +188,16 @@ fun HearthboardNavHost(app: HearthboardApp) {
 
     // ── Large screen: NavigationRail on left ──────────────────
     if (useNavRail) {
-        Row(modifier = Modifier.fillMaxSize()) {
+        // With enableEdgeToEdge(), content draws under the system bars. The
+        // Scaffold branch (phone) already handles this via contentPadding,
+        // but the rail branch is a bare Row — wire safeDrawing insets so
+        // the rail doesn't slide under the status bar and the content
+        // doesn't run off behind the gesture nav.
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+        ) {
             // NavigationRail isn't intrinsically scrollable; wrap it in a
             // verticalScroll so 9 items never get clipped on shorter landscape
             // tablets (e.g. ~600dp height). Items are un-labeled so each
