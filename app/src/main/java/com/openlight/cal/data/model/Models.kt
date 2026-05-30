@@ -43,7 +43,7 @@ data class CalendarAccount(
     val username: String = "",
     val passwordEncrypted: String = "",  // base64 obfuscated at rest
     val calendarPath: String = "",       // discovered CalDAV calendar path
-    val colorHex: String = "#2196F3",
+    val colorHex: String = "#4A6178",     // slate (theme primary)
     val enabled: Boolean = true,
     val lastSyncMs: Long = 0L,
     val syncIntervalMinutes: Int = 30,

@@ -739,7 +739,7 @@ fun AccountEditDialog(
     var serverUrl    by remember { mutableStateOf(account?.serverUrl ?: "") }
     var username     by remember { mutableStateOf(account?.username ?: "") }
     var password     by remember { mutableStateOf("") }  // never pre-fill
-    var colorHex     by remember { mutableStateOf(account?.colorHex ?: "#2196F3") }
+    var colorHex     by remember { mutableStateOf(account?.colorHex ?: "#4A6178") }
     var accountType  by remember { mutableStateOf(account?.accountType ?: AccountType.CALDAV) }
     var showPassword by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }

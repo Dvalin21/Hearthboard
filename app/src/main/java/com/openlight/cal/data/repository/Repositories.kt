@@ -154,8 +154,8 @@ class PersonRepository(private val db: AppDatabase) {
     suspend fun seedDefaultPeople() {
         if (db.personDao().count() == 0) {
             val defaults = listOf(
-                Person(name = "Everyone", colorHex = "#607D8B", isDefault = true, sortOrder = 0),
-                Person(name = "Me",       colorHex = "#2196F3", sortOrder = 1)
+                Person(name = "Everyone", colorHex = "#8A8278", isDefault = true, sortOrder = 0),
+                Person(name = "Me",       colorHex = "#7E967B", sortOrder = 1)
             )
             defaults.forEach { db.personDao().insert(it) }
         }

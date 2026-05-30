@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.openlight.cal.HearthboardApp
 import com.openlight.cal.data.model.AccountType
 import com.openlight.cal.data.model.CalendarAccount
+import com.openlight.cal.ui.theme.PersonColors
 import com.openlight.cal.data.model.Person
 import com.openlight.cal.data.model.PersonRole
 import com.openlight.cal.data.preferences.AppPreferences
@@ -119,10 +120,7 @@ fun SetupScreen(
                             people.add(
                                 Person(
                                     name = personName.trim(),
-                                    colorHex = listOf(
-                                        "#E91E63", "#9C27B0", "#3F51B5", "#2196F3",
-                                        "#009688", "#4CAF50", "#FF9800", "#795548"
-                                    )[people.size % 8],
+                                    colorHex = PersonColors[people.size % PersonColors.size],
                                     role = PersonRole.PARENT
                                 )
                             )

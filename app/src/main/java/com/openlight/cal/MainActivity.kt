@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
             val encryptor  = app.encryptor
 
             val darkModePref by prefs.darkMode.collectAsStateWithLifecycle(initialValue = 0)
-            val themeSeedHex by prefs.themeSeedColor.collectAsStateWithLifecycle(initialValue = "#2196F3")
+            val themeSeedHex by prefs.themeSeedColor.collectAsStateWithLifecycle(initialValue = "")
             val kioskMode   by prefs.kioskMode.collectAsStateWithLifecycle(initialValue = false)
             val storedPin   by prefs.parentalPin.collectAsStateWithLifecycle(initialValue = "")
             val systemDark  = isSystemInDarkTheme()
@@ -52,7 +52,8 @@ class MainActivity : ComponentActivity() {
             }
 
             val seedColor = remember(themeSeedHex) {
-                runCatching { Color(android.graphics.Color.parseColor(themeSeedHex)) }.getOrNull()
+                if (themeSeedHex.isBlank()) null
+                else runCatching { Color(android.graphics.Color.parseColor(themeSeedHex)) }.getOrNull()
             }
 
             // ── Kiosk lock state ───────────────────────────────

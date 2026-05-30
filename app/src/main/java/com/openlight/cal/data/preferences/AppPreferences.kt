@@ -40,7 +40,7 @@ class AppPreferences(private val context: Context) {
     }
 
     val darkMode: Flow<Int>           = context.dataStore.data.map { it[KEY_DARK_MODE] ?: 0 }
-    val themeSeedColor: Flow<String>  = context.dataStore.data.map { it[KEY_THEME_SEED] ?: "#2196F3" }
+    val themeSeedColor: Flow<String>  = context.dataStore.data.map { it[KEY_THEME_SEED] ?: "" }
     val fontSize: Flow<Float>         = context.dataStore.data.map { it[KEY_FONT_SIZE] ?: 1.0f }
     val firstDayMonday: Flow<Boolean> = context.dataStore.data.map { it[KEY_FIRST_DAY_MON] ?: false }
     val use24HrClock: Flow<Boolean>   = context.dataStore.data.map { it[KEY_24HR_CLOCK] ?: false }

@@ -32,6 +32,7 @@ import com.openlight.cal.data.model.CalendarEvent
 import com.openlight.cal.data.model.Person
 import com.openlight.cal.data.model.PersonRole
 import com.openlight.cal.ui.components.ColorPickerGrid
+import com.openlight.cal.ui.theme.PersonColors
 import com.openlight.cal.ui.viewmodel.PersonViewModel
 import kotlinx.coroutines.launch
 import java.time.ZoneId
@@ -229,7 +230,7 @@ fun PersonEditDialog(
     val isNew = person == null
     var name      by remember { mutableStateOf(person?.name ?: "") }
     var email     by remember { mutableStateOf(person?.email ?: "") }
-    var colorHex  by remember { mutableStateOf(person?.colorHex ?: "#2196F3") }
+    var colorHex  by remember { mutableStateOf(person?.colorHex ?: PersonColors.first()) }
     var role      by remember { mutableStateOf(person?.role ?: PersonRole.PARENT) }
     var caregiverPersonId by remember { mutableStateOf(person?.caregiverPersonId ?: 0L) }
     var nameError by remember { mutableStateOf(false) }
