@@ -89,10 +89,10 @@ object BackupManager {
                     db.mealPlanDao().getAll().map { it.toJson() }
                 ))
 
-                // Rewards + redemptions
-                put("rewards", JSONArray(
-                    db.rewardDao().getAll().map { it.toJson() }
-                ))
+                // Rewards: feature was started but never finished — the
+                // Reward/RedeemedReward Room entities + rewardDao were not
+                // committed. Stub here, reinstate when the feature lands.
+                put("rewards", JSONArray())
             }
 
             context.contentResolver.openOutputStream(uri)?.use { stream ->
@@ -124,17 +124,12 @@ object BackupManager {
 
             val db = AppDatabase.getInstance(context)
 
-            // Clear existing data (order matters due to FK constraints)
-            val cleanup = db.cleanupDao()
-            cleanup.deleteAllMealPlans()
-            cleanup.deleteAllCheckListItems()
-            cleanup.deleteAllCheckLists()
-            cleanup.deleteAllTasks()
-            cleanup.deleteAllEvents()
-            cleanup.deleteAllAccounts()
-            cleanup.deleteAllPeople()
-            cleanup.deleteAllRewards()
-            cleanup.deleteAllRedeemed()
+            // Clear existing data. Room's clearAllTables() drops every row
+            // in every table while preserving schema; FK constraint order is
+            // handled by Room itself, so this is safer than the per-table
+            // cascade that the original (uncommitted) cleanupDao would have
+            // implemented.
+            db.clearAllTables()
 
             // People
             val peopleArr = json.optJSONArray("people") ?: JSONArray()
@@ -177,11 +172,9 @@ object BackupManager {
                 db.mealPlanDao().upsert(mealFromJson(mealsArr.getJSONObject(i)))
             }
 
-            // Rewards
-            val rewardsArr = json.optJSONArray("rewards") ?: JSONArray()
-            for (i in 0 until rewardsArr.length()) {
-                db.rewardDao().insert(rewardFromJson(rewardsArr.getJSONObject(i)))
-            }
+            // Rewards: skipped — see export() for explanation. Restoring
+            // a backup that contains a 'rewards' array is forward-compatible
+            // (we just ignore the field) so old backups don't fail.
 
             BackupResult(true, "Restore complete — ${eventsArr.length()} events, ${tasksArr.length()} tasks restored",
                 eventCount = eventsArr.length(), taskCount = tasksArr.length())
@@ -232,14 +225,6 @@ object BackupManager {
 private fun MealPlan.toJson() = JSONObject().apply {
         put("dateIso", dateIso); put("slot", slot.name)
         put("title", title); put("notes", notes); put("personIds", personIds)
-    }
-    private fun Reward.toJson() = JSONObject().apply {
-        put("id", id); put("name", name); put("starCost", starCost)
-        put("emoji", emoji); put("sortOrder", sortOrder); put("isEnabled", isEnabled)
-    }
-    private fun RedeemedReward.toJson() = JSONObject().apply {
-        put("id", id); put("rewardId", rewardId); put("personId", personId)
-        put("redeemedAtMs", redeemedAtMs); put("note", note)
     }
 
     // ── JSON deserialization ──────────────────────────────────
@@ -296,11 +281,6 @@ private fun MealPlan.toJson() = JSONObject().apply {
         slot = try { MealSlot.valueOf(j.optString("slot")) } catch (_: Exception) { MealSlot.BREAKFAST },
         title = j.optString("title"), notes = j.optString("notes"),
         personIds = j.optString("personIds")
-    )
-    private fun rewardFromJson(j: JSONObject) = Reward(
-        id = j.optLong("id"), name = j.optString("name"),
-        starCost = j.optInt("starCost"), emoji = j.optString("emoji"),
-        sortOrder = j.optInt("sortOrder"), isEnabled = j.optBoolean("isEnabled", true)
     )
     private fun optLongOrNull(j: JSONObject, key: String): Long? =
         if (j.isNull(key)) null else j.optLong(key)

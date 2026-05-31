@@ -8,7 +8,6 @@ import com.openlight.cal.data.repository.*
 import com.openlight.cal.data.sync.CalDAVSyncWorker
 import com.openlight.cal.data.sync.NotificationHelper
 import com.openlight.cal.data.sync.ReminderWorker
-import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -34,8 +33,11 @@ class HearthboardApp : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // Initialize PDFBox for schedule import
-        PDFBoxResourceLoader.init(this)
+        // PDFBox: previous code called PDFBoxResourceLoader.init() here for
+        // "schedule import" — the feature consumer (a PDF parser screen) was
+        // never committed, and the com.tom_roush:pdfbox-android dependency
+        // is not in app/build.gradle.kts. Re-add init + the dependency when
+        // the PDF import feature lands.
 
         // Create notification channel for event reminders
         NotificationHelper.createChannel(this)
