@@ -101,6 +101,15 @@ interface CalendarEventDao {
     @Query("DELETE FROM calendar_events WHERE uid = :uid")
     suspend fun deleteByUid(uid: String)
 
+    /** Used by HearthboardApp's auto-archive on startup: deletes
+     *  events whose start time is older than the configured cutoff. */
+    @Query("DELETE FROM calendar_events WHERE startMs < :cutoffMs")
+    suspend fun deleteBefore(cutoffMs: Long): Int
+
+    /** Used by BackupManager export to enumerate every event. */
+    @Query("SELECT * FROM calendar_events ORDER BY startMs")
+    suspend fun getAll(): List<CalendarEvent>
+
     @Query("SELECT * FROM calendar_events WHERE isCountdown = 1 AND isCancelled = 0 AND startMs > :nowMs ORDER BY startMs LIMIT 10")
     fun getCountdownsFlow(nowMs: Long): Flow<List<CalendarEvent>>
 }
@@ -112,6 +121,10 @@ interface CalendarEventDao {
 interface TaskDao {
     @Query("SELECT * FROM tasks ORDER BY isCompleted, priority DESC, dueMs, sortOrder")
     fun getAllFlow(): Flow<List<Task>>
+
+    /** Used by BackupManager export to enumerate every task. */
+    @Query("SELECT * FROM tasks ORDER BY isCompleted, priority DESC, dueMs, sortOrder")
+    suspend fun getAll(): List<Task>
 
     @Query("SELECT * FROM tasks WHERE assignedPersonId = :personId ORDER BY isCompleted, priority DESC, dueMs")
     fun getByPersonFlow(personId: Long): Flow<List<Task>>
@@ -158,6 +171,14 @@ interface CheckListDao {
     @Query("SELECT * FROM checklist_items WHERE listId = :listId ORDER BY isChecked, sortOrder")
     fun getItemsFlow(listId: Long): Flow<List<CheckListItem>>
 
+    /** Used by BackupManager export to enumerate every checklist. */
+    @Query("SELECT * FROM checklists ORDER BY sortOrder, name")
+    suspend fun getAll(): List<CheckList>
+
+    /** Used by BackupManager export to enumerate every item across all lists. */
+    @Query("SELECT * FROM checklist_items ORDER BY listId, sortOrder")
+    suspend fun getAllItems(): List<CheckListItem>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertList(list: CheckList): Long
 
@@ -193,6 +214,10 @@ interface MealPlanDao {
 
     @Query("SELECT * FROM meal_plans WHERE dateIso = :date ORDER BY slot")
     fun getDayFlow(date: String): Flow<List<MealPlan>>
+
+    /** Used by BackupManager export to enumerate every meal plan entry. */
+    @Query("SELECT * FROM meal_plans ORDER BY dateIso, slot")
+    suspend fun getAll(): List<MealPlan>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(meal: MealPlan)
