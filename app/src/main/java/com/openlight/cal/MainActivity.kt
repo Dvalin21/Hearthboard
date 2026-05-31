@@ -1,6 +1,8 @@
 package com.openlight.cal
 
+import android.content.pm.ActivityInfo
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -27,6 +29,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.openlight.cal.ui.navigation.HearthboardNavHost
 import com.openlight.cal.ui.theme.HearthboardTheme
+import com.openlight.cal.ui.theme.LocalWallMode
+import com.openlight.cal.ui.theme.WallModeState
 
 class MainActivity : ComponentActivity() {
 
@@ -43,6 +47,8 @@ class MainActivity : ComponentActivity() {
             val themeSeedHex by prefs.themeSeedColor.collectAsStateWithLifecycle(initialValue = "")
             val kioskMode   by prefs.kioskMode.collectAsStateWithLifecycle(initialValue = false)
             val storedPin   by prefs.parentalPin.collectAsStateWithLifecycle(initialValue = "")
+            val wallMode    by prefs.wallMode.collectAsStateWithLifecycle(initialValue = false)
+            val wallKeepOn  by prefs.wallKeepScreenOn.collectAsStateWithLifecycle(initialValue = true)
             val systemDark  = isSystemInDarkTheme()
 
             val isDark = when (darkModePref) {
@@ -54,6 +60,39 @@ class MainActivity : ComponentActivity() {
             val seedColor = remember(themeSeedHex) {
                 if (themeSeedHex.isBlank()) null
                 else runCatching { Color(android.graphics.Color.parseColor(themeSeedHex)) }.getOrNull()
+            }
+
+            // ── Wall Mode — apply landscape lock + wake lock ──────
+            // requestedOrientation and the keep-screen-on flag are
+            // window-level concerns, not Compose; apply them imperatively
+            // from a side effect tied to the live preference.
+            DisposableEffect(wallMode, wallKeepOn) {
+                if (wallMode) {
+                    requestedOrientation =
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    if (wallKeepOn) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                } else {
+                    requestedOrientation =
+                        ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+                onDispose {
+                    // Cleanup if the activity goes away — let the system
+                    // dim normally again.
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+            }
+
+            val wallState = remember(wallMode, wallKeepOn) {
+                WallModeState(
+                    active       = wallMode,
+                    keepScreenOn = wallKeepOn,
+                    scale        = if (wallMode) 1.25f else 1.0f
+                )
             }
 
             // ── Kiosk lock state ───────────────────────────────
@@ -82,21 +121,23 @@ class MainActivity : ComponentActivity() {
             }
 
             HearthboardTheme(darkTheme = isDark, seedColor = seedColor) {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    Box(Modifier.fillMaxSize()) {
-                        HearthboardNavHost(app = app)
+                CompositionLocalProvider(LocalWallMode provides wallState) {
+                    Surface(modifier = Modifier.fillMaxSize()) {
+                        Box(Modifier.fillMaxSize()) {
+                            HearthboardNavHost(app = app)
 
-                        // ── Kiosk: intercept back press to prevent leaving ──
-                        BackHandler(enabled = kioskMode && !unlocked) {
-                            // Blocked — PIN overlay handles it
-                        }
+                            // ── Kiosk: intercept back press to prevent leaving ──
+                            BackHandler(enabled = kioskMode && !unlocked) {
+                                // Blocked — PIN overlay handles it
+                            }
 
-                        // ── Kiosk PIN overlay ──────────────────
-                        if (kioskMode && storedPin.isNotBlank() && !unlocked) {
-                            KioskPinOverlay(
-                                onVerify  = verifyPin,
-                                onUnlock  = { unlocked = true }
-                            )
+                            // ── Kiosk PIN overlay ──────────────────
+                            if (kioskMode && storedPin.isNotBlank() && !unlocked) {
+                                KioskPinOverlay(
+                                    onVerify  = verifyPin,
+                                    onUnlock  = { unlocked = true }
+                                )
+                            }
                         }
                     }
                 }

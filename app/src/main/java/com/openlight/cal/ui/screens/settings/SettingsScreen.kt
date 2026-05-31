@@ -47,6 +47,8 @@ fun SettingsScreen(
     val kioskMode    by viewModel.kioskMode.collectAsState()
     val syncWifiOnly by viewModel.syncWifiOnly.collectAsState()
     val showWeekends by viewModel.showWeekends.collectAsState()
+    val wallMode     by viewModel.wallMode.collectAsState()
+    val wallKeepOn   by viewModel.wallKeepOn.collectAsState()
     val accounts     by viewModel.accounts.collectAsState()
     val syncStatus   by viewModel.syncStatus.collectAsState()
 
@@ -145,6 +147,32 @@ fun SettingsScreen(
                 valueRange    = 0.75f..1.4f,
                 steps         = 4,
                 modifier      = Modifier.fillMaxWidth()
+            )
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        // ── WALL MODE (Skylight-style permanent display) ──────
+        SettingsSectionHeader("Wall Mode", Icons.Default.DeveloperBoard)
+
+        SettingsToggleRow(
+            icon     = Icons.Default.AspectRatio,
+            title    = "Enable Wall Mode",
+            subtitle = "Lock to landscape, scale up touch targets, "
+                     + "and switch the calendar to a denser layout for "
+                     + "wall-mounted tablets.",
+            checked  = wallMode,
+            onToggle = { viewModel.setWallMode(it) }
+        )
+
+        if (wallMode) {
+            SettingsToggleRow(
+                icon     = Icons.Default.Brightness1,
+                title    = "Keep screen on",
+                subtitle = "Prevent the display from sleeping. Use only on "
+                         + "tablets that are continuously plugged in.",
+                checked  = wallKeepOn,
+                onToggle = { viewModel.setWallKeepOn(it) }
             )
         }
 

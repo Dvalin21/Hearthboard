@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.openlight.cal.data.model.*
 import com.openlight.cal.data.weather.DailyForecast
 import com.openlight.cal.ui.components.*
+import com.openlight.cal.ui.theme.LocalWallMode
 import com.openlight.cal.ui.viewmodel.CalendarViewModel
 import java.time.*
 import java.time.format.DateTimeFormatter
@@ -191,55 +192,77 @@ fun MonthView(
     onEventClick: (CalendarEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val today     = LocalDate.now()
-    val firstDay  = selectedDate.withDayOfMonth(1)
-    // Start grid from Monday of week containing first day
-    val gridStart = firstDay.with(java.time.DayOfWeek.MONDAY)
-        .let { if (it.isAfter(firstDay)) it.minusWeeks(1) else it }
+    val today = LocalDate.now()
+    val wall  = LocalWallMode.current
 
-    // Day-of-week headers
-    val dowHeaders = listOf("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
+    // Cache the grid origin per month (was being recalculated every recompose).
+    val gridStart = remember(selectedDate) {
+        val firstDay = selectedDate.withDayOfMonth(1)
+        firstDay.with(java.time.DayOfWeek.MONDAY).let {
+            if (it.isAfter(firstDay)) it.minusWeeks(1) else it
+        }
+    }
+
+    // Group events by their local date ONCE, instead of re-filtering
+    // (and re-converting startMs → LocalDate) for every one of the 42
+    // grid cells on every recomposition. On a calendar with ~200 events
+    // this drops 8,400 conversions per recompose to 200.
+    val eventsByDay: Map<LocalDate, List<CalendarEvent>> = remember(events) {
+        val zone = ZoneId.systemDefault()
+        events.groupBy { ev ->
+            Instant.ofEpochMilli(ev.startMs).atZone(zone).toLocalDate()
+        }
+    }
+
+    // Today's column index (Mon=0 … Sun=6) for the Skylight-style
+    // vertical highlight stripe. Recompute when the month changes since
+    // 'today' relative to gridStart shifts.
+    val todayCol = remember(today, gridStart) {
+        val daysFromStart = java.time.temporal.ChronoUnit.DAYS.between(gridStart, today)
+        if (daysFromStart in 0..41) (daysFromStart % 7).toInt() else -1
+    }
+
+    val dowHeaders = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    val dowFontSize  = if (wall.active) 13.sp else 11.sp
+    val headerPadV   = if (wall.active) 10.dp else 4.dp
 
     Column(modifier = modifier.fillMaxSize()) {
-        // DOW header row
+        // DOW header row — bolds today's column
         Row(modifier = Modifier.fillMaxWidth()) {
-            dowHeaders.forEach { dow ->
+            dowHeaders.forEachIndexed { idx, dow ->
+                val isTodayCol = idx == todayCol
                 Text(
-                    text      = dow,
-                    modifier  = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                    style     = MaterialTheme.typography.labelSmall,
-                    color     = MaterialTheme.colorScheme.onSurfaceVariant
+                    text       = dow,
+                    modifier   = Modifier.weight(1f),
+                    textAlign  = TextAlign.Center,
+                    style      = MaterialTheme.typography.labelSmall.copy(fontSize = dowFontSize),
+                    fontWeight = if (isTodayCol) FontWeight.Bold else FontWeight.Normal,
+                    color      = if (isTodayCol) MaterialTheme.colorScheme.primary
+                                 else            MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = headerPadV))
 
         // 6-week grid
         val weeks = 6
         for (week in 0 until weeks) {
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) {
+            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 for (dow in 0..6) {
-                    val day = gridStart.plusDays((week * 7 + dow).toLong())
+                    val day            = gridStart.plusDays((week * 7 + dow).toLong())
                     val isCurrentMonth = day.month == selectedDate.month
                     val isToday        = day == today
                     val isSelected     = day == selectedDate
-                    val dayEvents      = events.filter { event ->
-                        val eventDate = Instant.ofEpochMilli(event.startMs)
-                            .atZone(ZoneId.systemDefault()).toLocalDate()
-                        eventDate == day
-                    }
+                    val isTodayCol     = dow == todayCol
+                    val dayEvents      = eventsByDay[day].orEmpty()
 
                     DayCell(
                         day            = day,
                         isCurrentMonth = isCurrentMonth,
                         isToday        = isToday,
                         isSelected     = isSelected,
+                        isTodayColumn  = isTodayCol,
                         events         = dayEvents,
                         forecasts      = forecasts,
                         people         = people,
@@ -259,6 +282,7 @@ private fun DayCell(
     isCurrentMonth: Boolean,
     isToday: Boolean,
     isSelected: Boolean,
+    isTodayColumn: Boolean,
     events: List<CalendarEvent>,
     forecasts: Map<LocalDate, DailyForecast> = emptyMap(),
     people: List<Person>,
@@ -266,23 +290,41 @@ private fun DayCell(
     onEventClick: (CalendarEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val wf = forecasts[day]
+    val wf   = forecasts[day]
+    val wall = LocalWallMode.current
+
+    // Sizes scale up in wall mode for arm's-length-or-farther viewing.
+    val dateBubble   = if (wall.active) 32.dp else 22.dp
+    val dateFontSize = if (wall.active) 14.sp else 11.sp
+    val chipFontSize = if (wall.active) 12.sp else 9.sp
+    val chipPadV     = if (wall.active) 3.dp else 1.dp
+    val chipGap      = if (wall.active) 3.dp else 1.dp
+    val tempFontSize = if (wall.active) 10.sp else 8.sp
+    val maxVisible   = if (wall.active) 4 else 3
+
+    // Today-column background tint runs the full height of the cell —
+    // it's a faint vertical stripe the eye lands on first.
+    val cellBg = when {
+        isTodayColumn && isCurrentMonth -> MaterialTheme.colorScheme.primary.copy(alpha = 0.04f)
+        else                            -> Color.Transparent
+    }
 
     Column(
         modifier = modifier
             .fillMaxHeight()
+            .background(cellBg)
             .clickable(onClick = onClick)
             .padding(2.dp)
     ) {
         // Day number + weather
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier         = Modifier.fillMaxWidth()
+            modifier          = Modifier.fillMaxWidth()
         ) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier         = Modifier
-                    .size(22.dp)
+                    .size(dateBubble)
                     .clip(CircleShape)
                     .background(
                         when {
@@ -293,8 +335,8 @@ private fun DayCell(
                     )
             ) {
                 Text(
-                    text  = day.dayOfMonth.toString(),
-                    style = MaterialTheme.typography.labelSmall,
+                    text       = day.dayOfMonth.toString(),
+                    fontSize   = dateFontSize,
                     color = when {
                         isSelected      -> MaterialTheme.colorScheme.onPrimary
                         !isCurrentMonth -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
@@ -304,43 +346,58 @@ private fun DayCell(
                 )
             }
             if (wf != null && isCurrentMonth) {
+                Spacer(Modifier.weight(1f))
                 Text(
-                    text  = "${wf.iconChar}${wf.tempHigh.toInt()}°",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text     = "${wf.iconChar}${wf.tempHigh.toInt()}°",
+                    fontSize = tempFontSize,
+                    color    = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
                 )
             }
         }
 
-        // Event dots / mini labels
-        val maxVisible = 3
+        Spacer(Modifier.height(2.dp))
+
+        // Skylight-style event chips: a 3dp color band on the left
+        // (encoding person/event identity), then the title in muted
+        // text on a neutral background. Reads cleanly at room distance
+        // and doesn't shout at you with saturated fills.
         events.take(maxVisible).forEach { event ->
             val color = eventColor(event, people)
             Row(
-                modifier            = Modifier
+                modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(color.copy(alpha = 0.85f))
-                    .clickable { onEventClick(event) }
-                    .padding(horizontal = 2.dp),
-                verticalAlignment   = Alignment.CenterVertically
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                    .clickable { onEventClick(event) },
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // Left color band
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .fillMaxHeight()
+                        .background(color)
+                )
+                Spacer(Modifier.width(4.dp))
                 Text(
                     text     = event.title,
-                    fontSize = 9.sp,
-                    color    = Color.White,
+                    fontSize = chipFontSize,
+                    color    = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = chipPadV, horizontal = 2.dp)
                 )
             }
-            Spacer(Modifier.height(1.dp))
+            Spacer(Modifier.height(chipGap))
         }
         if (events.size > maxVisible) {
             Text(
-                text  = "+${events.size - maxVisible}",
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                color = MaterialTheme.colorScheme.primary
+                text     = "+${events.size - maxVisible} more",
+                fontSize = chipFontSize,
+                color    = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 4.dp, top = 1.dp)
             )
         }
     }
@@ -644,17 +701,19 @@ fun AgendaView(
 // Utility
 // ─────────────────────────────────────────────────────────────
 private fun eventColor(event: CalendarEvent, people: List<Person>): Color {
+    // Slate primary — matches Theme.kt LightColorScheme.primary
+    val fallback = Color(0xFF4A6178)
     // Event's own color (set at creation, preserved forever) takes precedence
     if (event.colorHex.isNotBlank()) {
-        return runCatching { Color(android.graphics.Color.parseColor(event.colorHex)) }.getOrElse { Color(0xFF2196F3) }
+        return runCatching { Color(android.graphics.Color.parseColor(event.colorHex)) }.getOrElse { fallback }
     }
     // Fall back to person color if assigned (identity, not override)
     if (event.personIds.isNotBlank()) {
         val firstId = event.personIds.split(",").firstOrNull()?.trim()?.toLongOrNull()
         val person  = people.find { it.id == firstId }
         if (person != null) {
-            return runCatching { Color(android.graphics.Color.parseColor(person.colorHex)) }.getOrElse { Color(0xFF2196F3) }
+            return runCatching { Color(android.graphics.Color.parseColor(person.colorHex)) }.getOrElse { fallback }
         }
     }
-    return Color(0xFF2196F3)
+    return fallback
 }
