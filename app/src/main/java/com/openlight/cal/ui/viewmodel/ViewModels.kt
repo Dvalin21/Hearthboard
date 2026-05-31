@@ -28,19 +28,210 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = (app as HearthboardApp).calendarRepository
     private val prefs = (app as HearthboardApp).preferences
+    private val weatherApi = WeatherApi()
 
-    override val accounts: StateFlow<List<Account>>
+    private val _viewMode = MutableStateFlow("MONTH")
+    val viewMode: StateFlow<String> = _viewMode
+
+    private val _selectedDate = MutableStateFlow(LocalDate.now())
+    val selectedDate: StateFlow<LocalDate> = _selectedDate
+
+    private val _showAddEvent = MutableStateFlow(false)
+    val showAddEvent: StateFlow<Boolean> = _showAddEvent
+
+    private val _editEvent = MutableStateFlow<CalendarEvent?>(null)
+    val editEvent: StateFlow<CalendarEvent?> = _editEvent
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val eventsThisMonth: StateFlow<List<CalendarEvent>> = _selectedDate
+        .flatMapLatest { date ->
+            val (start, end) = repo.getMonthRange(date.year, date.monthValue)
+            // Include prev/next month buffer for grid display
+            val bufStart = start - (7 * 86_400_000L)
+            val bufEnd   = end   + (7 * 86_400_000L)
+            repo.getEventsInRange(bufStart, bufEnd)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val countdowns: StateFlow<List<CalendarEvent>> = repo.getCountdowns()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // ── Weather ────────────────────────────────────────────────
+    private val _forecasts = MutableStateFlow<Map<LocalDate, DailyForecast>>(emptyMap())
+    val forecasts: StateFlow<Map<LocalDate, DailyForecast>> = _forecasts
 
     init {
-        accounts = (getApplication<HearthboardApp>()).accountRepository.getAllFlow().stateIn(
-            scope, SharingStarted.WhileSubscribed(5000), emptyList()
-        )
+        // Fetch weather on month change, debounced
+        @OptIn(kotlinx.coroutines.FlowPreview::class)
+        viewModelScope.launch {
+            _selectedDate
+                .debounce(500)
+                .collect { fetchWeather() }
+        }
     }
+
+    private suspend fun fetchWeather() {
+        val latStr = prefs.weatherLat.first()
+        val lonStr = prefs.weatherLon.first()
+        val lat = latStr.toDoubleOrNull() ?: return
+        val lon = lonStr.toDoubleOrNull() ?: return
+        val endpoint = prefs.weatherEndpoint.first().ifBlank { "https://api.open-meteo.com/v1/forecast" }
+        try {
+            val result = weatherApi.fetchForecast(lat, lon, endpoint)
+            _forecasts.value = result.associateBy { it.date }
+        } catch (_: Exception) {
+            // Silent fail — weather is cosmetic
+        }
+    }
+
+    private val _personFilter = MutableStateFlow(0L) // 0 = all
+    val personFilter: StateFlow<Long> = _personFilter
+
+    val filteredEvents: StateFlow<List<CalendarEvent>> = combine(eventsThisMonth, _personFilter) { events, filterId ->
+        if (filterId == 0L) events
+        else events.filter { it.personIds.split(",").any { pid -> pid.trim().toLongOrNull() == filterId } }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // ── Inbox / Pending invitations ────────────────────────────
+    /** Events from CalDAV inbox calendars (meeting invitations). */
+    val pendingInvitations: StateFlow<List<CalendarEvent>> = eventsThisMonth.map { events ->
+        events.filter { it.calendarPath.contains("inbox", ignoreCase = true) && !it.isCancelled }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Accept an invitation: copy to personal calendar, remove from inbox. */
+    fun acceptInvitation(event: CalendarEvent) {
+        viewModelScope.launch {
+            // Find first non-inbox account as target
+            val accounts = (getApplication<HearthboardApp>()).accountRepository.getAllFlow().first()
+            val target = accounts.firstOrNull { a ->
+                !event.calendarPath.contains("inbox", ignoreCase = true) || a.id != event.accountId
+            } ?: accounts.firstOrNull() ?: return@launch
+
+            // Copy event to personal calendar
+            val copy = event.copy(
+                id           = 0L,
+                accountId    = target.id,
+                calendarPath = "",   // will be set by CalDAV push
+                etag         = "",
+                isLocalOnly  = false
+            )
+            repo.saveEvent(copy, target.id)
+
+            // Delete from inbox
+            repo.deleteEvent(event)
+        }
+    }
+
+    fun setViewMode(mode: String) { _viewMode.value = mode }
+    fun setSelectedDate(date: LocalDate) { _selectedDate.value = date }
+    fun setPersonFilter(personId: Long) { _personFilter.value = personId }
+    fun showAddEvent() { _showAddEvent.value = true }
+    fun hideAddEvent() { _showAddEvent.value = false; _editEvent.value = null }
+    fun editEvent(event: CalendarEvent) { _editEvent.value = event; _showAddEvent.value = true }
+
+    fun navigatePrev() {
+        _selectedDate.update {
+            when (_viewMode.value) {
+                "MONTH"  -> it.minusMonths(1)
+                "WEEK"   -> it.minusWeeks(1)
+                "DAY"    -> it.minusDays(1)
+                else     -> it.minusMonths(1)
+            }
+        }
+    }
+
+    fun navigateNext() {
+        _selectedDate.update {
+            when (_viewMode.value) {
+                "MONTH"  -> it.plusMonths(1)
+                "WEEK"   -> it.plusWeeks(1)
+                "DAY"    -> it.plusDays(1)
+                else     -> it.plusMonths(1)
+            }
+        }
+    }
+
+    fun goToday() { _selectedDate.value = LocalDate.now() }
+
+    fun saveEvent(event: CalendarEvent, accountId: Long?) {
+        viewModelScope.launch {
+            repo.saveEvent(event, accountId)
+            hideAddEvent()
+        }
+    }
+
+    fun deleteEvent(event: CalendarEvent) {
+        viewModelScope.launch { repo.deleteEvent(event) }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Task ViewModel
+// ─────────────────────────────────────────────────────────────
+class TaskViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo    = (app as HearthboardApp).taskRepository
     private val personR = (app as HearthboardApp).personRepository
 
+    val activeTasks: StateFlow<List<Task>> = repo.getActiveFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allTasks: StateFlow<List<Task>> = repo.getAllTasksFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val people: StateFlow<List<Person>> = personR.getAllFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _selectedPersonFilter = MutableStateFlow(0L) // 0 = all
+    val selectedPersonFilter: StateFlow<Long> = _selectedPersonFilter
+
+    val filteredTasks: StateFlow<List<Task>> = combine(allTasks, _selectedPersonFilter) { tasks, personId ->
+        if (personId == 0L) tasks
+        else tasks.filter { it.assignedPersonId == personId }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun setPersonFilter(personId: Long) { _selectedPersonFilter.value = personId }
+
+    fun saveTask(task: Task, accountId: Long? = null) {
+        viewModelScope.launch { repo.saveTask(task, accountId) }
+    }
+
+    fun toggleComplete(task: Task) {
+        viewModelScope.launch { repo.setCompleted(task.id, !task.isCompleted) }
+    }
+
+    fun deleteTask(task: Task) {
+        viewModelScope.launch { repo.deleteTask(task) }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Person ViewModel
+// ─────────────────────────────────────────────────────────────
+class PersonViewModel(app: Application) : AndroidViewModel(app) {
+
     private val repo = (app as HearthboardApp).personRepository
+
+    val people: StateFlow<List<Person>> = repo.getAllFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun savePerson(person: Person) {
+        viewModelScope.launch { repo.save(person) }
+    }
+
+    fun updatePerson(person: Person) {
+        viewModelScope.launch { repo.update(person) }
+    }
+
+    fun deletePerson(person: Person) {
+        viewModelScope.launch { repo.delete(person) }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Settings ViewModel
+// ─────────────────────────────────────────────────────────────
+class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     private val prefs      = (app as HearthboardApp).preferences
     private val encryptor  = (app as HearthboardApp).encryptor
@@ -60,6 +251,8 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
     val weatherLon     = prefs.weatherLon.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val weatherEndpoint= prefs.weatherEndpoint.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val autoArchiveMonths = prefs.autoArchiveMonths.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+    val mealieUrl      = prefs.mealieUrl.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    val mealieToken    = prefs.mealieToken.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     val accounts: StateFlow<List<CalendarAccount>> = accR.getAllFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -79,14 +272,12 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
     fun setSyncWifiOnly(v: Boolean)    = viewModelScope.launch { prefs.set(AppPreferences.KEY_SYNC_WIFI_ONLY, v) }
     fun setDefaultView(v: String)      = viewModelScope.launch { prefs.set(AppPreferences.KEY_DEFAULT_VIEW, v) }
     fun setShowWeekends(v: Boolean)    = viewModelScope.launch { prefs.set(AppPreferences.KEY_SHOW_WEEKENDS, v) }
+    fun setAutoArchiveMonths(v: Int)   = viewModelScope.launch { prefs.set(AppPreferences.KEY_AUTO_ARCHIVE_MONTHS, v) }
+    fun setMealieUrl(v: String)        = viewModelScope.launch { prefs.set(AppPreferences.KEY_MEALIE_URL, v) }
+    fun setMealieToken(v: String)      = viewModelScope.launch { prefs.set(AppPreferences.KEY_MEALIE_TOKEN, v) }
     fun setWeatherLat(v: String)       = viewModelScope.launch { prefs.set(AppPreferences.KEY_WEATHER_LAT, v) }
     fun setWeatherLon(v: String)       = viewModelScope.launch { prefs.set(AppPreferences.KEY_WEATHER_LON, v) }
     fun setWeatherEndpoint(v: String)  = viewModelScope.launch { prefs.set(AppPreferences.KEY_WEATHER_ENDPOINT, v) }
-    fun setAutoArchiveMonths(v: Int) = viewModelScope.launch { prefs.set(AppPreferences.KEY_AUTO_ARCHIVE_MONTHS, v) }
-    val mealieUrl    = prefs.mealieUrl.stateIn(viewModelScope, SharingStarted.Eagerly, "")
-    val mealieToken  = prefs.mealieToken.stateIn(viewModelScope, SharingStarted.Eagerly, "")
-    fun setMealieUrl(v: String)   = viewModelScope.launch { prefs.set(AppPreferences.KEY_MEALIE_URL, v) }
-    fun setMealieToken(v: String) = viewModelScope.launch { prefs.set(AppPreferences.KEY_MEALIE_TOKEN, v) }
 
     suspend fun saveAccountSync(account: CalendarAccount) {
         accR.save(account)
