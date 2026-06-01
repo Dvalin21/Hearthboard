@@ -234,7 +234,7 @@ object BackupManager {
         put("id", id); put("listId", listId); put("text", text)
         put("isChecked", isChecked); put("sortOrder", sortOrder)
     }
-private fun MealPlan.toJson() = JSONObject().apply {
+    private fun MealPlan.toJson() = JSONObject().apply {
         put("dateIso", dateIso); put("slot", slot.name)
         put("title", title); put("notes", notes); put("personIds", personIds)
     }
