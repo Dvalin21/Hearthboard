@@ -250,9 +250,14 @@ private fun PersonPickerChip(person: Person, selected: Boolean, onClick: () -> U
 
 @Composable
 private fun BalanceCard(person: Person, balance: Int) {
-    val color = remember(person.colorHex) {
+    // MaterialTheme.colorScheme is a CompositionLocal read and must be
+    // resolved in the @Composable scope, not inside the non-composable
+    // remember{} lambda. Read it once here, then the lambda can close
+    // over the resolved Color.
+    val fallback = MaterialTheme.colorScheme.primary
+    val color = remember(person.colorHex, fallback) {
         runCatching { Color(android.graphics.Color.parseColor(person.colorHex)) }
-            .getOrElse { MaterialTheme.colorScheme.primary }
+            .getOrElse { fallback }
     }
     Card(
         modifier = Modifier
