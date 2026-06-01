@@ -108,7 +108,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                 )
             }
             composable(Screen.Tasks.route) {
-                TasksScreen(viewModel = taskVm, database = app.database)
+                TasksScreen(viewModel = taskVm)
             }
             composable(Screen.Lists.route) {
                 ListsScreen(database = app.database)

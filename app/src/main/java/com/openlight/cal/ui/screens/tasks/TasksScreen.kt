@@ -165,7 +165,14 @@ fun TaskEditDialog(
     people: List<Person>,
     onSave: (Task) -> Unit,
     onDelete: (() -> Unit)? = null,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** When true, the dialog is being used by ChoresScreen to add a chore.
+     *  Caller (ChoresScreen) sets isChore=true + isLocalOnly=true on the
+     *  Task it produces from onSave; the dialog itself doesn't need to
+     *  differ much, but keeping the param lets the UI add chore-specific
+     *  affordances later (e.g. hide priority, surface a chore-emoji
+     *  picker) without changing the call sites. */
+    isChoreMode: Boolean = false
 ) {
     var title       by remember { mutableStateOf(task?.title ?: "") }
     var description by remember { mutableStateOf(task?.description ?: "") }

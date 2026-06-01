@@ -214,6 +214,7 @@ object BackupManager {
         put("isCompleted", isCompleted); put("completedMs", completedMs ?: JSONObject.NULL)
         put("priority", priority.name); put("starsEarned", starsEarned)
         put("sortOrder", sortOrder); put("isLocalOnly", isLocalOnly); put("listId", listId)
+        put("isChore", isChore)
     }
     private fun CheckList.toJson() = JSONObject().apply {
         put("id", id); put("name", name); put("colorHex", colorHex); put("sortOrder", sortOrder)
@@ -265,7 +266,8 @@ private fun MealPlan.toJson() = JSONObject().apply {
         isCompleted = j.optBoolean("isCompleted"), completedMs = optLongOrNull(j, "completedMs"),
         priority = try { TaskPriority.valueOf(j.optString("priority")) } catch (_: Exception) { TaskPriority.NORMAL },
         starsEarned = j.optInt("starsEarned"), sortOrder = j.optInt("sortOrder"),
-        isLocalOnly = j.optBoolean("isLocalOnly"), listId = j.optLong("listId")
+        isLocalOnly = j.optBoolean("isLocalOnly"), listId = j.optLong("listId"),
+        isChore = j.optBoolean("isChore", false)
     )
     private fun listFromJson(j: JSONObject) = CheckList(
         id = j.optLong("id"), name = j.optString("name"),

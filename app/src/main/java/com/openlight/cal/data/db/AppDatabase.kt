@@ -17,7 +17,7 @@ import com.openlight.cal.data.model.*
         CheckListItem::class,
         MealPlan::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -38,7 +38,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "openlight.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { INSTANCE = it }
             }
@@ -57,6 +57,13 @@ abstract class AppDatabase : RoomDatabase() {
         private val MIGRATION_3_4 = Migration(3, 4) { db ->
             db.execSQL("ALTER TABLE calendar_accounts ADD COLUMN syncFailCount INTEGER NOT NULL DEFAULT 0")
             db.execSQL("ALTER TABLE calendar_accounts ADD COLUMN syncBackoffUntil INTEGER NOT NULL DEFAULT 0")
+        }
+
+        private val MIGRATION_4_5 = Migration(4, 5) { db ->
+            // Task.isChore flag added to support the Chores screen.
+            // Default 0 (false) so every existing row becomes a regular
+            // task and nothing about user data changes on upgrade.
+            db.execSQL("ALTER TABLE tasks ADD COLUMN isChore INTEGER NOT NULL DEFAULT 0")
         }
     }
 }

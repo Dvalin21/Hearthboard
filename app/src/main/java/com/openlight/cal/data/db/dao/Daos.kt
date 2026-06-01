@@ -132,6 +132,10 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE isCompleted = 0 ORDER BY priority DESC, dueMs, sortOrder")
     fun getActiveFlow(): Flow<List<Task>>
 
+    /** Used by ChoresScreen: kid-friendly chores only, excludes completed ones. */
+    @Query("SELECT * FROM tasks WHERE isChore = 1 AND isCompleted = 0 ORDER BY sortOrder, dueMs")
+    fun getActiveChoresFlow(): Flow<List<Task>>
+
     @Query("SELECT * FROM tasks WHERE listId = :listId ORDER BY isCompleted, sortOrder")
     fun getByListFlow(listId: Long): Flow<List<Task>>
 

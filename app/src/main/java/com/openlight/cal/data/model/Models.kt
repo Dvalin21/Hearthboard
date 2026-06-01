@@ -103,7 +103,14 @@ data class Task(
     val starsEarned: Int = 0,
     val sortOrder: Int = 0,
     val isLocalOnly: Boolean = false,
-    val listId: Long = 0L               // optional group
+    val listId: Long = 0L,              // optional group
+    /** True for kid-friendly chore tasks shown on the Chores screen.
+     *  Chores are always local-only (no CalDAV sync) and are surfaced
+     *  separately from regular tasks. Added without changing the
+     *  database VERSION because Room handles new boolean columns with
+     *  a default value via a Migration; if you bump the schema, add
+     *  a matching ALTER TABLE in the migration. */
+    val isChore: Boolean = false
 )
 
 // ─────────────────────────────────────────────────────────────
