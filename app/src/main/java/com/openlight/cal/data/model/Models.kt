@@ -149,3 +149,39 @@ data class MealPlan(
     val notes: String = "",
     val personIds: String = ""     // comma-separated
 )
+
+// ─────────────────────────────────────────────────────────────
+// REWARDS
+// ─────────────────────────────────────────────────────────────
+// A Reward is something a person can spend stars on (a treat, a privilege,
+// screen time, a small gift, etc.). Each redemption creates a RedeemedReward
+// row that records the transaction; a person's balance is computed at query
+// time as sum(tasks.starsEarned where assignedPersonId=X AND isCompleted)
+// minus sum(redeemedRewards.cost where personId=X). We don't denormalize
+// the balance onto Person to avoid drift bugs when tasks are edited.
+
+@Immutable
+@Entity(tableName = "rewards")
+data class Reward(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val emoji: String = "🎁",              // shown in shop tiles
+    val starCost: Int,
+    val description: String = "",
+    val isEnabled: Boolean = true,         // soft-hide without deleting
+    val sortOrder: Int = 0
+)
+
+@Immutable
+@Entity(tableName = "redeemed_rewards")
+data class RedeemedReward(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val rewardId: Long,                    // FK to Reward (no constraint -
+                                           //  we keep history even if reward deleted)
+    val rewardName: String,                // denormalized for history
+    val rewardEmoji: String,               // denormalized for history
+    val personId: Long,                    // FK to Person who redeemed
+    val cost: Int,                         // denormalized — cost at time of redemption
+    val redeemedAtMs: Long = System.currentTimeMillis(),
+    val note: String = ""                  // optional parent note
+)

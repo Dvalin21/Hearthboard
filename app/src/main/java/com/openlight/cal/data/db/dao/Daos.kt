@@ -129,6 +129,25 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE assignedPersonId = :personId ORDER BY isCompleted, priority DESC, dueMs")
     fun getByPersonFlow(personId: Long): Flow<List<Task>>
 
+    /** Sum of stars earned by completing tasks/chores assigned to a person.
+     *  Used to compute the Rewards-screen balance:
+     *      balance = starsEarnedByPerson - starsSpentByPerson
+     */
+    @Query("""
+        SELECT COALESCE(SUM(starsEarned), 0) FROM tasks
+        WHERE assignedPersonId = :personId
+          AND isCompleted = 1
+    """)
+    suspend fun starsEarnedByPerson(personId: Long): Int
+
+    /** Same as starsEarnedByPerson but Flow-backed for reactive UI. */
+    @Query("""
+        SELECT COALESCE(SUM(starsEarned), 0) FROM tasks
+        WHERE assignedPersonId = :personId
+          AND isCompleted = 1
+    """)
+    fun starsEarnedByPersonFlow(personId: Long): Flow<Int>
+
     @Query("SELECT * FROM tasks WHERE isCompleted = 0 ORDER BY priority DESC, dueMs, sortOrder")
     fun getActiveFlow(): Flow<List<Task>>
 
@@ -228,4 +247,61 @@ interface MealPlanDao {
 
     @Delete
     suspend fun delete(meal: MealPlan)
+}
+
+// ─────────────────────────────────────────────────────────────
+// REWARDS — catalog + redemption history
+// ─────────────────────────────────────────────────────────────
+
+@Dao
+interface RewardDao {
+    @Query("SELECT * FROM rewards ORDER BY sortOrder, name")
+    fun getAllFlow(): Flow<List<Reward>>
+
+    /** Shop-view: only enabled rewards. */
+    @Query("SELECT * FROM rewards WHERE isEnabled = 1 ORDER BY sortOrder, starCost")
+    fun getEnabledFlow(): Flow<List<Reward>>
+
+    /** Used by BackupManager export. */
+    @Query("SELECT * FROM rewards ORDER BY sortOrder, name")
+    suspend fun getAll(): List<Reward>
+
+    @Query("SELECT * FROM rewards WHERE id = :id LIMIT 1")
+    suspend fun get(id: Long): Reward?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(reward: Reward): Long
+
+    @Delete
+    suspend fun delete(reward: Reward)
+}
+
+@Dao
+interface RedeemedRewardDao {
+    @Query("SELECT * FROM redeemed_rewards ORDER BY redeemedAtMs DESC")
+    fun getHistoryFlow(): Flow<List<RedeemedReward>>
+
+    @Query("SELECT * FROM redeemed_rewards WHERE personId = :personId ORDER BY redeemedAtMs DESC")
+    fun getHistoryForPersonFlow(personId: Long): Flow<List<RedeemedReward>>
+
+    /** Used by BackupManager export. */
+    @Query("SELECT * FROM redeemed_rewards ORDER BY redeemedAtMs")
+    suspend fun getAll(): List<RedeemedReward>
+
+    /**
+     * Per-person stars spent (sum of cost). Used to compute current balance.
+     * Returns 0 if no redemptions yet.
+     */
+    @Query("SELECT COALESCE(SUM(cost), 0) FROM redeemed_rewards WHERE personId = :personId")
+    suspend fun starsSpentByPerson(personId: Long): Int
+
+    /** Same but as a Flow for live balance display. */
+    @Query("SELECT COALESCE(SUM(cost), 0) FROM redeemed_rewards WHERE personId = :personId")
+    fun starsSpentByPersonFlow(personId: Long): Flow<Int>
+
+    @Insert
+    suspend fun insert(redeemed: RedeemedReward): Long
+
+    @Delete
+    suspend fun delete(redeemed: RedeemedReward)
 }

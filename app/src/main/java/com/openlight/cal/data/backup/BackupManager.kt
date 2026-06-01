@@ -89,10 +89,13 @@ object BackupManager {
                     db.mealPlanDao().getAll().map { it.toJson() }
                 ))
 
-                // Rewards: feature was started but never finished — the
-                // Reward/RedeemedReward Room entities + rewardDao were not
-                // committed. Stub here, reinstate when the feature lands.
-                put("rewards", JSONArray())
+                // Rewards catalog + redemption history
+                put("rewards", JSONArray(
+                    db.rewardDao().getAll().map { it.toJson() }
+                ))
+                put("redeemedRewards", JSONArray(
+                    db.redeemedRewardDao().getAll().map { it.toJson() }
+                ))
             }
 
             context.contentResolver.openOutputStream(uri)?.use { stream ->
@@ -172,9 +175,17 @@ object BackupManager {
                 db.mealPlanDao().upsert(mealFromJson(mealsArr.getJSONObject(i)))
             }
 
-            // Rewards: skipped — see export() for explanation. Restoring
-            // a backup that contains a 'rewards' array is forward-compatible
-            // (we just ignore the field) so old backups don't fail.
+            // Rewards
+            val rewardsArr = json.optJSONArray("rewards") ?: JSONArray()
+            for (i in 0 until rewardsArr.length()) {
+                db.rewardDao().upsert(rewardFromJson(rewardsArr.getJSONObject(i)))
+            }
+
+            // Redemption history
+            val redeemedArr = json.optJSONArray("redeemedRewards") ?: JSONArray()
+            for (i in 0 until redeemedArr.length()) {
+                db.redeemedRewardDao().insert(redeemedFromJson(redeemedArr.getJSONObject(i)))
+            }
 
             BackupResult(true, "Restore complete — ${eventsArr.length()} events, ${tasksArr.length()} tasks restored",
                 eventCount = eventsArr.length(), taskCount = tasksArr.length())
@@ -226,6 +237,16 @@ object BackupManager {
 private fun MealPlan.toJson() = JSONObject().apply {
         put("dateIso", dateIso); put("slot", slot.name)
         put("title", title); put("notes", notes); put("personIds", personIds)
+    }
+    private fun Reward.toJson() = JSONObject().apply {
+        put("id", id); put("name", name); put("emoji", emoji)
+        put("starCost", starCost); put("description", description)
+        put("isEnabled", isEnabled); put("sortOrder", sortOrder)
+    }
+    private fun RedeemedReward.toJson() = JSONObject().apply {
+        put("id", id); put("rewardId", rewardId); put("rewardName", rewardName)
+        put("rewardEmoji", rewardEmoji); put("personId", personId)
+        put("cost", cost); put("redeemedAtMs", redeemedAtMs); put("note", note)
     }
 
     // ── JSON deserialization ──────────────────────────────────
@@ -283,6 +304,21 @@ private fun MealPlan.toJson() = JSONObject().apply {
         slot = try { MealSlot.valueOf(j.optString("slot")) } catch (_: Exception) { MealSlot.BREAKFAST },
         title = j.optString("title"), notes = j.optString("notes"),
         personIds = j.optString("personIds")
+    )
+    private fun rewardFromJson(j: JSONObject) = Reward(
+        id = j.optLong("id"), name = j.optString("name"),
+        emoji = j.optString("emoji", "🎁"), starCost = j.optInt("starCost"),
+        description = j.optString("description"),
+        isEnabled = j.optBoolean("isEnabled", true),
+        sortOrder = j.optInt("sortOrder")
+    )
+    private fun redeemedFromJson(j: JSONObject) = RedeemedReward(
+        id = j.optLong("id"), rewardId = j.optLong("rewardId"),
+        rewardName = j.optString("rewardName"),
+        rewardEmoji = j.optString("rewardEmoji", "🎁"),
+        personId = j.optLong("personId"), cost = j.optInt("cost"),
+        redeemedAtMs = j.optLong("redeemedAtMs"),
+        note = j.optString("note")
     )
     private fun optLongOrNull(j: JSONObject, key: String): Long? =
         if (j.isNull(key)) null else j.optLong(key)

@@ -15,9 +15,11 @@ import com.openlight.cal.data.model.*
         Task::class,
         CheckList::class,
         CheckListItem::class,
-        MealPlan::class
+        MealPlan::class,
+        Reward::class,
+        RedeemedReward::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -27,6 +29,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun checkListDao(): CheckListDao
     abstract fun mealPlanDao(): MealPlanDao
+    abstract fun rewardDao(): RewardDao
+    abstract fun redeemedRewardDao(): RedeemedRewardDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -38,7 +42,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "openlight.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                     .also { INSTANCE = it }
             }
@@ -64,6 +68,35 @@ abstract class AppDatabase : RoomDatabase() {
             // Default 0 (false) so every existing row becomes a regular
             // task and nothing about user data changes on upgrade.
             db.execSQL("ALTER TABLE tasks ADD COLUMN isChore INTEGER NOT NULL DEFAULT 0")
+        }
+
+        private val MIGRATION_5_6 = Migration(5, 6) { db ->
+            // Rewards system: two new tables, no changes to existing data.
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS rewards (
+                    id          INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    name        TEXT    NOT NULL,
+                    emoji       TEXT    NOT NULL DEFAULT '🎁',
+                    starCost    INTEGER NOT NULL,
+                    description TEXT    NOT NULL DEFAULT '',
+                    isEnabled   INTEGER NOT NULL DEFAULT 1,
+                    sortOrder   INTEGER NOT NULL DEFAULT 0
+                )
+            """.trimIndent())
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS redeemed_rewards (
+                    id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    rewardId      INTEGER NOT NULL,
+                    rewardName    TEXT    NOT NULL,
+                    rewardEmoji   TEXT    NOT NULL,
+                    personId      INTEGER NOT NULL,
+                    cost          INTEGER NOT NULL,
+                    redeemedAtMs  INTEGER NOT NULL,
+                    note          TEXT    NOT NULL DEFAULT ''
+                )
+            """.trimIndent())
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_redeemed_personId ON redeemed_rewards(personId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_redeemed_redeemedAtMs ON redeemed_rewards(redeemedAtMs)")
         }
     }
 }
