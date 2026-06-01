@@ -55,14 +55,13 @@ sealed class Screen(
     object People   : Screen("people",   "People",    Icons.Filled.Group,            Icons.Outlined.Group)
     object Chores   : Screen("chores",   "Chores",    Icons.Filled.TaskAlt,          Icons.Outlined.TaskAlt)
     object Recipes  : Screen("recipes",  "Recipes",   Icons.Filled.RestaurantMenu,   Icons.Outlined.RestaurantMenu)
-    object Sleep    : Screen("sleep",    "Sleep",     Icons.Filled.DarkMode,         Icons.Outlined.DarkMode)
     object Settings : Screen("settings", "Settings",  Icons.Filled.Settings,         Icons.Outlined.Settings)
 
     companion object {
         // Phone bottom nav has a hard limit of 5 items before things crash
         // visually. Top-level only; everything else lives in 'More'.
         val main      = listOf(Calendar, Tasks, Lists, Meals, People)
-        val secondary = listOf(Chores, Recipes, Sleep)
+        val secondary = listOf(Chores, Recipes)
         val all       = main + secondary + Settings
     }
 }
@@ -164,20 +163,6 @@ fun HearthboardNavHost(app: HearthboardApp) {
                     preferences = app.preferences,
                     onAddToMealPlan = { /* TODO: add to meal planner */ }
                 )
-            }
-            composable("sleep") {
-                // Sleep / wind-down tracking — coming soon
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                    Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.DarkMode, null, modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(16.dp))
-                        Text("Sleep & Wind-Down", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(8.dp))
-                        Text("Coming soon", style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
             }
         }
     }

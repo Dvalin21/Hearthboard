@@ -195,8 +195,15 @@ fun TaskEditDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(onClick = onDismiss) { Text("Cancel") }
-                Text(if (task == null) "New Task" else "Edit Task",
-                    style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = when {
+                        isChoreMode && task == null -> "New Chore"
+                        isChoreMode                 -> "Edit Chore"
+                        task == null                -> "New Task"
+                        else                        -> "Edit Task"
+                    },
+                    style = MaterialTheme.typography.titleMedium
+                )
                 TextButton(onClick = {
                     if (title.isBlank()) { titleError = true; return@TextButton }
                     onSave(
@@ -216,7 +223,7 @@ fun TaskEditDialog(
             OutlinedTextField(
                 value         = title,
                 onValueChange = { title = it; titleError = false },
-                label         = { Text("Task title") },
+                label         = { Text(if (isChoreMode) "Chore name" else "Task title") },
                 isError       = titleError,
                 modifier      = Modifier.fillMaxWidth(),
                 leadingIcon   = { Icon(Icons.Default.CheckBox, null) },
