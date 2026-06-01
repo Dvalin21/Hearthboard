@@ -482,3 +482,54 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun testConnection(url: String, user: String, pass: String) =
         accR.testConnection(url, user, pass)
 }
+
+// ─────────────────────────────────────────────────────────────
+// Rewards ViewModel
+// ─────────────────────────────────────────────────────────────
+class RewardsViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val rewardRepo = (app as HearthboardApp).rewardRepository
+    private val personRepo = (app as HearthboardApp).personRepository
+
+    // Catalog
+    val allRewards: StateFlow<List<Reward>> = rewardRepo.allRewardsFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val enabledRewards: StateFlow<List<Reward>> = rewardRepo.enabledRewardsFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    // People (for picking who's redeeming)
+    val people: StateFlow<List<Person>> = personRepo.getAllFlow()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    // Redemption history (most recent first)
+    val history: StateFlow<List<RedeemedReward>> = rewardRepo.historyFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Live balance for any person; caller collects in UI. */
+    fun balanceFlow(personId: Long): Flow<Int> = rewardRepo.balanceFlow(personId)
+
+    // ── Catalog mutations ───────────────────────────────────
+    fun saveReward(reward: Reward) = viewModelScope.launch {
+        rewardRepo.saveReward(reward)
+    }
+
+    fun deleteReward(reward: Reward) = viewModelScope.launch {
+        rewardRepo.deleteReward(reward)
+    }
+
+    // ── Redemption ──────────────────────────────────────────
+    private val _lastRedeemResult = MutableStateFlow<RewardRepository.RedeemResult?>(null)
+    val lastRedeemResult: StateFlow<RewardRepository.RedeemResult?> = _lastRedeemResult.asStateFlow()
+
+    fun redeem(rewardId: Long, personId: Long, note: String = "") = viewModelScope.launch {
+        _lastRedeemResult.value = rewardRepo.redeem(rewardId, personId, note)
+    }
+
+    /** Clear the result after the UI has shown a snackbar/dialog. */
+    fun clearRedeemResult() { _lastRedeemResult.value = null }
+
+    /** Parent-side: undo an erroneous redemption (refunds stars). */
+    fun undoRedemption(redeemed: RedeemedReward) = viewModelScope.launch {
+        rewardRepo.undoRedemption(redeemed)
+    }
+}

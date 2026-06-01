@@ -36,6 +36,7 @@ import com.openlight.cal.ui.screens.lists.ListsScreen
 import com.openlight.cal.ui.screens.meals.MealsScreen
 import com.openlight.cal.ui.screens.people.PeopleScreen
 import com.openlight.cal.ui.screens.recipes.RecipesScreen
+import com.openlight.cal.ui.screens.rewards.RewardsScreen
 import com.openlight.cal.ui.screens.settings.SettingsScreen
 import com.openlight.cal.ui.screens.setup.SetupScreen
 import com.openlight.cal.ui.screens.tasks.TasksScreen
@@ -55,13 +56,14 @@ sealed class Screen(
     object People   : Screen("people",   "People",    Icons.Filled.Group,            Icons.Outlined.Group)
     object Chores   : Screen("chores",   "Chores",    Icons.Filled.TaskAlt,          Icons.Outlined.TaskAlt)
     object Recipes  : Screen("recipes",  "Recipes",   Icons.Filled.RestaurantMenu,   Icons.Outlined.RestaurantMenu)
+    object Rewards  : Screen("rewards",  "Rewards",   Icons.Filled.Star,             Icons.Outlined.Star)
     object Settings : Screen("settings", "Settings",  Icons.Filled.Settings,         Icons.Outlined.Settings)
 
     companion object {
         // Phone bottom nav has a hard limit of 5 items before things crash
         // visually. Top-level only; everything else lives in 'More'.
         val main      = listOf(Calendar, Tasks, Lists, Meals, People)
-        val secondary = listOf(Chores, Recipes)
+        val secondary = listOf(Chores, Recipes, Rewards)
         val all       = main + secondary + Settings
     }
 }
@@ -163,6 +165,9 @@ fun HearthboardNavHost(app: HearthboardApp) {
                     preferences = app.preferences,
                     onAddToMealPlan = { /* TODO: add to meal planner */ }
                 )
+            }
+            composable(Screen.Rewards.route) {
+                RewardsScreen(preferences = app.preferences)
             }
         }
     }
