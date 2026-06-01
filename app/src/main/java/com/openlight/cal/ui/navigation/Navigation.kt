@@ -4,8 +4,6 @@ package com.openlight.cal.ui.navigation
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -98,16 +96,8 @@ fun HearthboardNavHost(app: HearthboardApp) {
     }
 
     // ── Adaptive layout ───────────────────────────────────────
-    // Rail only when there's both real width AND real height to spare.
-    // A 7" tablet in portrait (MEDIUM width, COMPACT height) gets bottom nav,
-    // because cramming a 9-item rail into a 600dp-tall window clips items off
-    // the bottom of the screen — that was the original "doesn't fit" bug.
     val adaptiveInfo = currentWindowAdaptiveInfo()
-    val widthClass   = adaptiveInfo.windowSizeClass.windowWidthSizeClass
-    val heightClass  = adaptiveInfo.windowSizeClass.windowHeightSizeClass
-    val useNavRail   =
-        widthClass  == WindowWidthSizeClass.EXPANDED &&
-        heightClass != WindowHeightSizeClass.COMPACT
+    val useNavRail   = adaptiveInfo.windowSizeClass.windowWidthSizeClass != WindowWidthSizeClass.COMPACT
 
     @Composable
     fun MainNav(mod: Modifier) {
@@ -177,26 +167,21 @@ fun HearthboardNavHost(app: HearthboardApp) {
     var showMore by remember { mutableStateOf(false) }
 
     // ── Large screen: NavigationRail on left ──────────────────
+    // Structure restored to the pre-Claude shape after multiple
+    // ill-fated attempts to add scrollability, insets, and a
+    // ConnectivityBanner wrap — all of which broke the rail's layout
+    // on the real tablet. Keep this dead simple: Row → Rail + MainNav
+    // directly weighted. No insets here, no extra Column wrap.
+    // Visual improvements that DID survive:
+    //   - dividers between main/secondary/settings groups
+    //   - tertiaryContainer indicator for secondary group
+    //   - Rewards item in Screen.secondary
     if (useNavRail) {
-        // With enableEdgeToEdge(), content draws under the system bars. The
-        // Scaffold branch (phone) already handles this via contentPadding,
-        // but the rail branch is a bare Row — wire safeDrawing insets so
-        // the rail doesn't slide under the status bar and the content
-        // doesn't run off behind the gesture nav.
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-        ) {
-            // NavigationRail isn't intrinsically scrollable; wrap it in a
-            // verticalScroll so 9 items never get clipped on shorter landscape
-            // tablets (e.g. ~600dp height). Items are un-labeled so each
-            // takes ~56dp; with all 9 visible we need ~504dp + spacers.
+        Row(modifier = Modifier.fillMaxSize()) {
             NavigationRail(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                modifier       = Modifier.verticalScroll(rememberScrollState())
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
             ) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.weight(1f))
                 Screen.main.forEach { screen ->
                     val selected = currentDest?.hierarchy?.any { it.route == screen.route } == true
                     NavigationRailItem(
@@ -218,10 +203,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                         alwaysShowLabel = false
                     )
                 }
-                Spacer(Modifier.height(8.dp))
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
-                Spacer(Modifier.height(8.dp))
-                // Secondary items — visually demoted via tertiaryContainer
+                // Secondary items
                 Screen.secondary.forEach { screen ->
                     val selected = currentDest?.hierarchy?.any { it.route == screen.route } == true
                     NavigationRailItem(
@@ -233,12 +215,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                                 restoreState    = true
                             }
                         },
-                        icon  = {
-                            Icon(
-                                if (selected) screen.selectedIcon else screen.unselectedIcon,
-                                contentDescription = screen.label
-                            )
-                        },
+                        icon  = { Icon(screen.unselectedIcon, screen.label) },
                         label = { Text(screen.label) },
                         alwaysShowLabel = false,
                         colors = NavigationRailItemDefaults.colors(
@@ -246,10 +223,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                         )
                     )
                 }
-                Spacer(Modifier.height(8.dp))
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
-                Spacer(Modifier.height(8.dp))
-                // Settings — visually separated at the bottom-of-the-list slot
+                // Settings always at bottom
                 val settingsSelected = currentDest?.hierarchy?.any { it.route == Screen.Settings.route } == true
                 NavigationRailItem(
                     selected = settingsSelected,
@@ -269,12 +243,8 @@ fun HearthboardNavHost(app: HearthboardApp) {
                     label = { Text(Screen.Settings.label) },
                     alwaysShowLabel = false
                 )
-                Spacer(Modifier.height(8.dp))
             }
-            Column(Modifier.weight(1f)) {
-                ConnectivityBanner()
-                MainNav(Modifier.weight(1f))
-            }
+            MainNav(Modifier.weight(1f))
         }
     }
     // ── Phone / small screen: BottomNav with capped slots ─────
