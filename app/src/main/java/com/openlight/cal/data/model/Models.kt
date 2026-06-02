@@ -185,3 +185,45 @@ data class RedeemedReward(
     val redeemedAtMs: Long = System.currentTimeMillis(),
     val note: String = ""                  // optional parent note
 )
+
+// ─────────────────────────────────────────────────────────────
+// RECIPE
+// ─────────────────────────────────────────────────────────────
+// Self-contained recipe entity. App-local is source of truth (per the
+// offline-first design choice); Mealie is an optional push-only mirror.
+// Ingredients and instructions are stored as JSON arrays in single
+// columns rather than child tables because (a) they're always loaded
+// together, (b) we never query into them, and (c) it keeps the
+// migration simple — one table, no foreign keys, no cascades.
+//
+// Sync state lives on the row itself:
+//   mealieId          = null   → app-only, never been pushed
+//   mealieId          = "abc"  → linked to remote recipe abc
+//   mealieLastPushMs  = N      → last successful push timestamp
+//   updatedAtMs       > push   → local edits since last push
+@Immutable
+@Entity(tableName = "recipes")
+data class Recipe(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val description: String = "",
+    /** JSON array of ingredient strings, e.g. ["2 cups flour", "1 tsp salt"].
+     *  Stored as JSON for simplicity; parsed by the UI/repo layer. */
+    val ingredientsJson: String = "[]",
+    /** JSON array of instruction step strings. */
+    val instructionsJson: String = "[]",
+    val prepTimeMinutes: Int = 0,        // 0 = not specified
+    val cookTimeMinutes: Int = 0,        // 0 = not specified
+    val servings: Int = 0,               // 0 = not specified
+    val imageUrl: String = "",           // remote URL or empty
+    val sourceUrl: String = "",          // recipe origin (Mealie, website, etc.)
+    val tags: String = "",               // comma-separated free-form tags
+    val rating: Int = 0,                 // 0-5, 0 = unrated
+    val notes: String = "",              // private family notes
+    val isFavorite: Boolean = false,
+    val createdAtMs: Long = System.currentTimeMillis(),
+    val updatedAtMs: Long = System.currentTimeMillis(),
+    // ── Mealie integration (optional) ─────────────────────────
+    val mealieId: String = "",           // empty = app-only
+    val mealieLastPushMs: Long = 0       // 0 = never synced
+)

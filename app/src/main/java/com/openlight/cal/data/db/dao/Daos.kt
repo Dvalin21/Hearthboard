@@ -305,3 +305,52 @@ interface RedeemedRewardDao {
     @Delete
     suspend fun delete(redeemed: RedeemedReward)
 }
+
+// ─────────────────────────────────────────────────────────────
+// RECIPES
+// ─────────────────────────────────────────────────────────────
+
+@Dao
+interface RecipeDao {
+    @Query("SELECT * FROM recipes ORDER BY isFavorite DESC, name COLLATE NOCASE")
+    fun getAllFlow(): Flow<List<Recipe>>
+
+    @Query("SELECT * FROM recipes WHERE id = :id LIMIT 1")
+    suspend fun get(id: Long): Recipe?
+
+    @Query("SELECT * FROM recipes WHERE id = :id LIMIT 1")
+    fun getFlow(id: Long): Flow<Recipe?>
+
+    /** Used by sync to find a local row by its Mealie counterpart. */
+    @Query("SELECT * FROM recipes WHERE mealieId = :mealieId LIMIT 1")
+    suspend fun getByMealieId(mealieId: String): Recipe?
+
+    /** Recipes that have local edits since their last push. */
+    @Query("""
+        SELECT * FROM recipes
+        WHERE updatedAtMs > mealieLastPushMs
+        ORDER BY updatedAtMs DESC
+    """)
+    suspend fun getDirty(): List<Recipe>
+
+    /** Free-text search across name + description + tags + notes. */
+    @Query("""
+        SELECT * FROM recipes
+        WHERE name        LIKE '%' || :q || '%'
+           OR description LIKE '%' || :q || '%'
+           OR tags        LIKE '%' || :q || '%'
+           OR notes       LIKE '%' || :q || '%'
+        ORDER BY isFavorite DESC, name COLLATE NOCASE
+    """)
+    fun searchFlow(q: String): Flow<List<Recipe>>
+
+    /** Used by BackupManager export. */
+    @Query("SELECT * FROM recipes ORDER BY id")
+    suspend fun getAll(): List<Recipe>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(recipe: Recipe): Long
+
+    @Delete
+    suspend fun delete(recipe: Recipe)
+}
