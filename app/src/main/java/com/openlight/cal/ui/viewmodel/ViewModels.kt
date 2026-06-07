@@ -10,7 +10,7 @@ import com.openlight.cal.data.preferences.AppPreferences
 import com.openlight.cal.data.preferences.EncryptedPassword
 import com.openlight.cal.data.repository.*
 import com.openlight.cal.data.sync.CalDAVClient
-import com.openlight.cal.data.sync.CalDAVSyncWorker
+import com.openlight.cal.data.sync.CalDAVSyncEngine
 import com.openlight.cal.data.sync.ICalParser
 import com.openlight.cal.data.weather.DailyForecast
 import com.openlight.cal.data.weather.WeatherApi
@@ -46,9 +46,8 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
     val eventsThisMonth: StateFlow<List<CalendarEvent>> = _selectedDate
         .flatMapLatest { date ->
             val (start, end) = repo.getMonthRange(date.year, date.monthValue)
-            // Include prev/next month buffer for grid display
-            val bufStart = start - (7 * 86_400_000L)
-            val bufEnd   = end   + (7 * 86_400_000L)
+            val bufStart = start - java.time.Duration.ofDays(7).toMillis()
+            val bufEnd   = end   + java.time.Duration.ofDays(7).toMillis()
             repo.getEventsInRange(bufStart, bufEnd)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -89,7 +88,13 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
 
     val filteredEvents: StateFlow<List<CalendarEvent>> = combine(eventsThisMonth, _personFilter) { events, filterId ->
         if (filterId == 0L) events
-        else events.filter { it.personIds.split(",").any { pid -> pid.trim().toLongOrNull() == filterId } }
+        else events.filter { event ->
+            event.personIds.split(",")
+                .map(String::trim)
+                .any { trimmed ->
+                    trimmed.isNotEmpty() && trimmed.toLongOrNull() == filterId
+                }
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // ── Inbox / Pending invitations ────────────────────────────
@@ -298,181 +303,33 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun syncNow(context: android.content.Context, accountId: Long = -1L) {
         viewModelScope.launch {
             _syncStatus.value = "Syncing…"
-            val result = syncAccountDirect(context, accountId)
-            _syncStatus.value = result
-        }
-    }
-
-    /**
-     * Run sync directly (not via WorkManager) so we can capture and show errors.
-     */
-    private suspend fun syncAccountDirect(context: android.content.Context, accountId: Long): String {
-        return withContext(Dispatchers.IO) {
-            try {
+            val result = withContext(Dispatchers.IO) {
                 val db = AppDatabase.getInstance(context)
-                val encryptor = EncryptedPassword(context)
-
+                val engine = CalDAVSyncEngine(db, EncryptedPassword(context))
                 val accounts = if (accountId == -1L) {
                     db.calendarAccountDao().getAll().filter { it.enabled }
                 } else {
                     listOfNotNull(db.calendarAccountDao().getById(accountId))
                 }
-
-                if (accounts.isEmpty()) {
-                    return@withContext "No accounts configured"
-                }
-
-                var successCount = 0
-                var failCount = 0
-                var eventsImported = 0
-                var tasksImported = 0
-                var lastError = ""
-
-                for (account in accounts) {
-                    try {
-                        val pass = encryptor.decrypt(account.passwordEncrypted)
-                        
-                        Log.d("SyncDirect", "=== Starting sync for ${account.displayName} ===")
-                        Log.d("SyncDirect", "Server URL: ${account.serverUrl}")
-                        Log.d("SyncDirect", "Existing calendarPath: ${account.calendarPath}")
-
-                        // Determine server base URL
-                        // If user entered full calendar URL (contains /Calendar/), extract the server base
-                        var serverUrlForClient = account.serverUrl
-                        val enteredUrl = account.serverUrl.trimEnd('/')
-                        
-                        if (enteredUrl.contains("/Calendar/") || enteredUrl.contains("/calendar/")) {
-                            val sogoIndex = enteredUrl.indexOf("/SOGo/dav/")
-                            if (sogoIndex > 0) {
-                                serverUrlForClient = enteredUrl.substring(0, sogoIndex)
-                            }
-                            Log.d("SyncDirect", "SOGo URL detected - base: $serverUrlForClient, calendar URL: $enteredUrl")
-                        }
-                        
-                        // Create client with appropriate base URL
-                        val client = CalDAVClient(serverUrlForClient, account.username, pass)
-                        
-                        // Always run discovery to find ALL calendars (personal + inbox + shared)
-                        Log.d("SyncDirect", "Attempting calendar discovery...")
-                        val allCalendars = client.discoverCalendars()
-                        Log.d("SyncDirect", "Discovery returned ${allCalendars.size} calendars")
-                        
-                        val calendarsToSync = if (allCalendars.isEmpty()) {
-                            // Discovery failed - fall back to existing path or entered URL
-                            val fallback = account.calendarPath.ifBlank { enteredUrl }
-                            Log.d("SyncDirect", "Discovery empty, using fallback: $fallback")
-                            listOf(CalDAVClient.CalendarInfo(fallback, account.displayName, "", account.calendarPath.contains("VTODO")))
-                        } else {
-                            allCalendars
-                        }
-                        
-                        // Pre-fetch local state
-                        val localEvents = db.calendarEventDao().getByAccount(account.id)
-                        val localEventPaths = localEvents.associateBy { it.calendarPath }
-                        val localTasks = db.taskDao().getByAccount(account.id)
-                        val localTaskPaths = localTasks.associateBy { it.calendarPath }
-
-                        // Build email→personId lookup for organizer matching
-                        val emailToPersonId = db.personDao().getAll()
-                            .filter { it.email.isNotBlank() }
-                            .associateBy { it.email.lowercase() }
-
-                        val masterServerHrefs = mutableSetOf<String>()
-                        var primaryPath = ""
-                        var calendarIndex = 0
-                        
-                        for (cal in calendarsToSync) {
-                            calendarIndex++
-                            val path = cal.path
-                            if (primaryPath.isBlank()) primaryPath = path
-                            
-                            Log.d("SyncDirect", "Syncing calendar [$calendarIndex/${calendarsToSync.size}]: ${cal.displayName}")
-                            
-                            // Get server ETag list for this calendar
-                            val serverEtags = client.getETagList(path)
-                            masterServerHrefs.addAll(serverEtags.map { it.href })
-                            Log.d("SyncDirect", "ETag list returned ${serverEtags.size} items for ${cal.displayName}")
-                            
-                            if (serverEtags.isEmpty()) continue
-                            
-                            // Find new/changed items
-                            val toFetch = serverEtags.filter { (href, etag) ->
-                                val eventMatch = localEventPaths[href]?.etag == etag
-                                val taskMatch = localTaskPaths[href]?.etag == etag
-                                !eventMatch && !taskMatch
-                            }.map { it.href }
-                            
-                            // Fetch changed items via individual GET
-                            for (href in toFetch) {
-                                val res = client.fetchIcs(href) ?: continue
-                                val parsed = ICalParser.parse(res.ical, account.id, res.href)
-                                for (event in parsed.events) {
-                                    val existing = db.calendarEventDao().getByUid(event.uid, account.id)
-                                    // Match organizer email to a known Person
-                                    val personId = if (event.organizerEmail.isNotBlank() && existing?.personIds.isNullOrBlank()) {
-                                        emailToPersonId[event.organizerEmail.lowercase()]?.id
-                                    } else null
-                                    db.calendarEventDao().insert(event.copy(
-                                        id           = existing?.id ?: 0,
-                                        etag         = res.etag,
-                                        calendarPath = res.href,
-                                        colorHex     = existing?.colorHex?.takeIf { it.isNotBlank() } ?: account.colorHex,
-                                        personIds    = personId?.toString() ?: (existing?.personIds ?: "")
-                                    ))
-                                    eventsImported++
-                                }
-                                for (task in parsed.tasks) {
-                                    val existing = db.taskDao().getByUid(task.uid, account.id)
-                                    db.taskDao().insert(task.copy(id = existing?.id ?: 0, etag = res.etag, calendarPath = res.href))
-                                    tasksImported++
-                                }
-                            }
-                        }
-                        
-                        // Single deletion pass: remove items not present on ANY server calendar
-                        for (event in localEvents) {
-                            if (event.calendarPath.isNotBlank() && event.calendarPath !in masterServerHrefs) {
-                                db.calendarEventDao().delete(event)
-                            }
-                        }
-                        for (task in localTasks) {
-                            if (task.calendarPath.isNotBlank() && task.calendarPath !in masterServerHrefs) {
-                                db.taskDao().delete(task)
-                            }
-                        }
-                        
-                        // Update account with sync timestamp and primary path
-                        db.calendarAccountDao().update(
-                            account.copy(
-                                lastSyncMs = System.currentTimeMillis(),
-                                calendarPath = primaryPath
-                            )
-                        )
-                        successCount++
-                        Log.i("SyncDirect", "Synced ${account.displayName}: $eventsImported events, $tasksImported tasks across $calendarIndex calendar(s)")
-
-                    } catch (e: Exception) {
-                        Log.e("SyncDirect", "Failed for ${account.displayName}: ${e.message}", e)
-                        failCount++
-                        lastError = e.message ?: e.toString()
-                    }
-                }
-
-                when {
-                    successCount > 0 && failCount == 0 -> {
-                        if (eventsImported == 0 && tasksImported == 0) {
-                            "Sync complete: connected to $successCount account(s), no new events"
-                        } else {
-                            "Sync complete: $eventsImported events, $tasksImported tasks imported"
-                        }
-                    }
-                    successCount > 0 && failCount > 0 -> "Partially synced: $successCount ok, $failCount failed"
-                    failCount > 0 -> "Sync failed: $lastError"
-                    else -> "Sync failed: check credentials and server URL"
-                }
-            } catch (e: Exception) {
-                "Sync error: ${e.message}"
+                accounts.map { engine.syncAccount(it) }
             }
+            _syncStatus.value = summarize(result)
+        }
+    }
+
+    private fun summarize(results: List<CalDAVSyncEngine.SyncResult>): String {
+        val ok   = results.count { it.isSuccess }
+        val fail = results.count { !it.isSuccess }
+        val events = results.sumOf { it.eventsImported }
+        val tasks = results.sumOf { it.tasksImported }
+        return when {
+            results.isEmpty() -> "No accounts configured"
+            fail == 0 -> if (events + tasks == 0)
+                "Sync complete: ${ok} account(s), no new events"
+            else
+                "Sync complete: $events events, $tasks tasks"
+            ok > 0 -> "Partially synced: $ok ok, $fail failed"
+            else -> "Sync failed: ${results.first().error}"
         }
     }
 

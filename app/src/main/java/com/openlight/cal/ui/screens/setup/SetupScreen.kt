@@ -62,8 +62,10 @@ fun SetupScreen(
                 TopAppBar(
                     title = { Text(steps[step]) },
                     navigationIcon = {
-                        IconButton(onClick = { if (step > 0) step-- }) {
-                            Icon(Icons.Default.ArrowBack, "Back")
+                        if (step > 0) {
+                            IconButton(onClick = { step = (step - 1).coerceAtLeast(0) }) {
+                                Icon(Icons.Default.ArrowBack, "Back")
+                            }
                         }
                     },
                     actions = {

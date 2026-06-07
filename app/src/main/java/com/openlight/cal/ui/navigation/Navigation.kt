@@ -152,8 +152,9 @@ fun HearthboardNavHost(app: HearthboardApp) {
             }
             composable("recipes") {
                 RecipesScreen(
-                    preferences = app.preferences,
-                    onAddToMealPlan = { /* TODO: add to meal planner */ }
+                    preferences      = app.preferences,
+                    recipeRepository = app.recipeRepository,
+                    onAddToMealPlan  = { /* TODO: add to meal planner */ }
                 )
             }
             composable(Screen.Rewards.route) {

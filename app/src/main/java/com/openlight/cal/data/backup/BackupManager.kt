@@ -89,6 +89,11 @@ object BackupManager {
                     db.mealPlanDao().getAll().map { it.toJson() }
                 ))
 
+                // Recipes
+                put("recipes", JSONArray(
+                    db.recipeDao().getAll().map { it.toJson() }
+                ))
+
                 // Rewards catalog + redemption history
                 put("rewards", JSONArray(
                     db.rewardDao().getAll().map { it.toJson() }
@@ -175,6 +180,12 @@ object BackupManager {
                 db.mealPlanDao().upsert(mealFromJson(mealsArr.getJSONObject(i)))
             }
 
+            // Recipes
+            val recipesArr = json.optJSONArray("recipes") ?: JSONArray()
+            for (i in 0 until recipesArr.length()) {
+                db.recipeDao().upsert(recipeFromJson(recipesArr.getJSONObject(i)))
+            }
+
             // Rewards
             val rewardsArr = json.optJSONArray("rewards") ?: JSONArray()
             for (i in 0 until rewardsArr.length()) {
@@ -243,6 +254,27 @@ object BackupManager {
         put("starCost", starCost); put("description", description)
         put("isEnabled", isEnabled); put("sortOrder", sortOrder)
     }
+    private fun Recipe.toJson() = JSONObject().apply {
+        put("name", name); put("description", description)
+        put("ingredientsJson", ingredientsJson); put("instructionsJson", instructionsJson)
+        put("prepTimeMinutes", prepTimeMinutes); put("cookTimeMinutes", cookTimeMinutes)
+        put("servings", servings); put("imageUrl", imageUrl); put("sourceUrl", sourceUrl)
+        put("tags", tags); put("rating", rating); put("notes", notes)
+        put("isFavorite", isFavorite); put("createdAtMs", createdAtMs); put("updatedAtMs", updatedAtMs)
+        put("mealieId", mealieId); put("mealieLastPushMs", mealieLastPushMs)
+    }
+    private fun recipeFromJson(j: JSONObject) = Recipe(
+        id = j.optLong("id"), name = j.optString("name"),
+        description = j.optString("description"), ingredientsJson = j.optString("ingredientsJson"),
+        instructionsJson = j.optString("instructionsJson"),
+        prepTimeMinutes = j.optInt("prepTimeMinutes"), cookTimeMinutes = j.optInt("cookTimeMinutes"),
+        servings = j.optInt("servings"), imageUrl = j.optString("imageUrl"),
+        sourceUrl = j.optString("sourceUrl"), tags = j.optString("tags"),
+        rating = j.optInt("rating"), notes = j.optString("notes"),
+        isFavorite = j.optBoolean("isFavorite"), createdAtMs = j.optLong("createdAtMs"),
+        updatedAtMs = j.optLong("updatedAtMs"), mealieId = j.optString("mealieId"),
+        mealieLastPushMs = j.optLong("mealieLastPushMs")
+    )
     private fun RedeemedReward.toJson() = JSONObject().apply {
         put("id", id); put("rewardId", rewardId); put("rewardName", rewardName)
         put("rewardEmoji", rewardEmoji); put("personId", personId)

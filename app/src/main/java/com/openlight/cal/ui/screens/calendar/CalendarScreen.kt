@@ -15,6 +15,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -23,6 +27,7 @@ import com.openlight.cal.data.model.*
 import com.openlight.cal.data.weather.DailyForecast
 import com.openlight.cal.ui.components.*
 import com.openlight.cal.ui.theme.LocalWallMode
+import com.openlight.cal.ui.theme.WallModeState
 import com.openlight.cal.ui.viewmodel.CalendarViewModel
 import java.time.*
 import java.time.format.DateTimeFormatter
@@ -47,6 +52,7 @@ fun CalendarScreen(
     val pendingInvites by viewModel.pendingInvitations.collectAsState()
     val forecasts      by viewModel.forecasts.collectAsState()
     val personFilterId by viewModel.personFilter.collectAsState()
+    val wall           = LocalWallMode.current
 
     Column(modifier = modifier.fillMaxSize()) {
 
@@ -104,8 +110,8 @@ fun CalendarScreen(
         Box(modifier = Modifier.weight(1f)) {
             when (viewMode) {
                 "MONTH"  -> MonthView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent)
-                "WEEK"   -> WeekView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent)
-                "DAY"    -> DayView(selectedDate, events, people, onEventClick = viewModel::editEvent)
+                "WEEK"   -> WeekView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent, wall = wall)
+                "DAY"    -> DayView(selectedDate, events, people, onEventClick = viewModel::editEvent, wall = wall)
                 "AGENDA" -> AgendaView(events, people, viewModel::editEvent)
                 else     -> MonthView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent)
             }
@@ -364,12 +370,23 @@ private fun DayCell(
         // and doesn't shout at you with saturated fills.
         events.take(maxVisible).forEach { event ->
             val color = eventColor(event, people)
+            val timeStr = if (!event.isAllDay) {
+                Instant.ofEpochMilli(event.startMs)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalTime()
+                    .format(DateTimeFormatter.ofPattern("h:mm a"))
+            } else "all day"
+            val loc = if (event.location.isNotBlank()) ", at ${event.location}" else ""
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(3.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                    .clickable { onEventClick(event) },
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f))
+                    .clickable { onEventClick(event) }
+                    .semantics {
+                        this[SemanticsProperties.Role] = Role.Button
+                        contentDescription = "Event: ${event.title}, ${timeStr}$loc"
+                    },
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Left color band
@@ -414,11 +431,16 @@ fun WeekView(
     people: List<Person>,
     onDayClick: (LocalDate) -> Unit,
     onEventClick: (CalendarEvent) -> Unit,
+    wall: WallModeState = WallModeState(),
     modifier: Modifier = Modifier
 ) {
     val weekStart = selectedDate.with(java.time.DayOfWeek.MONDAY)
         .let { if (it.isAfter(selectedDate)) it.minusWeeks(1) else it }
     val today = LocalDate.now()
+
+    // Wall mode: trim hour gutter to 06:00–23:00 to reduce vertical chrome
+    val hourRange = if (wall.active) 6..23 else 0..23
+    val hourCount = hourRange.count()
 
     Column(modifier = modifier.fillMaxSize()) {
         // Day headers
@@ -473,7 +495,7 @@ fun WeekView(
         Row(modifier = Modifier.weight(1f).verticalScroll(scrollState)) {
             // Hour labels
             Column(modifier = Modifier.width(48.dp)) {
-                for (hour in 0..23) {
+                for (hour in hourRange) {
                     Box(modifier = Modifier.height(60.dp), contentAlignment = Alignment.TopEnd) {
                         Text(
                             text     = if (hour == 0) "" else "%02d:00".format(hour),
@@ -494,11 +516,11 @@ fun WeekView(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(24.dp * 60)  // 24hrs * 60dp each
+                        .height(hourCount.dp * 60)
                 ) {
                     // Hour lines
                     Column {
-                        for (hour in 0..23) {
+                        for (hour in hourRange) {
                             HorizontalDivider(
                                 modifier  = Modifier.padding(top = 60.dp),
                                 thickness = 0.5.dp,
@@ -517,6 +539,9 @@ fun WeekView(
                         val heightDp    = (durationMin.toInt()).coerceAtMost(120).dp
 
                         val color = eventColor(event, people)
+                        val timeStr = Instant.ofEpochMilli(event.startMs)
+                            .atZone(ZoneId.systemDefault()).toLocalTime()
+                            .format(DateTimeFormatter.ofPattern("h:mm a"))
                         Box(
                             modifier = Modifier
                                 .offset(y = topOffset)
@@ -526,6 +551,11 @@ fun WeekView(
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(color)
                                 .clickable { onEventClick(event) }
+                                .semantics {
+                                    this[SemanticsProperties.Role] = Role.Button
+                                    val loc = if (event.location.isNotBlank()) ", at ${event.location}" else ""
+                                    contentDescription = "Event: ${event.title}, ${timeStr}$loc"
+                                }
                                 .padding(4.dp)
                         ) {
                             Text(
@@ -551,6 +581,7 @@ fun DayView(
     events: List<CalendarEvent>,
     people: List<Person>,
     onEventClick: (CalendarEvent) -> Unit,
+    wall: WallModeState = WallModeState(),
     modifier: Modifier = Modifier
 ) {
     val dayEvents = events.filter { event ->
@@ -560,6 +591,10 @@ fun DayView(
 
     val allDay  = dayEvents.filter { it.isAllDay }
     val timed   = dayEvents.filter { !it.isAllDay }
+
+    // Wall mode: trim hour gutter to 06:00–23:00 to reduce vertical chrome
+    val hourRange = if (wall.active) 6..23 else 0..23
+    val hourCount = hourRange.count()
 
     Column(modifier = modifier.fillMaxSize()) {
         if (allDay.isNotEmpty()) {
@@ -573,7 +608,7 @@ fun DayView(
         val scrollState = rememberScrollState()
         Row(modifier = Modifier.weight(1f).verticalScroll(scrollState)) {
             Column(modifier = Modifier.width(48.dp)) {
-                for (hour in 0..23) {
+                for (hour in hourRange) {
                     Box(modifier = Modifier.height(60.dp), contentAlignment = Alignment.TopEnd) {
                         Text(
                             text     = if (hour == 0) "" else "%02d:00".format(hour),
@@ -585,9 +620,9 @@ fun DayView(
                 }
             }
 
-            Box(modifier = Modifier.weight(1f).height(24.dp * 60)) {
+            Box(modifier = Modifier.weight(1f).height(hourCount.dp * 60)) {
                 Column {
-                    for (hour in 0..23) {
+                    for (hour in hourRange) {
                         HorizontalDivider(
                             modifier  = Modifier.padding(top = 60.dp),
                             thickness = 0.5.dp,
@@ -600,6 +635,7 @@ fun DayView(
                     val topOffset = (startZdt.hour * 60 + startZdt.minute).dp
                     val duration  = (((event.endMs - event.startMs) / 60_000).coerceAtLeast(30L).toInt()).dp
                     val color     = eventColor(event, people)
+                    val timeStr = startZdt.toLocalTime().format(DateTimeFormatter.ofPattern("h:mm a"))
                     Box(
                         modifier = Modifier
                             .offset(y = topOffset)
@@ -609,6 +645,11 @@ fun DayView(
                             .clip(RoundedCornerShape(6.dp))
                             .background(color)
                             .clickable { onEventClick(event) }
+                            .semantics {
+                                this[SemanticsProperties.Role] = Role.Button
+                                val loc = if (event.location.isNotBlank()) ", at ${event.location}" else ""
+                                contentDescription = "Event: ${event.title}, ${timeStr}$loc"
+                            }
                             .padding(8.dp)
                     ) {
                         Column {

@@ -1,0 +1,1 @@
+HearthBoard is a privacy-first, open-source family calendar and task manager for Android 8+.

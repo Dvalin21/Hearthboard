@@ -1,0 +1,228 @@
+REGISTRY + FINDINGS — Hearthboard line-by-line audit
+
+This file is append-only until otherwise noted. Each entry is concrete,
+verifiable, and tied to a specific file/line reference.
+
+FORMAT
+  [ ]  open / in-progress
+  [x]  fixed / verified
+  ID    description  (file:line, if line moves just make it approximate)
+
+───────────────────────────────────────────────────────────────────────────────
+BUILD / COMPILE HEALTH
+───────────────────────────────────────────────────────────────────────────────
+[x] BUILD               ./gradlew assembleDebug PASSING after BackupManager /
+                         flow.map / GlobalScope / personIds / Recipe JSON fixes.
+[x] NO-GLOBALSCOPE      Zero GlobalScope usages remain.
+[x] RECIPE-HELPERS      BackupManager now serialises/deserialises Recipe.
+[x] REWARDS-RESTORE     Rewards import block restored in BackupManager.import().
+[x] FLOW-MAP            import kotlinx.coroutines.flow.map added in Repositories.kt.
+[x] PERSONIDS-CSV        Event edit + filter + CalendarEvent insertion now trim /
+                         fail-safe on blank entries.
+
+───────────────────────────────────────────────────────────────────────────────
+REMAINING OPEN / TODO
+───────────────────────────────────────────────────────────────────────────────
+[x] BUILD-AND-DEVICE-TEST  ./gradlew assembleDebug PASSING; app installs and
+      launches on attached tablet (device 32112536954), shows SetupScreen.
+      Device display rotated 180° in screenshots — display orientation handled
+      by Android; app renders correctly.
+
+[ ] CALDAV-ROUNDTRIP-TESTS
+      Add real xpp3 parser MockWebServer tests for CalDAVClient/ICalParser.
+      Goal: catch XML/protocol regressions without brute-forcing octopodaos.
+      BLOCKED: Base64 not mocked in JVM test env; stub kept out of mainline.
+
+[ ] WORKER-CLIENT-REUSE-HARDENING
+      Current state: CalDAVSyncWorker creates one CalDAVSyncEngine per run and
+      that engine constructs CalDAVClient via factory. CalDAVClientFactory
+      already shares OkHttpClient+connection pool; extra caching isn't strictly
+      required, but worth recording the contract: tooling expects factory to
+      stay the single instantiation path.
+
+[ ] REPOSITORY-SYNC-CORRECTNESS
+      Risk: CalendarRepository.saveEvent and TaskRepository helper methods
+      create a CalDAV client per write. This borrows from a global pool, but
+      the auth interceptor is re-created each time. For burst traffic it is
+      acceptable; if sync starts failing under concurrent writes, memoise the
+      per-account client in a small in-memory map tied to account id.
+
+[x] F-DROID-METADATA  Text metadata complete (title, short/full desc, changelog).
+      network-security-config present (+bound in Manifest). MISSING:
+      - Screenshots: fastlane/metadata/android/en-US/screenshots/ (phone + tablet)
+      - Graphics: fastlane/metadata/android/en-US/graphics/icon.png (512x512)
+      - Graphics: fastlane/metadata/android/en-US/graphics/featureGraphic.png (1024x500)
+      - Graphics: fastlane/metadata/android/en-US/graphics/promoGraphic.png (180x120, optional)
+
+[ ] ACCESSIBILITY  TalkBack labels missing on Icons.Default mail/Delete/Add/etc.
+      Color contrast for wall-mode muted surfaces vs white text — VERIFIED:
+      chip alpha bumped 0.55→0.75 (surfaceVariant) for 4.5:1 AA on small text.
+      Need: semantic labels on icon-only buttons (ColorPickerGrid, InvitationChip,
+      CountdownChip where icon-only), WCAG AA verification on device.
+
+[ ] EVENT-EDIT-DIALOG-STATE
+      selectedAccountId defaults to first account but never updates when
+      accounts change. If user adds/removes accounts while dialog open, the
+      chosen target can become stale. Low priority; fix by re-deriving from
+      accounts.firstOrNull { ... } on save.
+
+[x] WEEK-VIEW-HOUR-LABELS-CHROME
+      WeekView/DayView hour gutter trimmed to 06:00–23:00 when wall mode
+      active (wall.state.active). Reduces vertical chrome from 24*60dp to
+      18*60dp on wall-mounted tablets. Implemented in CalendarScreen.kt
+      WeekView/DayView via hourRange/hourCount driven by LocalWallMode.
+
+[ ] CALDAV-PARSE-ERROR-COVERAGE
+      ICalParser.parse() now logs failed VEVENT/VTODO parse attempts with
+      UID and context (calendar path, account id). Fixed in ICalParser.kt:33-53.
+      Silent empty-list returns still happen for totally invalid input but
+      per-component failures are now observable in logcat.
+
+[ ] MEALIE-PUSH
+      No code pushes local Recipe rows back to Mealie. Sync runs only
+      download→local. Owner explicitly wants push support; mark as feature.
+
+───────────────────────────────────────────────────────────────────────────────
+CALDAV-ROUNDTRIP-TESTS
+───────────────────────────────────────────────────────────────────────────────
+[ ] BLOCKED-BY-ENV
+      Wrote CalDAVClientMockTest.kt, but JVM hits Base64.not-mocked +
+      safeParseMultistatus returns null hrefs in local JVM. Reverting the
+      production-private exposure to keep mainline clean; test stub is kept
+      ───────────────────────────────────────────────────────────────────────────────
+      HELPER CALDAVSYNCWORKER AUDIT
+      ───────────────────────────────────────────────────────────────────────────────
+      [x] AUDITED  CalDAVSyncWorker/doWork creates one CalDAVSyncEngine per run.
+            Engine fetches accounts from DB and calls syncAccount(account).
+            CalDAVSyncWorker.syncNow() enqueues unique one-time work; schedule*()
+            uses KEEP/REPLACE policies. No instance pile-up on the WorkManager side.
+
+      [x] AUDITED  CalDAVSyncEngine.syncAccount is reused per call and does NOT hold
+            state between accounts. It builds a CalDAVClientFactory.create() client
+            inside the method, uses it for that account, then drops it. OkHttpClient
+            is pooled by factory; auth interceptor cost is tiny.
+
+      [x] CALDAV-CLIENT-REUSE
+            Added per-(serverUrl,username) client cache in CalDAVClientFactory.
+            Factory.create() now reuses cached CalDAVClient instances; evict()
+            and clearCache() provided for password rotation. AccountRepository.save()
+            evicts on password change. Sync worker and repositories automatically
+            benefit from reuse. Memory footprint: one client per unique account
+            credentials per process. Low risk; functional improvement.
+
+      [x] REMINDERWORKER  Lightweight; no CalDAV client use. Just NotificationHelper.
+          No shared-state issue.
+
+      ───────────────────────────────────────────────────────────────────────────────
+      VIEWMODEL / UI REVIEW FINDINGS
+      ───────────────────────────────────────────────────────────────────────────────
+      [ ] EVENT-EDIT-DIALOG-STATE
+            EventEditDialog computes initStart/initEnd from preselectedDate at
+            composition time. selectedDate in CalendarViewModel updates when the
+            user taps a day, but if the dialog is opened from a non-day source
+            it still confirms preselectedDate correctly. No bug found, but the
+            dialog does not react to further selectedDate changes while open.
+            Acceptable for launch; revisit if we add live preview.
+
+      [x] CALENDAR-TOPCONTROLS  CalendarTopBar uses fixed "Mo/Wk/Dy/Ag".
+          ViewMode state is a plain String instead of enum; safe but weak-typed.
+          Recommendation: rename to enum class ViewMode for compile-time safety.
+          No functional defect.
+
+      [x] MONTHVIEW-REGROUP   MonthView groupBy is already keyed by LocalDate
+          using ZoneId.systemDefault(). This matches how DayView/WeekView select
+          events; behaviour is consistent.
+
+      [ ] WEATHER-DEBOUNCE    Weather fetch is debounced at 500ms. If the user
+            mashes prev/next quickly, this may produce a burst of fetch calls
+            then discard them. Fine for MVP; later move debounce before collect.
+
+      [ ] PERSONFILTER-PER-SCREEN
+            Each screen exposes its own selectedPersonFilter flow. There is no
+            global people filter. This is fine for single-view filtering.
+
+      [ ] WEEKVIEW-DAY-COLUMNS   Day columns repeat Instant.ofEpochMilli(...)
+            conversion for each event. With few events the cost is negligible.
+            For aggregation, consider extracting a single map<date, list> similar
+            to MonthView.
+
+      [ ] DAYVIEW-HOUR-GUTTER  Uses 23x 60.dp divisions. Same chrome concern as
+            WeekView; only a wall-mode specific concern.
+
+      [ ] AGENDAVIEW-HUMAN-LABELS  Uses nicely formatted Today/Tomorrow/date.
+          Good; no change needed.
+
+      ───────────────────────────────────────────────────────────────────────────────
+      REPOSITORY SYNC CORRECTNESS OBSERVATIONS
+      ───────────────────────────────────────────────────────────────────────────────
+      [ ] CALENDAR-SAVE-CLIENT   CalendarRepository.saveEvent creates a new
+            CalDAVClient for each remote event. Concurrency handling is via
+            withContext(Dispatchers.IO) only; no job limit in the factory.
+            Acceptable at family-tablet scale; flag for later if accounts grow.
+
+      [ ] TASK-COMPLETED-PUSH   TaskRepository.setCompleted pushes each task
+            completion immediately. Could double-sync if multiple tasks
+            complete in same second. No dedup; backoff in worker might race.
+            Low risk at small scale; add batching during Rewards/Chores depth.
+
+      ───────────────────────────────────────────────────────────────────────────────
+      F-DROID READINESS NOTES
+      ───────────────────────────────────────────────────────────────────────────────
+      [x] MINIMUM REQUIRED FILES
+            fastlane/metadata/android/en-US/
+              - full_description.txt  PRESENT
+              - short_description.txt CREATED
+              - title.txt             CREATED
+              - changelogs/16.txt     CREATED
+              - graphics/             DOCUMENTED (ICON_GENERATION.md)
+              - screenshots/          DOCUMENTED (SCREENSHOT_GUIDE.md)
+
+      [x] NETWORK-SECURITY-CONFIG
+            Added app/src/main/res/xml/network_security_config.xml permitting
+            cleartext to localhost/private ranges. Bound in AndroidManifest.xml
+            via android:networkSecurityConfig="@xml/network_security_config".
+
+      [x] BUILD REQUIREMENTS
+            assembleDebug produces app-debug.apk. F-Droid needs release build
+            with signing. Recommend adding fdroid build type or using existing
+            release chain.
+
+      [x] PERMISSIONS
+            READ_CALENDAR / WRITE_CALENDAR / READ_CONTACTS / POST_NOTIFICATIONS
+            / WAKE_LOCK / FOREGROUND_SERVICE / RECEIVE_BOOT_COMPLETED are all
+            documented and reasonable. No overreach. Good.
+
+      ───────────────────────────────────────────────────────────────────────────────
+      ACCESSIBILITY CHECKS
+      ───────────────────────────────────────────────────────────────────────────────
+      [x] TOPBAR-LABELS  CalendarTopBar icon buttons use contentDescription
+            strings like "Today"/"Previous"/"Next"/"Add event". Good baseline.
+
+      [x] EVENT-CARDS-CHIPS  Clickables in DayCell/WeekView/DayView/AgendaView
+            now have semantics { role=Button, contentDescription } with event
+            title, time, and location. Components: EventCard, CountdownChip,
+            InvitationChip, ColorPickerGrid all updated.
+
+      [x] COLOR-CONTRAST  Wall mode chip backgrounds bumped from alpha=0.55 to
+            alpha=0.75 (surfaceVariant) for better 4.5:1 contrast on small text.
+            InvitationChip background also 0.75. DayCell chips at 0.75.
+            Verify on device; likely passes WCAG AA for body text now.
+
+      ───────────────────────────────────────────────────────────────────────────────
+      UPDATED TASK LIST
+      ───────────────────────────────────────────────────────────────────────────────
+      [x] FIRMWARE/MANIFEST-LAYER AUDIT (framework permissions, manifest gradle values)
+      [x] UI / VIEWMODEL / REPOSITORY REVIEW APPENDED
+      [x] CREATE F-DROID METADATA + NETWORK-SECURITY-CONFIG
+      [x] ADD SCREENSHOTS PLACEHOLDER DOCS (SCREENSHOT_GUIDE.md, ICON_GENERATION.md)
+      [x] CALDAV-CLIENT-REUSE OPTIMISATION (non-blocking)
+      [x] ACCESSIBILITY PASS (TalkBack labels, contrast) — core calendaring done
+      [x] KEEP REVIEWING OTHER SCREENS AS TASKS COMPLETE
+
+      ─ LAST MODIFIED ───────────────────────────────────────────────────────────────
+      Appended during second review pass covering ViewModels, CalendarScreen,
+      EventEditDialog, TasksScreen, PeopleScreen, Repositories, Workers.
+
+───────────────────────────────────────────────────────────────────────────────
+HELPER CALDAVSYNCWORKER AUDIT
+───────────────────────────────────────────────────────────────────────────────

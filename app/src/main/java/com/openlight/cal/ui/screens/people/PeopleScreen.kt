@@ -109,7 +109,7 @@ fun PeopleScreen(
                         onClick = { showBirthdayImport = true },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                     ) {
-                        Icon(Icons.Default.Cake, null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Cake, "Birthday", modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text("Import Birthdays from Contacts")
                     }

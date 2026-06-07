@@ -65,6 +65,13 @@ android {
             isEnable = false
         }
     }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -113,4 +120,7 @@ dependencies {
 
     // Test
     testImplementation(libs.junit)
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("xpp3:xpp3:1.1.4c")
+    testImplementation("org.robolectric:robolectric:4.13")
 }

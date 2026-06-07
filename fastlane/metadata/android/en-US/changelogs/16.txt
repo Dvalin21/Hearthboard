@@ -1,0 +1,8 @@
+# Changelog for version 16 (1.0.0-alpha.16)
+
+* Initial F-Droid preparation
+* Network security config for local CalDAV servers
+* Privacy-first CalDAV/VTODO sync
+* Material 3 adaptive design
+* Per-person color coding
+* Countdown timers for events

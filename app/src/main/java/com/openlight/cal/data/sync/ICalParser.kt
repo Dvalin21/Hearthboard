@@ -38,12 +38,25 @@ object ICalParser {
             when {
                 line.equals("BEGIN:VEVENT", ignoreCase = true) -> {
                     val (component, nextIndex) = extractComponent(lines, i, "VEVENT")
-                    parseVEvent(component, accountId, calendarPath)?.let { events.add(it) }
+                    val parsed = parseVEvent(component, accountId, calendarPath)
+                    if (parsed != null) events.add(parsed)
+                    else {
+                        // Log with UID if extractable for debugging
+                        val uid = component.firstOrNull { it.trim().uppercase().startsWith("UID:") }
+                            ?.substringAfter(":") ?: "unknown"
+                        Log.w(TAG, "VEVENT parse failed for UID=$uid (calendar=$calendarPath, account=$accountId)")
+                    }
                     i = nextIndex
                 }
                 line.equals("BEGIN:VTODO", ignoreCase = true) -> {
                     val (component, nextIndex) = extractComponent(lines, i, "VTODO")
-                    parseVTodo(component, accountId, calendarPath)?.let { tasks.add(it) }
+                    val parsed = parseVTodo(component, accountId, calendarPath)
+                    if (parsed != null) tasks.add(parsed)
+                    else {
+                        val uid = component.firstOrNull { it.trim().uppercase().startsWith("UID:") }
+                            ?.substringAfter(":") ?: "unknown"
+                        Log.w(TAG, "VTODO parse failed for UID=$uid (calendar=$calendarPath, account=$accountId)")
+                    }
                     i = nextIndex
                 }
                 else -> i++

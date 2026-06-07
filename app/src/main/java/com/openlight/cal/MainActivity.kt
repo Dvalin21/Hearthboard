@@ -11,14 +11,19 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -27,10 +32,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.openlight.cal.data.preferences.AppPreferences
 import com.openlight.cal.ui.navigation.HearthboardNavHost
 import com.openlight.cal.ui.theme.HearthboardTheme
 import com.openlight.cal.ui.theme.LocalWallMode
 import com.openlight.cal.ui.theme.WallModeState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -120,11 +129,48 @@ class MainActivity : ComponentActivity() {
                 { input: String -> encryptor.verifyPin(storedPin, input) }
             }
 
+            // ── Wall Mode escape: solid-state long-press timer ──
+            var showWallExitDialog by remember { mutableStateOf(false) }
+
             HearthboardTheme(darkTheme = isDark, seedColor = seedColor) {
                 CompositionLocalProvider(LocalWallMode provides wallState) {
                     Surface(modifier = Modifier.fillMaxSize()) {
                         Box(Modifier.fillMaxSize()) {
                             HearthboardNavHost(app = app)
+
+                            // ── Wall Mode escape overlay: long-press triggers dialog ──
+                            if (wallMode) {
+                                val wallModeScope = rememberCoroutineScope()
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .pointerInput(Unit) {
+                                            detectTapGestures(
+                                                onLongPress = {
+                                                    wallModeScope.launch {
+                                                        delay(2000)
+                                                        showWallExitDialog = true
+                                                    }
+                                                },
+                                                onTap = { showWallExitDialog = false },
+                                                onDoubleTap = { showWallExitDialog = false }
+                                            )
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (showWallExitDialog) {
+                                        WallModeExitDialog(
+                                            onConfirm = {
+                                                wallModeScope.launch {
+                                                    prefs.set(AppPreferences.KEY_WALL_MODE, false)
+                                                }
+                                                showWallExitDialog = false
+                                            },
+                                            onDismiss = { showWallExitDialog = false }
+                                        )
+                                    }
+                                }
+                            }
 
                             // ── Kiosk: intercept back press to prevent leaving ──
                             BackHandler(enabled = kioskMode && !unlocked) {
@@ -258,4 +304,36 @@ private fun KioskPinOverlay(
             }
         }
     }
+}
+
+@Composable
+private fun WallModeExitDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Exit Wall Mode?") },
+        text = {
+            Text(
+                "Long-press detected. Do you want to exit wall mode and return to normal operation?",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(); onDismiss() },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text("Exit Wall Mode")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

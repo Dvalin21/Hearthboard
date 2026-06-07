@@ -15,6 +15,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -131,6 +135,10 @@ fun ColorPickerGrid(
                                 shape  = CircleShape
                             )
                             .clickable { onSelect(hex) }
+                            .semantics {
+                                this[SemanticsProperties.Role] = Role.Button
+                                contentDescription = "Color option ${hex.substringAfterLast('#')}"
+                            }
                     ) {
                         if (hex == selectedHex) {
                             Icon(
@@ -183,8 +191,20 @@ fun EventCard(
     }
 
     Card(
-        onClick   = onClick,
-        modifier  = modifier.fillMaxWidth(),
+        onClick    = onClick,
+        modifier   = modifier
+            .fillMaxWidth()
+            .semantics {
+                this[SemanticsProperties.Role] = Role.Button
+                val timeStr = if (!event.isAllDay) {
+                    Instant.ofEpochMilli(event.startMs)
+                        .atZone(ZoneId.systemDefault())
+                        .toLocalTime()
+                        .format(DateTimeFormatter.ofPattern("h:mm a"))
+                } else "all day"
+                val loc = if (event.location.isNotBlank()) ", at ${event.location}" else ""
+                contentDescription = "Event: ${event.title}, ${timeStr}$loc"
+            },
         colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
@@ -444,6 +464,10 @@ fun CountdownChip(
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
         ),
         modifier = modifier
+            .semantics {
+                this[SemanticsProperties.Role] = Role.Button
+                contentDescription = "Countdown: ${event.title}, ${daysText}"
+            }
     )
 }
 
@@ -462,8 +486,13 @@ fun InvitationChip(
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.75f))
             .clickable(onClick = onClick)
+            .semantics {
+                this[SemanticsProperties.Role] = Role.Button
+                val org = if (organizer.isNotBlank()) " from $organizer" else ""
+                contentDescription = "Invitation: $title$org. Double tap to view, or use Accept button."
+            }
             .padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
