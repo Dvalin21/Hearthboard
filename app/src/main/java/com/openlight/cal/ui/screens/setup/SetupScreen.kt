@@ -327,7 +327,8 @@ private fun CalendarStep(
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf("Google" to "https://apidata.googleusercontent.com/caldav/v2/",
                "Fastmail" to "https://caldav.fastmail.com/",
-               "Nextcloud" to "").forEach { (name, url) ->
+               "Nextcloud" to "",
+               "Mailcow" to "https://your-server.com/SOGo/dav/").forEach { (name, url) ->
             SuggestionChip(
                 onClick = { onServerUrlChange(url) },
                 label = { Text(name, fontSize = 12.sp) }

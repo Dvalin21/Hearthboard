@@ -89,94 +89,175 @@ class CalDAVClient internal constructor(
 
     suspend fun discoverCalendars(): List<CalendarInfo> {
         val calendars = mutableListOf<CalendarInfo>()
-        try {
-            val principalPath = findPrincipalPath()
-            val homeSet = findCalendarHomeSet(principalPath)
 
-            val listXml = """
-                <?xml version="1.0" encoding="utf-8"?>
-                <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:CS="http://calendarserver.org/ns/">
-                  <D:prop>
-                    <D:displayname/>
-                    <D:resourcetype/>
-                    <CS:getctag/>
-                    <C:supported-calendar-component-set/>
-                  </D:prop>
-                </D:propfind>
-            """.trimIndent()
+        // Step 1: Find the principal path
+        val principalPath = findPrincipalPath()
+        Log.d(TAG, "Principal path: $principalPath")
+        if (principalPath.isBlank() || principalPath == "/") {
+            Log.e(TAG, "Could not determine principal path — aborting calendar discovery")
+            return calendars
+        }
 
-            val resp = propfind(homeSet, listXml, depth = "1")
-            val responses = safeParseMultistatus(resp)
-            for (r in responses) {
-                val href = r.href ?: continue
-                val name = propText(r, "displayname")
-                    ?: href.split("/").lastOrNull { it.isNotBlank() }
-                    ?: href
-                val ctag = propText(r, "getctag").orEmpty()
-                val hasVTODO = r.props.any {
-                    it.localName.equals(
-                        "supported-calendar-component-set",
-                        ignoreCase = true
-                    ) && it.children.any { child ->
-                        child.equals("VTODO", ignoreCase = true)
-                    }
-                } || r.props.any {
-                    it.localName.equals("resourcetype", ignoreCase = true)
-                            && it.children.any { child ->
-                        child.equals("calendar", ignoreCase = true)
-                    }
-                }
-                calendars.add(
-                    CalendarInfo(
-                        path          = href,
-                        displayName   = name,
-                        ctag          = ctag,
-                        supportsVTODO = hasVTODO
-                    )
-                )
+        // Step 2: Find the calendar home set
+        val homeSet = findCalendarHomeSet(principalPath)
+        Log.d(TAG, "Calendar home set: $homeSet")
+        if (homeSet.isBlank()) {
+            Log.e(TAG, "Calendar home set is blank — aborting")
+            return calendars
+        }
+
+        // Step 3: List calendars under home set
+        val listXml = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:CS="http://calendarserver.org/ns/">
+              <D:prop>
+                <D:displayname/>
+                <D:resourcetype/>
+                <CS:getctag/>
+                <C:supported-calendar-component-set/>
+              </D:prop>
+            </D:propfind>
+        """.trimIndent()
+
+        val resp = try {
+            propfind(homeSet, listXml, depth = "1").also {
+                Log.d(TAG, "Calendar list PROPFIND succeeded (${it.length} bytes)")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Discovery failed: ${e.message}")
+            Log.e(TAG, "Calendar listing PROPFIND failed for $homeSet: ${e.message}")
+            return calendars
         }
+
+        val responses = safeParseMultistatus(resp)
+        Log.d(TAG, "Parsed ${responses.size} response(s) from calendar listing")
+        for (r in responses) {
+            val href = r.href ?: continue
+            val name = propText(r, "displayname")
+                ?: href.split("/").lastOrNull { it.isNotBlank() }
+                ?: href
+            val ctag = propText(r, "getctag").orEmpty()
+            val hasVTODO = r.props.any {
+                it.localName.equals(
+                    "supported-calendar-component-set",
+                    ignoreCase = true
+                ) && it.children.any { child ->
+                    child.equals("VTODO", ignoreCase = true)
+                }
+            } || r.props.any {
+                it.localName.equals("resourcetype", ignoreCase = true)
+                        && it.children.any { child ->
+                    child.equals("calendar", ignoreCase = true)
+                }
+            }
+            calendars.add(
+                CalendarInfo(
+                    path          = href,
+                    displayName   = name,
+                    ctag          = ctag,
+                    supportsVTODO = hasVTODO
+                )
+            )
+        }
+        Log.i(TAG, "Discovered ${calendars.size} calendar(s)")
         return calendars
     }
 
+    /**
+     * Probe a single URL for the current-user-principal.
+     * Returns the discovered principal path, or null if the URL is unreachable
+     * or doesn't support CalDAV PROPFIND.
+     */
+    private fun tryFindPrincipalAt(url: String): String? {
+        return try {
+            val xml = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <D:propfind xmlns:D="DAV:">
+                  <D:prop><D:current-user-principal/></D:prop>
+                </D:propfind>
+            """.trimIndent()
+            val resp = propfind(url, xml, depth = "0")
+            val r = safeParseMultistatus(resp).firstOrNull()
+            val principalHref = findPropHref("current-user-principal", r)
+            if (principalHref != null) {
+                Log.d(TAG, "Found principal $principalHref via current-user-principal at $url")
+                return principalHref
+            }
+            val fallback = r?.href
+            if (fallback != null) {
+                Log.d(TAG, "No current-user-principal, using response href $fallback at $url")
+            }
+            fallback
+        } catch (e: Exception) {
+            Log.d(TAG, "tryFindPrincipalAt failed for $url: ${e::class.simpleName}: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Common CalDAV base paths to try when the user-supplied serverUrl
+     * doesn't directly serve PROPFIND. Covers Mailcow/SOGo, Nextcloud,
+     * and generic CalDAV deployments.
+     */
+    private val COMMON_CALDAV_PATHS = listOf(
+        "/SOGo/dav/",          // Mailcow / SOGo
+        "/.well-known/caldav", // Standard RFC 6764 autodiscovery
+        "/remote.php/dav/",    // Nextcloud / ownCloud
+        "/caldav/",            // Generic CalDAV
+        "/dav/"                // Generic WebDAV
+    )
+
+    /**
+     * Discover the CalDAV principal path by probing the server at the
+     * user-supplied URL and, if that fails, trying well-known CalDAV
+     * base paths. Returns "/" only if all probes fail (the caller in
+     * [discoverCalendars] will abort on that).
+     */
     private fun findPrincipalPath(): String {
-        val xml = """
-            <?xml version="1.0" encoding="utf-8"?>
-            <D:propfind xmlns:D="DAV:">
-              <D:prop><D:current-user-principal/></D:prop>
-            </D:propfind>
-        """.trimIndent()
-        val resp = propfind(serverUrl, xml, depth = "0")
-        val r = safeParseMultistatus(resp).firstOrNull()
-        // Extract current-user-principal href from props, NOT the response href
-        val principalHref = findPropHref("current-user-principal", r)
-        return principalHref ?: r?.href ?: "/"
+        // 1. Try the user-supplied URL as-is
+        val direct = tryFindPrincipalAt(serverUrl)
+        if (direct != null) return direct
+
+        // 2. Try each common path appended to the server origin
+        for (suffix in COMMON_CALDAV_PATHS) {
+            val url = "${serverUrl.trimEnd('/')}$suffix"
+            val p = tryFindPrincipalAt(url)
+            if (p != null) {
+                Log.i(TAG, "Discovered principal at $url")
+                return p
+            }
+        }
+
+        Log.w(TAG, "findPrincipalPath: all probes failed, returning /")
+        return "/"
     }
 
     private fun findCalendarHomeSet(principalPath: String): String {
         val base = buildUrl(principalPath)
-        val xml = """
-            <?xml version="1.0" encoding="utf-8"?>
-            <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
-              <D:prop><C:calendar-home-set/></D:prop>
-            </D:propfind>
-        """.trimIndent()
-        val resp = propfind(base, xml, depth = "0")
-        val r = safeParseMultistatus(resp).firstOrNull()
-        // Extract calendar-home-set href from props, NOT the response href.
-        // The XML looks like:
-        //   <response>
-        //     <href>/principals/users/admin/</href>
-        //     <propstat><prop>
-        //       <calendar-home-set><href>/calendars/admin/</href></calendar-home-set>
-        //     </prop></propstat>
-        //   </response>
-        // Our flat parser gives us all props in order. We find "calendar-home-set"
-        // then take the next "href" text after it.
-        val homeSetHref = findPropHref("calendar-home-set", r)
-        return homeSetHref ?: principalPath
+        return try {
+            val xml = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+                  <D:prop><C:calendar-home-set/></D:prop>
+                </D:propfind>
+            """.trimIndent()
+            val resp = propfind(base, xml, depth = "0")
+            val r = safeParseMultistatus(resp).firstOrNull()
+            // Extract calendar-home-set href from props, NOT the response href.
+            // The XML looks like:
+            //   <response>
+            //     <href>/principals/users/admin/</href>
+            //     <propstat><prop>
+            //       <calendar-home-set><href>/calendars/admin/</href></calendar-home-set>
+            //     </prop></propstat>
+            //   </response>
+            // Our flat parser gives us all props in order. We find "calendar-home-set"
+            // then take the next "href" text after it.
+            val homeSetHref = findPropHref("calendar-home-set", r)
+            homeSetHref ?: principalPath
+        } catch (e: Exception) {
+            Log.w(TAG, "findCalendarHomeSet failed for $base: ${e::class.simpleName}: ${e.message}")
+            principalPath
+        }
     }
 
     /**
@@ -451,16 +532,35 @@ class CalDAVClient internal constructor(
         return if (parser.next() == XmlPullParser.TEXT) parser.text?.trim() else null
     }
 
+    /**
+     * Resolve a WebDAV href against the configured [serverUrl].
+     *
+     * Per RFC 4918 §10.2, an href in a PROPFIND response is either:
+     * - an absolute URL   → returned as-is
+     * - an absolute path  → resolved against scheme+host+port (origin)
+     * - a relative path   → resolved against the request URL ([serverUrl])
+     */
     private fun buildUrl(path: String): String {
         if (path.startsWith("http://") || path.startsWith("https://")) return path
+        if (path.isBlank()) return serverUrl
 
-        val base = serverUrl.trimEnd('/')
-        val p = path.trimStart('/')
-
-        if (p.startsWith("SOGo/dav") || p.startsWith("SOGo/")) {
-            return "$base/$p"
+        // Absolute path reference — resolve against origin only.
+        // This avoids path doubling when serverUrl itself has a path
+        // (e.g. "/SOGo/dav/") and the server returns an absolute-path
+        // href like "/SOGo/dav/user@example.com/".
+        if (path.startsWith("/")) {
+            val origin = extractOrigin(serverUrl)
+            return "${origin.trimEnd('/')}$path"
         }
 
-        return "$base/$p"
+        // Relative path — append to the configured base URL.
+        val base = serverUrl.trimEnd('/')
+        return "$base/$path"
+    }
+
+    /** Extract scheme + host + port from a URL. */
+    private fun extractOrigin(url: String): String {
+        val idx = url.indexOf('/', url.indexOf("//") + 2)
+        return if (idx < 0) url else url.substring(0, idx)
     }
 }
