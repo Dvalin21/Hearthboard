@@ -51,6 +51,7 @@ fun SettingsScreen(
     val wallKeepOn   by viewModel.wallKeepOn.collectAsState()
     val accounts     by viewModel.accounts.collectAsState()
     val syncStatus   by viewModel.syncStatus.collectAsState()
+    val isSyncing    by viewModel.isSyncing.collectAsState()
 
     var showAddAccount by remember { mutableStateOf(false) }
     var editAccount    by remember { mutableStateOf<CalendarAccount?>(null) }
@@ -74,7 +75,7 @@ fun SettingsScreen(
         accounts.forEach { account ->
             AccountRow(
                 account   = account,
-                isSyncing = syncStatus != null,
+                isSyncing = isSyncing,
                 onSync    = { viewModel.syncNow(context, account.id) },
                 onEdit    = { editAccount = account },
                 onDelete  = { viewModel.deleteAccount(account) }

@@ -49,6 +49,9 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     private val _syncStatus = MutableStateFlow<String?>(null)
     val syncStatus: StateFlow<String?> = _syncStatus
 
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing: StateFlow<Boolean> = _isSyncing
+
     fun setDarkMode(value: Int)        = viewModelScope.launch { prefs.set(AppPreferences.KEY_DARK_MODE, value) }
     fun setThemeSeed(hex: String)      = viewModelScope.launch { prefs.set(AppPreferences.KEY_THEME_SEED, hex) }
     fun setFontSize(v: Float)          = viewModelScope.launch { prefs.set(AppPreferences.KEY_FONT_SIZE, v) }
@@ -84,6 +87,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun syncNow(context: Context, accountId: Long = -1L) {
         viewModelScope.launch {
+            _isSyncing.value = true
             _syncStatus.value = "Syncing\u2026"
             val result = withContext(Dispatchers.IO) {
                 val db = AppDatabase.getInstance(context)
@@ -96,6 +100,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 accounts.map { engine.syncAccount(it) }
             }
             _syncStatus.value = summarize(result)
+            _isSyncing.value = false
         }
     }
 
