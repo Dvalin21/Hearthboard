@@ -13,6 +13,58 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.time.*
 
+// ═════════════════════════════════════════════════════════════
+// Shared CalDAV sync helpers — eliminates duplicated client
+// creation + putIcs + deleteIcs patterns across repositories.
+// ═════════════════════════════════════════════════════════════
+
+/** Push an ICS resource to a CalDAV account. Handles client creation,
+ *  credential decryption, URL construction, and ETag management.
+ *  @param onEtagUpdate called with (newEtag, calendarPath) on success.
+ */
+private suspend fun pushIcsToCalDAV(
+    db: AppDatabase,
+    encryptor: EncryptedPassword,
+    accountId: Long?,
+    uid: String,
+    oldEtag: String,
+    ical: String,
+    onEtagUpdate: suspend (etag: String, calendarPath: String) -> Unit
+) {
+    if (accountId == null || accountId <= 0) return
+    val account = db.calendarAccountDao().getById(accountId) ?: return
+    if (account.calendarPath.isBlank()) return
+
+    val path = "${account.calendarPath.trimEnd('/')}/$uid.ics"
+    val client = CalDAVClientFactory.create(
+        account.serverUrl,
+        account.username,
+        encryptor.decrypt(account.passwordEncrypted)
+    )
+    val newEtag = client.putIcs(path, ical, oldEtag.ifBlank { null })
+    if (newEtag != null) {
+        onEtagUpdate(newEtag, path)
+    }
+}
+
+/** Delete an ICS resource from a CalDAV account. */
+private suspend fun deleteIcsFromCalDAV(
+    db: AppDatabase,
+    encryptor: EncryptedPassword,
+    accountId: Long,
+    calendarPath: String,
+    etag: String
+) {
+    if (calendarPath.isBlank()) return
+    val account = db.calendarAccountDao().getById(accountId) ?: return
+    val client = CalDAVClientFactory.create(
+        account.serverUrl,
+        account.username,
+        encryptor.decrypt(account.passwordEncrypted)
+    )
+    client.deleteIcs(calendarPath, etag.ifBlank { null })
+}
+
 // ─────────────────────────────────────────────────────────────
 // Calendar Repository
 // ─────────────────────────────────────────────────────────────
@@ -34,23 +86,15 @@ class CalendarRepository(
             val id     = db.calendarEventDao().insert(toSave)
             val saved  = toSave.copy(id = id)
 
-            if (accountId != null && accountId > 0) {
-                val account = db.calendarAccountDao().getById(accountId)
-                if (account != null) {
-                    val ical = ICalParser.serializeEvent(saved)
-                    val path = "${account.calendarPath.trimEnd('/')}/$uid.ics"
-                    val client = CalDAVClientFactory.create(
-                        account.serverUrl,
-                        account.username,
-                        encryptor.decrypt(account.passwordEncrypted)
-                    )
-                    val newEtag = client.putIcs(path, ical,
-                        if (event.etag.isBlank()) null else event.etag)
-                    if (newEtag != null) {
-                        db.calendarEventDao().insert(saved.copy(etag = newEtag, calendarPath = path))
-                    }
+            pushIcsToCalDAV(
+                db = db, encryptor = encryptor,
+                accountId = accountId, uid = uid,
+                oldEtag = event.etag,
+                ical = ICalParser.serializeEvent(saved),
+                onEtagUpdate = { newEtag, path ->
+                    db.calendarEventDao().insert(saved.copy(etag = newEtag, calendarPath = path))
                 }
-            }
+            )
             saved
         }
     }
@@ -59,13 +103,7 @@ class CalendarRepository(
         withContext(Dispatchers.IO) {
             db.calendarEventDao().delete(event)
             if (event.calendarPath.isNotBlank() && event.accountId > 0) {
-                val account = db.calendarAccountDao().getById(event.accountId) ?: return@withContext
-                val client  = CalDAVClientFactory.create(
-                    account.serverUrl,
-                    account.username,
-                    encryptor.decrypt(account.passwordEncrypted)
-                )
-                client.deleteIcs(event.calendarPath, event.etag.ifBlank { null })
+                deleteIcsFromCalDAV(db, encryptor, event.accountId, event.calendarPath, event.etag)
             }
         }
     }
@@ -98,23 +136,15 @@ class TaskRepository(
             val id     = db.taskDao().insert(toSave)
             val saved  = toSave.copy(id = id)
 
-            if (accountId != null && accountId > 0) {
-                val account = db.calendarAccountDao().getById(accountId)
-                if (account != null && account.calendarPath.isNotBlank()) {
-                    val ical   = ICalParser.serializeTask(saved)
-                    val path   = "${account.calendarPath.trimEnd('/')}/$uid.ics"
-                    val client = CalDAVClientFactory.create(
-                        account.serverUrl,
-                        account.username,
-                        encryptor.decrypt(account.passwordEncrypted)
-                    )
-                    val newEtag = client.putIcs(path, ical,
-                        if (task.etag.isBlank()) null else task.etag)
-                    if (newEtag != null) {
-                        db.taskDao().insert(saved.copy(etag = newEtag, calendarPath = path))
-                    }
+            pushIcsToCalDAV(
+                db = db, encryptor = encryptor,
+                accountId = accountId, uid = uid,
+                oldEtag = task.etag,
+                ical = ICalParser.serializeTask(saved),
+                onEtagUpdate = { newEtag, path ->
+                    db.taskDao().insert(saved.copy(etag = newEtag, calendarPath = path))
                 }
-            }
+            )
             saved
         }
     }
@@ -126,17 +156,15 @@ class TaskRepository(
         withContext(Dispatchers.IO) {
             val updated = db.taskDao().getById(id) ?: return@withContext
             if (updated.accountId > 0 && updated.calendarPath.isNotBlank()) {
-                val account = db.calendarAccountDao().getById(updated.accountId) ?: return@withContext
-                val client  = CalDAVClientFactory.create(
-                    account.serverUrl,
-                    account.username,
-                    encryptor.decrypt(account.passwordEncrypted)
+                pushIcsToCalDAV(
+                    db = db, encryptor = encryptor,
+                    accountId = updated.accountId, uid = updated.uid,
+                    oldEtag = updated.etag,
+                    ical = ICalParser.serializeTask(updated),
+                    onEtagUpdate = { newEtag, _ ->
+                        db.taskDao().insert(updated.copy(etag = newEtag))
+                    }
                 )
-                val ical    = ICalParser.serializeTask(updated)
-                val newEtag = client.putIcs(updated.calendarPath, ical, updated.etag.ifBlank { null })
-                if (newEtag != null) {
-                    db.taskDao().insert(updated.copy(etag = newEtag))
-                }
             }
         }
     }
@@ -145,13 +173,7 @@ class TaskRepository(
         withContext(Dispatchers.IO) {
             db.taskDao().delete(task)
             if (task.calendarPath.isNotBlank() && task.accountId > 0) {
-                val account = db.calendarAccountDao().getById(task.accountId) ?: return@withContext
-                val client  = CalDAVClientFactory.create(
-                    account.serverUrl,
-                    account.username,
-                    encryptor.decrypt(account.passwordEncrypted)
-                )
-                client.deleteIcs(task.calendarPath, task.etag.ifBlank { null })
+                deleteIcsFromCalDAV(db, encryptor, task.accountId, task.calendarPath, task.etag)
             }
         }
     }

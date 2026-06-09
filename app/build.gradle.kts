@@ -9,12 +9,31 @@ android {
     namespace = "com.openlight.cal"
     compileSdk = 34
 
+    // ── Signing ────────────────────────────────────────────────
+    // Release signing reads from env vars (for CI/release builds).
+    // Falls back to the standard Android debug keystore so that
+    // `./gradlew assembleRelease` produces an *installable* APK
+    // even without a release key. To use a real release key, set:
+    //   RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD,
+    //   RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD
+    signingConfigs {
+        create("release") {
+            storeFile = file(
+                System.getenv("RELEASE_STORE_FILE")
+                    ?: "${System.getProperty("user.home")}/.android/debug.keystore"
+            )
+            storePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: "android"
+            keyAlias      = System.getenv("RELEASE_KEY_ALIAS")      ?: "androiddebugkey"
+            keyPassword   = System.getenv("RELEASE_KEY_PASSWORD")   ?: "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.openlight.cal"
-        minSdk = 26          // Android 8.0
+        minSdk = 31          // Android 12+ (was 26 for Android 8.0)
         targetSdk = 34
-        versionCode = 17
-        versionName = "1.0.0-alpha.19"
+        versionCode = 18
+        versionName = "1.0.0-alpha.20"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -26,6 +45,7 @@ android {
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
