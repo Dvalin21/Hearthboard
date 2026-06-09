@@ -2,17 +2,15 @@
 
 package com.openlight.cal.ui.navigation
 
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -23,7 +21,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.window.core.layout.WindowHeightSizeClass
 import androidx.window.core.layout.WindowWidthSizeClass
 import com.openlight.cal.HearthboardApp
 import com.openlight.cal.ui.components.ConnectivityBanner
@@ -40,32 +37,49 @@ import com.openlight.cal.ui.screens.setup.SetupScreen
 import com.openlight.cal.ui.screens.tasks.TasksScreen
 import com.openlight.cal.ui.viewmodel.*
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
+// ─────────────────────────────────────────────────────────────
+// Screen definitions — Skylight Calendar tab order
+// ─────────────────────────────────────────────────────────────
 sealed class Screen(
     val route: String,
     val label: String,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector
 ) {
+    // Skylight order: Calendar first, then Tasks, Rewards, Meals, Lists
     object Calendar : Screen("calendar", "Calendar",  Icons.Filled.CalendarMonth,   Icons.Outlined.CalendarMonth)
     object Tasks    : Screen("tasks",    "Tasks",     Icons.Filled.CheckCircle,      Icons.Outlined.CheckCircle)
-    object Lists    : Screen("lists",    "Lists",     Icons.Filled.List,             Icons.Outlined.List)
+    object Rewards  : Screen("rewards",  "Rewards",   Icons.Filled.Star,             Icons.Outlined.Star)
     object Meals    : Screen("meals",    "Meals",     Icons.Filled.Restaurant,       Icons.Outlined.Restaurant)
+    object Lists    : Screen("lists",    "Lists",     Icons.Filled.List,             Icons.Outlined.List)
     object People   : Screen("people",   "People",    Icons.Filled.Group,            Icons.Outlined.Group)
     object Chores   : Screen("chores",   "Chores",    Icons.Filled.TaskAlt,          Icons.Outlined.TaskAlt)
     object Recipes  : Screen("recipes",  "Recipes",   Icons.Filled.RestaurantMenu,   Icons.Outlined.RestaurantMenu)
-    object Rewards  : Screen("rewards",  "Rewards",   Icons.Filled.Star,             Icons.Outlined.Star)
     object Settings : Screen("settings", "Settings",  Icons.Filled.Settings,         Icons.Outlined.Settings)
 
     companion object {
-        // Phone bottom nav has a hard limit of 5 items before things crash
-        // visually. Top-level only; everything else lives in 'More'.
-        val main      = listOf(Calendar, Tasks, Lists, Meals, People)
-        val secondary = listOf(Chores, Recipes, Rewards)
-        val all       = main + secondary + Settings
+        // Primary items — shown in the left nav on all screen sizes
+        val primary = listOf(Calendar, Tasks, Rewards, Meals, Lists)
+        // Secondary items — shown in the side bar on larger screens,
+        // accessible via "More" on compact screens
+        val secondary = listOf(People, Chores, Recipes)
+        val all = primary + secondary + Settings
     }
 }
 
+// ── RAIL WIDTHS ──────────────────────────────────────────────
+// NavigationRail default is 72dp with labels. On compact screens
+// we use a narrower icon-only rail.
+private val RailWidthCompact   = 56.dp
+private val RailWidthExpanded  = 80.dp
+
+// ─────────────────────────────────────────────────────────────
+// Main Navigation Host
+// ─────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HearthboardNavHost(app: HearthboardApp) {
@@ -97,7 +111,11 @@ fun HearthboardNavHost(app: HearthboardApp) {
 
     // ── Adaptive layout ───────────────────────────────────────
     val adaptiveInfo = currentWindowAdaptiveInfo()
-    val useNavRail   = adaptiveInfo.windowSizeClass.windowWidthSizeClass != WindowWidthSizeClass.COMPACT
+    val isCompact   = adaptiveInfo.windowSizeClass.windowWidthSizeClass == WindowWidthSizeClass.COMPACT
+    val railWidth   = if (isCompact) RailWidthCompact else RailWidthExpanded
+
+    // "More" sheet state — used by compact mode for secondary items
+    var showMore by remember { mutableStateOf(false) }
 
     @Composable
     fun MainNav(mod: Modifier) {
@@ -130,7 +148,6 @@ fun HearthboardNavHost(app: HearthboardApp) {
                     },
                     onSaveChore = { chore ->
                         CoroutineScope(Dispatchers.IO).launch {
-                            // Ensure chores are always local-only with isChore=true
                             app.taskRepository.saveTask(chore.copy(isChore = true, isLocalOnly = true))
                         }
                     },
@@ -163,146 +180,97 @@ fun HearthboardNavHost(app: HearthboardApp) {
         }
     }
 
-    // "More" sheet state — used by both rail and bottom-nav to expose
-    // secondary destinations without overflowing the chrome.
-    var showMore by remember { mutableStateOf(false) }
-
-    // ── Large screen: NavigationRail on left ──────────────────
-    // Structure restored to the pre-Claude shape after multiple
-    // ill-fated attempts to add scrollability, insets, and a
-    // ConnectivityBanner wrap — all of which broke the rail's layout
-    // on the real tablet. Keep this dead simple: Row → Rail + MainNav
-    // directly weighted. No insets here, no extra Column wrap.
-    // Visual improvements that DID survive:
-    //   - dividers between main/secondary/settings groups
-    //   - tertiaryContainer indicator for secondary group
-    //   - Rewards item in Screen.secondary
-    if (useNavRail) {
-        Row(modifier = Modifier.fillMaxSize()) {
-            NavigationRail(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Spacer(Modifier.weight(1f))
-                Screen.main.forEach { screen ->
-                    val selected = currentDest?.hierarchy?.any { it.route == screen.route } == true
-                    NavigationRailItem(
-                        selected = selected,
-                        onClick  = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState    = true
-                            }
-                        },
-                        icon  = {
-                            Icon(
-                                if (selected) screen.selectedIcon else screen.unselectedIcon,
-                                contentDescription = screen.label
-                            )
-                        },
-                        label = { Text(screen.label) },
-                        alwaysShowLabel = false
+    // ── RailItem helper ───────────────────────────────────────
+    @Composable
+    fun NavRailItem(
+        screen: Screen,
+        colors: NavigationRailItemColors = NavigationRailItemDefaults.colors()
+    ) {
+        val selected = currentDest?.hierarchy?.any { it.route == screen.route } == true
+        NavigationRailItem(
+            selected = selected,
+            onClick  = {
+                navController.navigate(screen.route) {
+                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                    launchSingleTop = true
+                    restoreState    = true
+                }
+            },
+            icon  = {
+                Icon(
+                    if (selected) screen.selectedIcon else screen.unselectedIcon,
+                    contentDescription = screen.label
+                )
+            },
+            label = {
+                if (!isCompact) {
+                    Text(
+                        text       = screen.label,
+                        style      = MaterialTheme.typography.labelSmall,
+                        maxLines   = 1
                     )
                 }
-                // Secondary items
+            },
+            alwaysShowLabel = !isCompact,
+            colors = colors
+        )
+    }
+
+    // ── Main layout: Row with NavigationRail + Content ────────
+    Row(modifier = Modifier.fillMaxSize()) {
+        NavigationRail(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            modifier       = Modifier.width(railWidth)
+        ) {
+            Spacer(Modifier.height(8.dp))
+
+            // ── Primary items: always visible ──────────────
+            Screen.primary.forEach { screen ->
+                NavRailItem(screen = screen)
+            }
+
+            // ── Secondary items or "More" ──────────────────
+            if (isCompact) {
+                // "More" button on compact screens
+                NavigationRailItem(
+                    selected = showMore,
+                    onClick  = { showMore = true },
+                    icon  = { Icon(Icons.Default.MoreHoriz, contentDescription = "More") },
+                    label = { Text("More") },
+                    alwaysShowLabel = false
+                )
+            } else {
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
                 Screen.secondary.forEach { screen ->
-                    val selected = currentDest?.hierarchy?.any { it.route == screen.route } == true
-                    NavigationRailItem(
-                        selected = selected,
-                        onClick  = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState    = true
-                            }
-                        },
-                        icon  = { Icon(screen.unselectedIcon, screen.label) },
-                        label = { Text(screen.label) },
-                        alwaysShowLabel = false,
+                    NavRailItem(
+                        screen = screen,
                         colors = NavigationRailItemDefaults.colors(
                             indicatorColor = MaterialTheme.colorScheme.tertiaryContainer
                         )
                     )
                 }
-                // Settings always at bottom
-                val settingsSelected = currentDest?.hierarchy?.any { it.route == Screen.Settings.route } == true
-                NavigationRailItem(
-                    selected = settingsSelected,
-                    onClick  = {
-                        navController.navigate(Screen.Settings.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState    = true
-                        }
-                    },
-                    icon  = {
-                        Icon(
-                            if (settingsSelected) Screen.Settings.selectedIcon else Screen.Settings.unselectedIcon,
-                            contentDescription = Screen.Settings.label
-                        )
-                    },
-                    label = { Text(Screen.Settings.label) },
-                    alwaysShowLabel = false
-                )
             }
+
+            Spacer(Modifier.weight(1f))
+
+            // ── Settings always at bottom ──────────────────
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+            NavRailItem(screen = Screen.Settings)
+            Spacer(Modifier.height(8.dp))
+        }
+
+        // ── Content area ──────────────────────────────────────
+        Column(modifier = Modifier.weight(1f)) {
+            ConnectivityBanner()
             MainNav(Modifier.weight(1f))
         }
     }
-    // ── Phone / small screen: BottomNav with capped slots ─────
-    else {
-        Scaffold(
-            bottomBar = {
-                NavigationBar {
-                    // Material guidance + UX reality: a NavigationBar takes
-                    // 3–5 items. We pin Calendar/Tasks/Lists/Meals and use
-                    // the 5th slot as 'More' to reach everything else.
-                    val primary = Screen.main.take(4)
-                    primary.forEach { screen ->
-                        val selected = currentDest?.hierarchy?.any { it.route == screen.route } == true
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick  = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState    = true
-                                }
-                            },
-                            icon  = {
-                                Icon(
-                                    if (selected) screen.selectedIcon else screen.unselectedIcon,
-                                    contentDescription = screen.label
-                                )
-                            },
-                            label = { Text(screen.label) }
-                        )
-                    }
-                    NavigationBarItem(
-                        selected = showMore,
-                        onClick  = { showMore = true },
-                        icon     = { Icon(Icons.Default.Menu, contentDescription = "More") },
-                        label    = { Text("More") }
-                    )
-                }
-            }
-        ) { contentPadding ->
-            Box(modifier = Modifier.padding(contentPadding)) {
-                Column {
-                    ConnectivityBanner()
-                    MainNav(Modifier.weight(1f))
-                }
-            }
-        }
-    }
 
-    // ── 'More' bottom sheet: People + secondary + Settings ────
-    if (showMore) {
+    // ── "More" bottom sheet (compact mode only) ──────────────
+    if (showMore && isCompact) {
         ModalBottomSheet(onDismissRequest = { showMore = false }) {
             Column(Modifier.padding(bottom = 16.dp)) {
-                // People doesn't fit in the 4-slot primary nav on phones,
-                // so we surface it at the top of More for one-tap access.
-                val moreItems = listOf(Screen.People) + Screen.secondary + Screen.Settings
-                moreItems.forEach { screen ->
+                Screen.secondary.forEach { screen ->
                     val selected = currentDest?.hierarchy?.any { it.route == screen.route } == true
                     ListItem(
                         headlineContent = { Text(screen.label) },

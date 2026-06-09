@@ -54,11 +54,32 @@ fun CalendarScreen(
     val personFilterId by viewModel.personFilter.collectAsState()
     val wall           = LocalWallMode.current
 
+    // Pick the active person for the avatar (first non-default, fallback to first)
+    val activePerson = remember(people) {
+        people.firstOrNull { !it.isDefault } ?: people.firstOrNull()
+    }
+    val personInitial = activePerson?.initial
+    val personColor   = activePerson?.let {
+        runCatching { Color(android.graphics.Color.parseColor(it.colorHex)) }.getOrNull()
+    }
+
+    // Today's forecast for the top bar
+    val todayForecast = forecasts[LocalDate.now()]
+
     Column(modifier = modifier.fillMaxSize()) {
 
-        // ── Top bar ──────────────────────────────────────────
-        CalendarTopBar(
-            title      = calendarTitle(viewMode, selectedDate),
+        // ── Skylight-style AppHeader: date + weather + avatar ──
+        AppHeader(
+            date           = selectedDate,
+            temperature    = todayForecast?.let { "${it.iconChar}${it.tempHigh.toInt()}°" },
+            personInitial  = personInitial,
+            personColor    = personColor
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+        // ── Calendar controls: view mode + nav + add ──────────
+        CalendarControls(
             viewMode   = viewMode,
             onViewMode = viewModel::setViewMode,
             onPrev     = viewModel::navigatePrev,
@@ -68,11 +89,6 @@ fun CalendarScreen(
         )
 
         // ── Compact header strips (60dp single row, hidden when empty) ──
-        // The original layout used a tall countdown LazyRow (120dp cards) and
-        // a vertical Column of full-width invitation rows. On a phone in
-        // landscape this could eat 200dp of vertical space before the
-        // calendar grid even rendered. We collapse both into a single 60dp
-        // chip rail above the calendar.
         if (countdowns.isNotEmpty() || pendingInvites.isNotEmpty()) {
             LazyRow(
                 contentPadding        = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
@@ -119,10 +135,11 @@ fun CalendarScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+// ─────────────────────────────────────────────────────────────
+// CalendarControls — view mode tabs, navigation, add
+// ─────────────────────────────────────────────────────────────
 @Composable
-private fun CalendarTopBar(
-    title: String,
+private fun CalendarControls(
     viewMode: String,
     onViewMode: (String) -> Unit,
     onPrev: () -> Unit,
@@ -130,59 +147,73 @@ private fun CalendarTopBar(
     onToday: () -> Unit,
     onAdd: () -> Unit
 ) {
-    TopAppBar(
-        title = {
-            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-        },
-        actions = {
-            // View mode tabs
-            val modes = listOf("MONTH", "WEEK", "DAY", "AGENDA")
-            val labels = listOf("Mo", "Wk", "Dy", "Ag")
-            modes.forEachIndexed { i, mode ->
-                TextButton(
-                    onClick = { onViewMode(mode) },
-                    colors  = ButtonDefaults.textButtonColors(
-                        contentColor = if (viewMode == mode)
-                            MaterialTheme.colorScheme.primary
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) { Text(labels[i], fontWeight = if (viewMode == mode) FontWeight.Bold else FontWeight.Normal) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // View mode tabs
+        val modes  = listOf("MONTH", "WEEK", "DAY", "AGENDA")
+        val labels = listOf("Mo", "Wk", "Dy", "Ag")
+        modes.forEachIndexed { i, mode ->
+            TextButton(
+                onClick = { onViewMode(mode) },
+                colors  = ButtonDefaults.textButtonColors(
+                    contentColor = if (viewMode == mode)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                modifier       = Modifier.height(32.dp)
+            ) {
+                Text(
+                    labels[i],
+                    fontWeight = if (viewMode == mode) FontWeight.Bold else FontWeight.Normal,
+                    fontSize   = 12.sp
+                )
             }
-            IconButton(onClick = onToday) {
-                Icon(Icons.Default.Today, "Today")
-            }
-            IconButton(onClick = onPrev) {
-                Icon(Icons.Default.ChevronLeft, "Previous")
-            }
-            IconButton(onClick = onNext) {
-                Icon(Icons.Default.ChevronRight, "Next")
-            }
-            IconButton(onClick = onAdd) {
-                Icon(Icons.Default.Add, "Add event")
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    )
-}
-
-private fun calendarTitle(viewMode: String, date: LocalDate): String {
-    return when (viewMode) {
-        "MONTH"  -> date.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
-        "WEEK"   -> {
-            val weekStart = date.with(java.time.DayOfWeek.MONDAY)
-            val weekEnd   = weekStart.plusDays(6)
-            if (weekStart.month == weekEnd.month)
-                "${weekStart.format(DateTimeFormatter.ofPattern("MMM d"))} – ${weekEnd.dayOfMonth}, ${weekEnd.year}"
-            else
-                "${weekStart.format(DateTimeFormatter.ofPattern("MMM d"))} – ${weekEnd.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))}"
         }
-        "DAY"    -> date.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy"))
-        "AGENDA" -> "Upcoming"
-        else     -> date.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
+
+        Spacer(Modifier.width(4.dp))
+
+        // Divider
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(20.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant)
+        )
+
+        Spacer(Modifier.width(4.dp))
+
+        // Navigation
+        IconButton(onClick = onToday, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Default.Today, "Today", modifier = Modifier.size(18.dp))
+        }
+        IconButton(onClick = onPrev, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Default.ChevronLeft, "Previous", modifier = Modifier.size(20.dp))
+        }
+        IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Default.ChevronRight, "Next", modifier = Modifier.size(20.dp))
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        // Add event button
+        FilledTonalButton(
+            onClick        = onAdd,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+            modifier       = Modifier.height(32.dp)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "Add event", modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Event", fontSize = 12.sp)
+        }
     }
+
+    HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
 }
 
 // ─────────────────────────────────────────────────────────────
