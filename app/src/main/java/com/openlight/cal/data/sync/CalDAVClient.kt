@@ -151,27 +151,28 @@ class CalDAVClient internal constructor(
         val responses = safeParseMultistatus(resp)
         for (r in responses) {
             val href = r.href?.trimEnd('/') ?: continue
-            if (href == normalised) continue // skip the collection itself
-            val isCollection = r.props.any {
-                it.localName.equals("resourcetype", ignoreCase = true) &&
-                it.children.any { c -> c.equals("collection", ignoreCase = true) }
-            }
-            val isCalendar = r.props.any {
-                it.localName.equals("resourcetype", ignoreCase = true) &&
-                it.children.any { c -> c.equals("calendar", ignoreCase = true) }
-            }
-            val subUrl = buildUrl(href)
+            val subUrl = buildUrl(href).trimEnd('/')
+
+            // Skip the collection itself (first response in PROPFIND depth="1")
+            if (subUrl == normalised) continue
+
+            // The flat XmlPullParser emits child elements inside <resourcetype>
+            // as separate flat ParsedProp entries (children list is never
+            // populated). So we check by localName directly — "calendar" and
+            // "collection" only ever appear inside <resourcetype> in CalDAV.
+            val names = r.props.map { it.localName.lowercase() }
+            val isCalendar   = "calendar" in names
+            val isCollection = "collection" in names
 
             if (isCalendar) {
                 val name = propText(r, "displayname")
                     ?: href.split("/").lastOrNull { it.isNotBlank() }
                     ?: href
                 val ctag = propText(r, "getctag").orEmpty()
-                val hasVTODO = r.props.any {
-                    it.localName.equals("supported-calendar-component-set", ignoreCase = true)
-                            && it.children.any { child -> child.equals("VTODO", ignoreCase = true) }
-                }
-                result.add(CalendarInfo(path = href, displayName = name, ctag = ctag, supportsVTODO = hasVTODO))
+                // hasVTODO not reliably detectable with the flat parser
+                // (attributes like name="VTODO" are not captured). Default
+                // to false — sufficient for VEVENT-only calendar sync.
+                result.add(CalendarInfo(path = href, displayName = name, ctag = ctag, supportsVTODO = false))
             } else if (isCollection) {
                 // Plain collection — recurse (catches shared/ tasks/ etc.)
                 scanForCalendars(subUrl, result, visited)

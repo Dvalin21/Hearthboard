@@ -20,6 +20,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -344,7 +345,8 @@ private fun DayCell(
                     .background(
                         when {
                             isSelected -> MaterialTheme.colorScheme.primary
-                            isToday    -> MaterialTheme.colorScheme.secondaryContainer
+                            // Orange dot for today — matches Skylight
+                            isToday    -> Color(0xFFE07B39)
                             else       -> Color.Transparent
                         }
                     )
@@ -373,49 +375,42 @@ private fun DayCell(
 
         Spacer(Modifier.height(2.dp))
 
-        // Skylight-style event chips: a 3dp color band on the left
-        // (encoding person/event identity), then the title in muted
-        // text on a neutral background. Reads cleanly at room distance
-        // and doesn't shout at you with saturated fills.
+        // Skylight-style event chips: full-color rounded bubble with
+        // white text showing "H:MM Title". The person/profile color
+        // fills the background. An orange dot marks today's date.
         events.take(maxVisible).forEach { event ->
-            val color = eventColor(event, people)
+            val chipColor = eventColor(event, people)
             val timeStr = if (!event.isAllDay) {
                 Instant.ofEpochMilli(event.startMs)
                     .atZone(ZoneId.systemDefault())
                     .toLocalTime()
                     .format(DateTimeFormatter.ofPattern("h:mm a"))
-            } else "all day"
+            } else null
             val loc = if (event.location.isNotBlank()) ", at ${event.location}" else ""
-            Row(
-                modifier = Modifier
+            // Pick white or dark text depending on chip luminance
+            val luma = 0.299 * chipColor.red + 0.587 * chipColor.green + 0.114 * chipColor.blue
+            val chipText = if (luma > 0.5) Color(0xFF1F2A36) else Color.White
+            val chipLabel = buildString {
+                if (timeStr != null) append("$timeStr ")
+                append(event.title)
+            }
+            Text(
+                text      = chipLabel,
+                fontSize  = chipFontSize,
+                color     = chipText,
+                maxLines  = 1,
+                overflow  = TextOverflow.Ellipsis,
+                modifier  = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f))
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(chipColor)
                     .clickable { onEventClick(event) }
                     .semantics {
                         this[SemanticsProperties.Role] = Role.Button
                         contentDescription = "Event: ${event.title}, ${timeStr}$loc"
-                    },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Left color band
-                Box(
-                    modifier = Modifier
-                        .width(3.dp)
-                        .fillMaxHeight()
-                        .background(color)
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text     = event.title,
-                    fontSize = chipFontSize,
-                    color    = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(vertical = chipPadV, horizontal = 2.dp)
-                )
-            }
+                    }
+                    .padding(horizontal = 4.dp, vertical = chipPadV)
+            )
             Spacer(Modifier.height(chipGap))
         }
         if (events.size > maxVisible) {
