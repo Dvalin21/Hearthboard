@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.openlight.cal.HearthboardApp
 import com.openlight.cal.data.model.AccountType
 import com.openlight.cal.data.model.CalendarAccount
+import com.openlight.cal.data.sync.CalDAVSyncWorker
 import com.openlight.cal.ui.theme.PersonColors
 import com.openlight.cal.data.model.Person
 import com.openlight.cal.data.model.PersonRole
@@ -155,8 +156,10 @@ fun SetupScreen(
                                     username = username.trim(),
                                     passwordEncrypted = encrypted
                                 )
-                                app.accountRepository.save(account)
+                                val accountId = app.accountRepository.save(account)
                                 accountAdded = true
+                                // Trigger initial sync so events appear immediately
+                                CalDAVSyncWorker.syncNow(app, accountId)
                             } catch (_: Exception) { }
                             saving = false
                         }

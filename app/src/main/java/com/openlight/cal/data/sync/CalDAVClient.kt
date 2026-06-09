@@ -149,7 +149,10 @@ class CalDAVClient internal constructor(
             </D:propfind>
         """.trimIndent()
         val resp = propfind(serverUrl, xml, depth = "0")
-        return safeParseMultistatus(resp).firstOrNull()?.href ?: "/"
+        val r = safeParseMultistatus(resp).firstOrNull()
+        // Extract current-user-principal href from props, NOT the response href
+        val principalHref = findPropHref("current-user-principal", r)
+        return principalHref ?: r?.href ?: "/"
     }
 
     private fun findCalendarHomeSet(principalPath: String): String {
@@ -162,7 +165,43 @@ class CalDAVClient internal constructor(
         """.trimIndent()
         val resp = propfind(base, xml, depth = "0")
         val r = safeParseMultistatus(resp).firstOrNull()
-        return r?.href ?: principalPath
+        // Extract calendar-home-set href from props, NOT the response href.
+        // The XML looks like:
+        //   <response>
+        //     <href>/principals/users/admin/</href>
+        //     <propstat><prop>
+        //       <calendar-home-set><href>/calendars/admin/</href></calendar-home-set>
+        //     </prop></propstat>
+        //   </response>
+        // Our flat parser gives us all props in order. We find "calendar-home-set"
+        // then take the next "href" text after it.
+        val homeSetHref = findPropHref("calendar-home-set", r)
+        return homeSetHref ?: principalPath
+    }
+
+    /**
+     * Given a flat list of [ParsedProp] from a PROPFIND response, find
+     * the property named [propName] and return the text of the next
+     * <href> element after it.
+     *
+     * This handles the common CalDAV pattern:
+     *   <X:some-prop><D:href>/value/</D:href></X:some-prop>
+     * where the flat list is [..., ParsedProp("some-prop"),
+     * ParsedProp("href", text="/value/"), ...]
+     */
+    private fun findPropHref(propName: String, r: ParsedResponse?): String? {
+        if (r == null) return null
+        val idx = r.props.indexOfFirst {
+            it.localName.equals(propName, ignoreCase = true)
+        }
+        if (idx < 0) return null
+        // Scan forward from idx+1 for the next href element
+        for (i in (idx + 1) until r.props.size) {
+            if (r.props[i].localName.equals("href", ignoreCase = true)) {
+                return r.props[i].text?.takeIf { it.isNotBlank() }
+            }
+        }
+        return null
     }
 
     data class ETagEntry(val href: String, val etag: String)
