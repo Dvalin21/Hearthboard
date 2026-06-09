@@ -217,7 +217,13 @@ fun HearthboardNavHost(app: HearthboardApp) {
     }
 
     // ── Main layout: Row with NavigationRail + Content ────────
-    Row(modifier = Modifier.fillMaxSize()) {
+    // systemBarsPadding accounts for the status bar (time/battery)
+    // so content doesn't overlap with the system chrome.
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.systemBars)
+    ) {
         NavigationRail(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             modifier       = Modifier.width(railWidth)

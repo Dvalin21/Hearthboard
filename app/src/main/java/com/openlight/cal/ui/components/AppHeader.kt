@@ -18,8 +18,8 @@ import java.time.format.DateTimeFormatter
 
 // ─────────────────────────────────────────────────────────────
 // AppHeader — Skylight-style info bar
-// Shows date/day info, weather, and person avatar (initial in
-// colored circle) in a compact single-line row.
+// Shows person avatar (initial in colored circle) on the LEFT,
+// then date/day info, with weather on the right.
 // ─────────────────────────────────────────────────────────────
 @Composable
 fun AppHeader(
@@ -29,25 +29,42 @@ fun AppHeader(
     personColor: Color?,
     modifier: Modifier = Modifier
 ) {
-    val dayName  = date.format(DateTimeFormatter.ofPattern("EEEE"))
-    val dateStr  = date.format(DateTimeFormatter.ofPattern("MMMM d"))
-    val dateFull = "$dayName, $dateStr"
+    val dateStr  = date.format(DateTimeFormatter.ofPattern("EEEE, MMMM d"))
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // ── Person avatar (LEFT side) ─────────────────────
+        if (personInitial != null && personColor != null) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .background(personColor)
+            ) {
+                Text(
+                    text       = personInitial,
+                    color      = Color.White,
+                    fontSize   = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign  = TextAlign.Center
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+        }
+
         // ── Date ─────────────────────────────────────────
         Text(
-            text       = dateFull,
+            text       = dateStr,
             style      = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            color      = MaterialTheme.colorScheme.onSurface
+            color      = MaterialTheme.colorScheme.onSurface,
+            modifier   = Modifier.weight(1f)
         )
-
-        Spacer(Modifier.weight(1f))
 
         // ── Weather ──────────────────────────────────────
         if (temperature != null) {
@@ -55,28 +72,8 @@ fun AppHeader(
                 text       = temperature,
                 style      = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                color      = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier   = Modifier.padding(end = 12.dp)
+                color      = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-
-        // ── Person avatar ────────────────────────────────
-        if (personInitial != null && personColor != null) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(personColor)
-            ) {
-                Text(
-                    text       = personInitial,
-                    color      = Color.White,
-                    fontSize   = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign  = TextAlign.Center
-                )
-            }
         }
     }
 }

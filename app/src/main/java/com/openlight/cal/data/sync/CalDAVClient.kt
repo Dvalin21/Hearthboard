@@ -106,7 +106,29 @@ class CalDAVClient internal constructor(
             return calendars
         }
 
-        // Step 3: List calendars under home set
+        // Step 3: List calendars under home set (recursively scan sub-collections)
+        val homeSetUrl = buildUrl(homeSet)
+        scanForCalendars(homeSetUrl, calendars)
+        Log.i(TAG, "Discovered ${calendars.size} calendar(s)")
+        return calendars
+    }
+
+    /**
+     * PROPFIND depth="1" on [url], collecting any child resources whose
+     * resourcetype includes "calendar". For any child that is a plain
+     * collection but NOT a calendar, recurse into it — this handles
+     * SOGo/Mailcow where shared calendars live under a `shared/`
+     * sub-collection one level deeper than the home set root.
+     */
+    private suspend fun scanForCalendars(
+        url: String,
+        result: MutableList<CalendarInfo>,
+        visited: MutableSet<String> = mutableSetOf()
+    ) {
+        val normalised = url.trimEnd('/')
+        if (normalised in visited) return
+        visited.add(normalised)
+
         val listXml = """
             <?xml version="1.0" encoding="utf-8"?>
             <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:CS="http://calendarserver.org/ns/">
@@ -119,48 +141,42 @@ class CalDAVClient internal constructor(
             </D:propfind>
         """.trimIndent()
 
-        val homeSetUrl = buildUrl(homeSet)
         val resp = try {
-            propfind(homeSetUrl, listXml, depth = "1").also {
-                Log.d(TAG, "Calendar list PROPFIND succeeded (${it.length} bytes)")
-            }
+            propfind(url, listXml, depth = "1")
         } catch (e: Exception) {
-            Log.e(TAG, "Calendar listing PROPFIND failed for $homeSetUrl: ${e.message}")
-            return calendars
+            Log.d(TAG, "scanForCalendars skipped $url (${e::class.simpleName}: ${e.message})")
+            return
         }
 
         val responses = safeParseMultistatus(resp)
-        Log.d(TAG, "Parsed ${responses.size} response(s) from calendar listing")
         for (r in responses) {
-            val href = r.href ?: continue
-            val name = propText(r, "displayname")
-                ?: href.split("/").lastOrNull { it.isNotBlank() }
-                ?: href
-            val ctag = propText(r, "getctag").orEmpty()
-            val hasVTODO = r.props.any {
-                it.localName.equals(
-                    "supported-calendar-component-set",
-                    ignoreCase = true
-                ) && it.children.any { child ->
-                    child.equals("VTODO", ignoreCase = true)
-                }
-            } || r.props.any {
-                it.localName.equals("resourcetype", ignoreCase = true)
-                        && it.children.any { child ->
-                    child.equals("calendar", ignoreCase = true)
-                }
+            val href = r.href?.trimEnd('/') ?: continue
+            if (href == normalised) continue // skip the collection itself
+            val isCollection = r.props.any {
+                it.localName.equals("resourcetype", ignoreCase = true) &&
+                it.children.any { c -> c.equals("collection", ignoreCase = true) }
             }
-            calendars.add(
-                CalendarInfo(
-                    path          = href,
-                    displayName   = name,
-                    ctag          = ctag,
-                    supportsVTODO = hasVTODO
-                )
-            )
+            val isCalendar = r.props.any {
+                it.localName.equals("resourcetype", ignoreCase = true) &&
+                it.children.any { c -> c.equals("calendar", ignoreCase = true) }
+            }
+            val subUrl = buildUrl(href)
+
+            if (isCalendar) {
+                val name = propText(r, "displayname")
+                    ?: href.split("/").lastOrNull { it.isNotBlank() }
+                    ?: href
+                val ctag = propText(r, "getctag").orEmpty()
+                val hasVTODO = r.props.any {
+                    it.localName.equals("supported-calendar-component-set", ignoreCase = true)
+                            && it.children.any { child -> child.equals("VTODO", ignoreCase = true) }
+                }
+                result.add(CalendarInfo(path = href, displayName = name, ctag = ctag, supportsVTODO = hasVTODO))
+            } else if (isCollection) {
+                // Plain collection — recurse (catches shared/ tasks/ etc.)
+                scanForCalendars(subUrl, result, visited)
+            }
         }
-        Log.i(TAG, "Discovered ${calendars.size} calendar(s)")
-        return calendars
     }
 
     /**

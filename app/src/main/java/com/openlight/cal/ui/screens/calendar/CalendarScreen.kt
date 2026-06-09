@@ -48,8 +48,6 @@ fun CalendarScreen(
     val viewMode       by viewModel.viewMode.collectAsState()
     val selectedDate   by viewModel.selectedDate.collectAsState()
     val events         by viewModel.filteredEvents.collectAsState()
-    val countdowns     by viewModel.countdowns.collectAsState()
-    val pendingInvites by viewModel.pendingInvitations.collectAsState()
     val forecasts      by viewModel.forecasts.collectAsState()
     val personFilterId by viewModel.personFilter.collectAsState()
     val wall           = LocalWallMode.current
@@ -68,7 +66,7 @@ fun CalendarScreen(
 
     Column(modifier = modifier.fillMaxSize()) {
 
-        // ── Skylight-style AppHeader: date + weather + avatar ──
+        // ── Skylight-style AppHeader: avatar on left, date, weather ──
         AppHeader(
             date           = selectedDate,
             temperature    = todayForecast?.let { "${it.iconChar}${it.tempHigh.toInt()}°" },
@@ -76,7 +74,7 @@ fun CalendarScreen(
             personColor    = personColor
         )
 
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
 
         // ── Calendar controls: view mode + nav + add ──────────
         CalendarControls(
@@ -87,30 +85,6 @@ fun CalendarScreen(
             onToday    = viewModel::goToday,
             onAdd      = onAddEvent
         )
-
-        // ── Compact header strips (60dp single row, hidden when empty) ──
-        if (countdowns.isNotEmpty() || pendingInvites.isNotEmpty()) {
-            LazyRow(
-                contentPadding        = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier              = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 60.dp)
-            ) {
-                items(countdowns, key = { "cd-${it.id}" }) { event ->
-                    CountdownChip(event = event, onClick = { viewModel.editEvent(event) })
-                }
-                items(pendingInvites, key = { "inv-${it.id}" }) { inv ->
-                    InvitationChip(
-                        title     = inv.title,
-                        organizer = inv.organizerEmail.takeIf { it.isNotBlank() }?.let { "from $it" } ?: "",
-                        onAccept  = { viewModel.acceptInvitation(inv) },
-                        onClick   = { viewModel.editEvent(inv) }
-                    )
-                }
-            }
-            HorizontalDivider()
-        }
 
         // ── Person filter ────────────────────────────────────
         if (people.size > 1) {
@@ -150,9 +124,39 @@ private fun CalendarControls(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 4.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Navigation: Today + Prev + Next
+        TextButton(
+            onClick   = onToday,
+            colors    = ButtonDefaults.textButtonColors(
+                contentColor = MaterialTheme.colorScheme.primary
+            ),
+            modifier  = Modifier.height(30.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+        ) {
+            Text("Today", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        }
+        IconButton(onClick = onPrev, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Default.ChevronLeft, "Previous", modifier = Modifier.size(18.dp))
+        }
+        IconButton(onClick = onNext, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Default.ChevronRight, "Next", modifier = Modifier.size(18.dp))
+        }
+
+        Spacer(Modifier.width(2.dp))
+
+        // Divider
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(16.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant)
+        )
+
+        Spacer(Modifier.width(2.dp))
+
         // View mode tabs
         val modes  = listOf("MONTH", "WEEK", "DAY", "AGENDA")
         val labels = listOf("Mo", "Wk", "Dy", "Ag")
@@ -165,8 +169,8 @@ private fun CalendarControls(
                     else
                         MaterialTheme.colorScheme.onSurfaceVariant
                 ),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                modifier       = Modifier.height(32.dp)
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                modifier       = Modifier.height(30.dp)
             ) {
                 Text(
                     labels[i],
@@ -176,44 +180,18 @@ private fun CalendarControls(
             }
         }
 
-        Spacer(Modifier.width(4.dp))
-
-        // Divider
-        Box(
-            modifier = Modifier
-                .width(1.dp)
-                .height(20.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant)
-        )
-
-        Spacer(Modifier.width(4.dp))
-
-        // Navigation
-        IconButton(onClick = onToday, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Default.Today, "Today", modifier = Modifier.size(18.dp))
-        }
-        IconButton(onClick = onPrev, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Default.ChevronLeft, "Previous", modifier = Modifier.size(20.dp))
-        }
-        IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Default.ChevronRight, "Next", modifier = Modifier.size(20.dp))
-        }
-
         Spacer(Modifier.weight(1f))
 
-        // Add event button
-        FilledTonalButton(
-            onClick        = onAdd,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-            modifier       = Modifier.height(32.dp)
+        // Add event button (icon only, like Skylight's +)
+        FilledTonalIconButton(
+            onClick  = onAdd,
+            modifier = Modifier.size(30.dp)
         ) {
             Icon(Icons.Default.Add, contentDescription = "Add event", modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(4.dp))
-            Text("Event", fontSize = 12.sp)
         }
     }
 
-    HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
+    HorizontalDivider(modifier = Modifier.padding(horizontal = 4.dp))
 }
 
 // ─────────────────────────────────────────────────────────────

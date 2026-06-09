@@ -32,8 +32,8 @@ android {
         applicationId = "com.openlight.cal"
         minSdk = 31          // Android 12+ (was 26 for Android 8.0)
         targetSdk = 34
-        versionCode = 23
-        versionName = "1.0.0-alpha.25"
+        versionCode = 24
+        versionName = "1.0.0-alpha.26"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
