@@ -217,9 +217,13 @@ class CalDAVClient internal constructor(
         val direct = tryFindPrincipalAt(serverUrl)
         if (direct != null) return direct
 
-        // 2. Try each common path appended to the server origin
+        // 2. Try common CalDAV paths appended to the server ORIGIN.
+        //    Using origin avoids garbage URLs when serverUrl already
+        //    contains a deep path (e.g. /SOGo/dav/email/personal/).
+        val origin = extractOrigin(serverUrl)
         for (suffix in COMMON_CALDAV_PATHS) {
-            val url = "${serverUrl.trimEnd('/')}$suffix"
+            val url = "$origin$suffix"
+            Log.d(TAG, "findPrincipalPath: fallback probing $url")
             val p = tryFindPrincipalAt(url)
             if (p != null) {
                 Log.i(TAG, "Discovered principal at $url")
