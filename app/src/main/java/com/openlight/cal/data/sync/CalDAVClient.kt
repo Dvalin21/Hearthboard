@@ -119,12 +119,13 @@ class CalDAVClient internal constructor(
             </D:propfind>
         """.trimIndent()
 
+        val homeSetUrl = buildUrl(homeSet)
         val resp = try {
-            propfind(homeSet, listXml, depth = "1").also {
+            propfind(homeSetUrl, listXml, depth = "1").also {
                 Log.d(TAG, "Calendar list PROPFIND succeeded (${it.length} bytes)")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Calendar listing PROPFIND failed for $homeSet: ${e.message}")
+            Log.e(TAG, "Calendar listing PROPFIND failed for $homeSetUrl: ${e.message}")
             return calendars
         }
 
