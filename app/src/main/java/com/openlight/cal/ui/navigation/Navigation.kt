@@ -1,10 +1,10 @@
-@file:Suppress("DEPRECATION")
-
 package com.openlight.cal.ui.navigation
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -64,7 +64,7 @@ sealed class Screen(
     object Rewards  : Screen("rewards",  "Rewards",  Icons.Filled.Star,             Icons.Outlined.Star)
     object Meals    : Screen("meals",    "Meals",    Icons.Filled.Restaurant,       Icons.Outlined.Restaurant)
     object Photos   : Screen("photos",   "Photos",   Icons.Filled.PhotoLibrary,     Icons.Outlined.PhotoLibrary)
-    object Lists    : Screen("lists",    "Lists",    Icons.Filled.List,             Icons.Outlined.List)
+    object Lists    : Screen("lists",    "Lists",    Icons.AutoMirrored.Filled.List,             Icons.AutoMirrored.Outlined.List)
     object Sleep    : Screen("sleep",    "Sleep",    Icons.Filled.Bedtime,          Icons.Outlined.Bedtime)
     object People   : Screen("people",   "People",   Icons.Filled.Group,            Icons.Outlined.Group)
     object Chores   : Screen("chores",   "Chores",   Icons.Filled.TaskAlt,          Icons.Outlined.TaskAlt)
@@ -295,7 +295,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                     NavigationBarItem(
                         selected = showMore,
                         onClick  = { showMore = true },
-                        icon     = { Icon(Icons.Default.MoreHoriz, "More") },
+                        icon     = {                 Icon(Icons.Filled.MoreHoriz, "More") },
                         label    = { Text("More") }
                     )
                 }

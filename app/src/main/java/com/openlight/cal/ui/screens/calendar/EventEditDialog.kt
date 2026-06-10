@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.openlight.cal.ui.screens.calendar
 
 import androidx.compose.foundation.background
@@ -8,6 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -132,7 +131,7 @@ fun EventEditDialog(
                 label         = { Text("Title") },
                 isError       = titleError,
                 modifier      = Modifier.fillMaxWidth(),
-                leadingIcon   = { Icon(Icons.Default.Title, null) },
+                leadingIcon   = { Icon(Icons.Filled.Title, null) },
                 singleLine    = true
             )
             if (titleError) {
@@ -149,7 +148,7 @@ fun EventEditDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AccessTime, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Filled.AccessTime, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(8.dp))
                     Text("All Day", style = MaterialTheme.typography.bodyMedium)
                 }
@@ -210,7 +209,7 @@ fun EventEditDialog(
                 onValueChange = { location = it },
                 label         = { Text("Location (optional)") },
                 modifier      = Modifier.fillMaxWidth(),
-                leadingIcon   = { Icon(Icons.Default.LocationOn, null) },
+                leadingIcon   = { Icon(Icons.Filled.LocationOn, null) },
                 singleLine    = true
             )
 
@@ -222,7 +221,7 @@ fun EventEditDialog(
                 onValueChange = { description = it },
                 label         = { Text("Notes (optional)") },
                 modifier      = Modifier.fillMaxWidth().height(100.dp),
-                leadingIcon = { Icon(Icons.Default.Notes, null) }
+                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Notes, null) }
             )
 
             Spacer(Modifier.height(12.dp))
@@ -251,7 +250,7 @@ fun EventEditDialog(
             // Show organizer email from CalDAV (read-only, for synced events)
             if (organizerEmail.isNotBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Email, null, modifier = Modifier.size(16.dp),
+                    Icon(Icons.Filled.Email, null, modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(6.dp))
                     Text("From: $organizerEmail",
@@ -268,7 +267,7 @@ fun EventEditDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Palette, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Filled.Palette, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(8.dp))
                     Text("Event Color", style = MaterialTheme.typography.bodyMedium)
                 }
@@ -299,7 +298,7 @@ fun EventEditDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Timer, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Filled.Timer, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(8.dp))
                     Column {
                         Text("Show Countdown", style = MaterialTheme.typography.bodyMedium)
@@ -343,7 +342,7 @@ fun EventEditDialog(
                         contentColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Icon(Icons.Default.DeleteOutline, null)
+                    Icon(Icons.Filled.DeleteOutline, null)
                     Spacer(Modifier.width(8.dp))
                     Text("Delete Event")
                 }
@@ -380,7 +379,7 @@ fun EventEditDialog(
     if (isRecurring && recurringChoice == null) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            icon = { Icon(Icons.Default.Repeat, null) },
+            icon = { Icon(Icons.Filled.Repeat, null) },
             title = { Text("Recurring Event") },
             text = { Text("This event repeats. Do you want to edit this single instance or all events in the series?") },
             confirmButton = {
@@ -505,7 +504,7 @@ fun EventEntryMethodDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = {
-            Icon(Icons.Default.AddCircleOutline, null,
+            Icon(Icons.Filled.AddCircleOutline, null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(32.dp))
         },
@@ -519,25 +518,25 @@ fun EventEntryMethodDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 EntryMethodButton(
-                    icon  = Icons.Default.Keyboard,
+                    icon  = Icons.Filled.Keyboard,
                     label = "Type",
                     desc  = "Enter event details manually",
                     onClick = { onSelect(EntryMethod.TYPE) }
                 )
                 EntryMethodButton(
-                    icon  = Icons.Default.CameraAlt,
+                    icon  = Icons.Filled.CameraAlt,
                     label = "Photo",
                     desc  = "Snap a flyer or notice",
                     onClick = { onSelect(EntryMethod.PHOTO) }
                 )
                 EntryMethodButton(
-                    icon  = Icons.Default.Mic,
+                    icon  = Icons.Filled.Mic,
                     label = "Talk",
                     desc  = "Use voice to describe the event",
                     onClick = { onSelect(EntryMethod.TALK) }
                 )
                 EntryMethodButton(
-                    icon  = Icons.Default.Email,
+                    icon  = Icons.Filled.Email,
                     label = "Email",
                     desc  = "Forward an invitation",
                     onClick = { onSelect(EntryMethod.EMAIL) }

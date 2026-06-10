@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.openlight.cal.ui.screens.settings
 
 import android.content.Context
@@ -13,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -69,7 +68,7 @@ fun SettingsScreen(
         )
 
         // ── ACCOUNTS ─────────────────────────────────────────
-        SettingsSectionHeader("Calendar Accounts", Icons.Default.AccountCircle)
+        SettingsSectionHeader("Calendar Accounts", Icons.Filled.AccountCircle)
 
         accounts.forEach { account ->
             AccountRow(
@@ -82,7 +81,7 @@ fun SettingsScreen(
         }
 
         SettingsClickRow(
-            icon  = Icons.Default.Add,
+            icon  = Icons.Filled.Add,
             title = "Add Account",
             subtitle = "CalDAV, Nextcloud, Fastmail, Google…",
             onClick = { showAddAccount = true }
@@ -94,7 +93,7 @@ fun SettingsScreen(
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         // ── APPEARANCE ────────────────────────────────────────
-        SettingsSectionHeader("Appearance", Icons.Default.Palette)
+        SettingsSectionHeader("Appearance", Icons.Filled.Palette)
 
         // Dark mode
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
@@ -107,9 +106,9 @@ fun SettingsScreen(
                         onClick  = { viewModel.setDarkMode(value) },
                         label    = { Text(label) },
                         leadingIcon = when (value) {
-                            1    -> { { Icon(Icons.Default.LightMode, null, Modifier.size(16.dp)) } }
-                            2    -> { { Icon(Icons.Default.DarkMode, null, Modifier.size(16.dp)) } }
-                            else -> { { Icon(Icons.Default.BrightnessAuto, null, Modifier.size(16.dp)) } }
+                            1    -> { { Icon(Icons.Filled.LightMode, null, Modifier.size(16.dp)) } }
+                            2    -> { { Icon(Icons.Filled.DarkMode, null, Modifier.size(16.dp)) } }
+                            else -> { { Icon(Icons.Filled.BrightnessAuto, null, Modifier.size(16.dp)) } }
                         }
                     )
                 }
@@ -147,10 +146,10 @@ fun SettingsScreen(
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         // ── WALL MODE (Skylight-style permanent display) ──────
-        SettingsSectionHeader("Wall Mode", Icons.Default.DeveloperBoard)
+        SettingsSectionHeader("Wall Mode", Icons.Filled.DeveloperBoard)
 
         SettingsToggleRow(
-            icon     = Icons.Default.AspectRatio,
+            icon     = Icons.Filled.AspectRatio,
             title    = "Enable Wall Mode",
             subtitle = "Lock to landscape, scale up touch targets, "
                      + "and switch the calendar to a denser layout for "
@@ -161,7 +160,7 @@ fun SettingsScreen(
 
         if (wallMode) {
             SettingsToggleRow(
-                icon     = Icons.Default.Brightness1,
+                icon     = Icons.Filled.Brightness1,
                 title    = "Keep screen on",
                 subtitle = "Prevent the display from sleeping. Use only on "
                          + "tablets that are continuously plugged in.",
@@ -173,24 +172,24 @@ fun SettingsScreen(
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         // ── CALENDAR DISPLAY ──────────────────────────────────
-        SettingsSectionHeader("Calendar Display", Icons.Default.CalendarMonth)
+        SettingsSectionHeader("Calendar Display", Icons.Filled.CalendarMonth)
 
         SettingsToggleRow(
-            icon     = Icons.Default.CalendarViewWeek,
+            icon     = Icons.Filled.CalendarViewWeek,
             title    = "Start week on Monday",
             checked  = firstDayMon,
             onToggle = { viewModel.setFirstDayMon(it) }
         )
 
         SettingsToggleRow(
-            icon     = Icons.Default.Schedule,
+            icon     = Icons.Filled.Schedule,
             title    = "24-hour clock",
             checked  = use24Hr,
             onToggle = { viewModel.set24Hr(it) }
         )
 
         SettingsToggleRow(
-            icon     = Icons.Default.Weekend,
+            icon     = Icons.Filled.Weekend,
             title    = "Show weekends",
             checked  = showWeekends,
             onToggle = { viewModel.setShowWeekends(it) }
@@ -199,7 +198,7 @@ fun SettingsScreen(
         // Default view
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.ViewModule, null,
+                Icon(Icons.Filled.ViewModule, null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(16.dp))
@@ -223,10 +222,10 @@ fun SettingsScreen(
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         // ── SYNC ─────────────────────────────────────────────
-        SettingsSectionHeader("Sync", Icons.Default.Sync)
+        SettingsSectionHeader("Sync", Icons.Filled.Sync)
 
         SettingsToggleRow(
-            icon     = Icons.Default.Wifi,
+            icon     = Icons.Filled.Wifi,
             title    = "Sync on Wi-Fi only",
             subtitle = "Avoid mobile data usage",
             checked  = syncWifiOnly,
@@ -234,7 +233,7 @@ fun SettingsScreen(
         )
 
         SettingsClickRow(
-            icon    = Icons.Default.SyncAlt,
+            icon    = Icons.Filled.SyncAlt,
             title   = "Sync all accounts now",
             onClick = { viewModel.syncNow(context) }
         )
@@ -242,7 +241,7 @@ fun SettingsScreen(
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         // ── WEATHER ────────────────────────────────────────────
-        SettingsSectionHeader("Weather", Icons.Default.Cloud)
+        SettingsSectionHeader("Weather", Icons.Filled.Cloud)
 
         val weatherLat by viewModel.weatherLat.collectAsState()
         val weatherLon by viewModel.weatherLon.collectAsState()
@@ -267,13 +266,13 @@ fun SettingsScreen(
                 IconButton(onClick = {
                     viewModel.setWeatherLat(wxLatInput.trim())
                     editWeatherLat = false
-                }) { Icon(Icons.Default.Check, "Save") }
+                }) { Icon(Icons.Filled.Check, "Save") }
             } else {
                 Text(weatherLat.ifBlank { "not set" },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 IconButton(onClick = { wxLatInput = weatherLat; editWeatherLat = true }) {
-                    Icon(Icons.Default.Edit, "Edit", Modifier.size(20.dp))
+                    Icon(Icons.Filled.Edit, "Edit", Modifier.size(20.dp))
                 }
             }
         }
@@ -290,13 +289,13 @@ fun SettingsScreen(
                 IconButton(onClick = {
                     viewModel.setWeatherLon(wxLonInput.trim())
                     editWeatherLon = false
-                }) { Icon(Icons.Default.Check, "Save") }
+                }) { Icon(Icons.Filled.Check, "Save") }
             } else {
                 Text(weatherLon.ifBlank { "not set" },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 IconButton(onClick = { wxLonInput = weatherLon; editWeatherLon = true }) {
-                    Icon(Icons.Default.Edit, "Edit", Modifier.size(20.dp))
+                    Icon(Icons.Filled.Edit, "Edit", Modifier.size(20.dp))
                 }
             }
         }
@@ -311,14 +310,14 @@ fun SettingsScreen(
                 IconButton(onClick = {
                     viewModel.setWeatherEndpoint(wxEndpointInput.trim())
                     editWxEndpoint = false
-                }) { Icon(Icons.Default.Check, "Save") }
+                }) { Icon(Icons.Filled.Check, "Save") }
             } else {
                 Text(weatherEndpoint.ifBlank { "Open-Meteo (default)" },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1)
                 IconButton(onClick = { wxEndpointInput = weatherEndpoint; editWxEndpoint = true }) {
-                    Icon(Icons.Default.Edit, "Edit", Modifier.size(20.dp))
+                    Icon(Icons.Filled.Edit, "Edit", Modifier.size(20.dp))
                 }
             }
         }
@@ -326,7 +325,7 @@ fun SettingsScreen(
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         // ── MEALIE INTEGRATION ────────────────────────────────
-        SettingsSectionHeader("Mealie Recipes", Icons.Default.Restaurant)
+        SettingsSectionHeader("Mealie Recipes", Icons.Filled.Restaurant)
         val mealieUrl   by viewModel.mealieUrl.collectAsState()
         val mealieToken by viewModel.mealieToken.collectAsState()
         var editMealieUrl   by remember { mutableStateOf(false) }
@@ -336,7 +335,7 @@ fun SettingsScreen(
 
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Dns, null, tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            Icon(Icons.Filled.Dns, null, tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -349,7 +348,7 @@ fun SettingsScreen(
                         IconButton(onClick = {
                             viewModel.setMealieUrl(mealieUrlInput.trim())
                             editMealieUrl = false
-                        }) { Icon(Icons.Default.Check, "Save") }
+                        }) { Icon(Icons.Filled.Check, "Save") }
                     }
                 } else {
                     Text("Server URL", style = MaterialTheme.typography.bodyMedium)
@@ -357,14 +356,14 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     IconButton(onClick = { mealieUrlInput = mealieUrl; editMealieUrl = true }) {
-                        Icon(Icons.Default.Edit, "Edit", Modifier.size(20.dp))
+                        Icon(Icons.Filled.Edit, "Edit", Modifier.size(20.dp))
                     }
                 }
             }
         }
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Key, null, tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            Icon(Icons.Filled.Key, null, tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -378,7 +377,7 @@ fun SettingsScreen(
                         IconButton(onClick = {
                             viewModel.setMealieToken(mealieTknInput.trim())
                             editMealieToken = false
-                        }) { Icon(Icons.Default.Check, "Save") }
+                        }) { Icon(Icons.Filled.Check, "Save") }
                     }
                 } else {
                     Text("API Token", style = MaterialTheme.typography.bodyMedium)
@@ -386,7 +385,7 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     IconButton(onClick = { mealieTknInput = mealieToken; editMealieToken = true }) {
-                        Icon(Icons.Default.Edit, "Edit", Modifier.size(20.dp))
+                        Icon(Icons.Filled.Edit, "Edit", Modifier.size(20.dp))
                     }
                 }
             }
@@ -401,7 +400,7 @@ fun SettingsScreen(
                 } catch (e: Exception) { "❌ ${e.message}" }
             }
         }, enabled = mealieUrl.isNotBlank() && mealieToken.isNotBlank()) {
-            Icon(Icons.Default.NetworkCheck, null, Modifier.size(16.dp))
+            Icon(Icons.Filled.NetworkCheck, null, Modifier.size(16.dp))
             Spacer(Modifier.width(4.dp))
             Text("Test Connection")
         }
@@ -414,10 +413,10 @@ fun SettingsScreen(
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         // ── ADVANCED / KIOSK ─────────────────────────────────
-        SettingsSectionHeader("Advanced", Icons.Default.Tune)
+        SettingsSectionHeader("Advanced", Icons.Filled.Tune)
 
         SettingsToggleRow(
-            icon     = Icons.Default.LockPerson,
+            icon     = Icons.Filled.LockPerson,
             title    = "Kiosk / Launcher Mode",
             subtitle = "Lock device as home screen",
             checked  = kioskMode,
@@ -425,7 +424,7 @@ fun SettingsScreen(
         )
 
         SettingsClickRow(
-            icon     = Icons.Default.Pin,
+            icon     = Icons.Filled.Pin,
             title    = "Parental Lock PIN",
             subtitle = "Restrict access to settings",
             onClick  = { showPinDialog = true }
@@ -437,7 +436,7 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.AutoDelete, null,
+            Icon(Icons.Filled.AutoDelete, null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(12.dp))
@@ -454,7 +453,7 @@ fun SettingsScreen(
                     value = if (archiveMonths == 0) "Never" else "${archiveMonths}mo",
                     onValueChange = {},
                     readOnly = true,
-                    modifier = Modifier.width(96.dp).menuAnchor(),
+                    modifier = Modifier.width(96.dp).menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
                     textStyle = MaterialTheme.typography.bodyMedium,
                     singleLine = true,
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }
@@ -474,7 +473,7 @@ fun SettingsScreen(
         }
 
         // ── BACKUP & RESTORE ──────────────────────────────────
-        SettingsSectionHeader("Backup & Restore", Icons.Default.Save)
+        SettingsSectionHeader("Backup & Restore", Icons.Filled.Save)
 
         var exporting by remember { mutableStateOf(false) }
         var importing by remember { mutableStateOf(false) }
@@ -507,7 +506,7 @@ fun SettingsScreen(
         }
 
         SettingsClickRow(
-            icon     = Icons.Default.FileUpload,
+            icon     = Icons.Filled.FileUpload,
             title    = "Export backup",
             subtitle = if (exporting) "Saving…" else "Save database to a file",
             onClick  = {
@@ -516,7 +515,7 @@ fun SettingsScreen(
             }
         )
         SettingsClickRow(
-            icon     = Icons.Default.FileDownload,
+            icon     = Icons.Filled.FileDownload,
             title    = "Restore from backup",
             subtitle = if (importing) "Restoring…" else "Replace all data from a file",
             onClick  = {
@@ -536,17 +535,17 @@ fun SettingsScreen(
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         // ── ABOUT ────────────────────────────────────────────
-        SettingsSectionHeader("About", Icons.Default.Info)
+        SettingsSectionHeader("About", Icons.Filled.Info)
 
         SettingsClickRow(
-            icon     = Icons.Default.Shield,
+            icon     = Icons.Filled.Shield,
             title    = "No Telemetry",
             subtitle = "Zero data collection. Ever. This app does not phone home.",
             onClick  = {}
         )
 
         SettingsClickRow(
-            icon     = Icons.Default.Code,
+            icon     = Icons.Filled.Code,
             title    = "Source Code",
             subtitle = "GPL-3.0 — Free & open source",
             onClick  = {
@@ -557,7 +556,7 @@ fun SettingsScreen(
         )
 
         SettingsClickRow(
-            icon     = Icons.Default.AppSettingsAlt,
+            icon     = Icons.Filled.AppSettingsAlt,
             title    = "Version",
             subtitle = "HearthBoard 1.0.0-alpha",
             onClick  = {}
@@ -678,7 +677,7 @@ private fun SettingsClickRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            Icon(Icons.Default.ChevronRight, null,
+            Icon(Icons.Filled.ChevronRight, null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp))
         }
@@ -712,7 +711,7 @@ private fun AccountRow(
                 .background(color, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.CalendarMonth, null, tint = Color.White,
+            Icon(Icons.Filled.CalendarMonth, null, tint = Color.White,
                 modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.width(12.dp))
@@ -731,14 +730,14 @@ private fun AccountRow(
             )
         }
         IconButton(onClick = onSync) {
-            Icon(Icons.Default.Sync, "Sync now",
+            Icon(Icons.Filled.Sync, "Sync now",
                 tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
         }
         IconButton(onClick = onEdit) {
-            Icon(Icons.Default.Edit, "Edit", modifier = Modifier.size(20.dp))
+            Icon(Icons.Filled.Edit, "Edit", modifier = Modifier.size(20.dp))
         }
         IconButton(onClick = onDelete) {
-            Icon(Icons.Default.DeleteOutline, "Delete",
+            Icon(Icons.Filled.DeleteOutline, "Delete",
                 tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
         }
     }
@@ -845,7 +844,7 @@ fun AccountEditDialog(
                 label         = { Text("Account name") },
                 modifier      = Modifier.fillMaxWidth(),
                 singleLine    = true,
-                leadingIcon = { Icon(Icons.Default.Label, null) }
+                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, null) }
             )
             Spacer(Modifier.height(10.dp))
 
@@ -856,7 +855,7 @@ fun AccountEditDialog(
                 placeholder   = { Text("https://your-server.com/dav/") },
                 modifier      = Modifier.fillMaxWidth(),
                 singleLine    = true,
-                leadingIcon   = { Icon(Icons.Default.Link, null) }
+                leadingIcon   = { Icon(Icons.Filled.Link, null) }
             )
             Spacer(Modifier.height(10.dp))
 
@@ -866,7 +865,7 @@ fun AccountEditDialog(
                 label         = { Text("Username / Email") },
                 modifier      = Modifier.fillMaxWidth(),
                 singleLine    = true,
-                leadingIcon   = { Icon(Icons.Default.Person, null) }
+                leadingIcon   = { Icon(Icons.Filled.Person, null) }
             )
             Spacer(Modifier.height(10.dp))
 
@@ -878,11 +877,11 @@ fun AccountEditDialog(
                 singleLine    = true,
                 visualTransformation = if (showPassword) VisualTransformation.None
                                        else PasswordVisualTransformation(),
-                leadingIcon  = { Icon(Icons.Default.Lock, null) },
+                leadingIcon  = { Icon(Icons.Filled.Lock, null) },
                 trailingIcon = {
                     IconButton(onClick = { showPassword = !showPassword }) {
                         Icon(
-                            if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
                             "Toggle password"
                         )
                     }

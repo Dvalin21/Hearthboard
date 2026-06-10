@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.openlight.cal.ui.screens.rewards
 
 import androidx.compose.foundation.background
@@ -84,7 +82,7 @@ fun RewardsScreen(
                             if (storedPin.isBlank()) adminMode = true
                             else showPinPrompt = true
                         }) {
-                            Icon(Icons.Default.Settings, "Admin")
+                            Icon(Icons.Filled.Settings, "Admin")
                         }
                     }
                 },
@@ -189,7 +187,7 @@ private fun ShopPane(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Redeem, null,
+                    Icon(Icons.Filled.Redeem, null,
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(16.dp))
@@ -379,7 +377,7 @@ private fun CatalogTab(
         // FAB-style add row
         ListItem(
             headlineContent = { Text("Add reward") },
-            leadingContent  = { Icon(Icons.Default.Add, null) },
+            leadingContent  = { Icon(Icons.Filled.Add, null) },
             modifier = Modifier.clickable(onClick = onNew)
         )
         HorizontalDivider()
@@ -400,10 +398,10 @@ private fun CatalogTab(
                     trailingContent = {
                         Row {
                             IconButton(onClick = { onEdit(reward) }) {
-                                Icon(Icons.Default.Edit, "Edit")
+                                Icon(Icons.Filled.Edit, "Edit")
                             }
                             IconButton(onClick = { onDelete(reward) }) {
-                                Icon(Icons.Default.Delete, "Delete")
+                                Icon(Icons.Filled.Delete, "Delete")
                             }
                         }
                     },

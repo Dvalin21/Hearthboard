@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.openlight.cal.ui.screens.recipes
 
 import androidx.compose.foundation.layout.*
@@ -93,7 +91,7 @@ fun RecipesScreen(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             ) {
-                Icon(Icons.Default.Add, contentDescription = null)
+                Icon(Icons.Filled.Add, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("Add recipe")
             }
@@ -103,7 +101,7 @@ fun RecipesScreen(
             if (mealieUrl.isBlank() && localRecipes.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.Restaurant, null, modifier = Modifier.size(64.dp),
+                        Icon(Icons.Filled.Restaurant, null, modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(16.dp))
                         Text("No recipes yet",
@@ -125,7 +123,7 @@ fun RecipesScreen(
             } else if (error != null && mealieRecipes.isEmpty() && localRecipes.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.CloudOff, null, modifier = Modifier.size(48.dp),
+                        Icon(Icons.Filled.CloudOff, null, modifier = Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.error)
                         Spacer(Modifier.height(12.dp))
                         Text(error!!, color = MaterialTheme.colorScheme.error,
@@ -139,7 +137,7 @@ fun RecipesScreen(
                     onValueChange = { searchQuery = it },
                     placeholder = { Text("Search recipes…") },
                     singleLine = true,
-                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    leadingIcon = { Icon(Icons.Filled.Search, null) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -196,7 +194,7 @@ fun RecipesScreen(
                                             onClick = { onAddToMealPlan(recipe.name) },
                                             modifier = Modifier.size(36.dp)
                                         ) {
-                                            Icon(Icons.Default.Add, "Add to meal plan",
+                                            Icon(Icons.Filled.Add, "Add to meal plan",
                                                 modifier = Modifier.size(18.dp))
                                         }
                                         IconButton(onClick = {
@@ -204,7 +202,7 @@ fun RecipesScreen(
                                                 recipeRepository.delete(recipe)
                                             }
                                         }) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Delete local recipe",
+                                            Icon(Icons.Filled.Delete, contentDescription = "Delete local recipe",
                                                 tint = MaterialTheme.colorScheme.error)
                                         }
                                     }
@@ -251,7 +249,7 @@ fun RecipesScreen(
                                             onClick = { onAddToMealPlan(recipe.name) },
                                             modifier = Modifier.size(36.dp)
                                         ) {
-                                            Icon(Icons.Default.Add, "Add to meal plan",
+                                            Icon(Icons.Filled.Add, "Add to meal plan",
                                                 modifier = Modifier.size(18.dp))
                                         }
                                     }
