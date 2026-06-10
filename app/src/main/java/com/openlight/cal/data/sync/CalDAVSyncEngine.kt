@@ -7,6 +7,9 @@ import com.openlight.cal.data.model.CalendarEvent
 import com.openlight.cal.data.model.Task
 import com.openlight.cal.data.preferences.EncryptedPassword
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 
 /**
@@ -77,44 +80,54 @@ class CalDAVSyncEngine(
                         !eventMatch && !taskMatch
                     }.map { it.href }
 
-                    for (href in toFetch) {
-                        val res = client.fetchIcs(href) ?: continue
-                        val parsed = ICalParser.parse(res.ical, account.id, res.href)
+                    // Fetch ICS files concurrently in batches of 6 to avoid
+                    // overwhelming the CalDAV server. Within each batch all
+                    // fetches run in parallel via async/awaitAll.
+                    coroutineScope {
+                        toFetch.chunked(6).forEach { batch ->
+                            val fetched: List<Pair<String, CalDAVClient.IcsResource?>> =
+                                batch.map { href -> async { href to client.fetchIcs(href) } }
+                                    .awaitAll()
+                            for ((href, res) in fetched) {
+                                if (res == null) continue
+                                val parsed = ICalParser.parse(res.ical, account.id, res.href)
 
-                        for (event in parsed.events) {
-                            val existing = db.calendarEventDao().getByUid(event.uid, account.id)
-                            val personId = if (
-                                event.organizerEmail.isNotBlank()
-                                && existing?.personIds.isNullOrBlank()
-                            ) {
-                                emailToPersonId[event.organizerEmail.lowercase()]?.id
-                            } else null
+                                for (event in parsed.events) {
+                                    val existing = db.calendarEventDao().getByUid(event.uid, account.id)
+                                    val personId = if (
+                                        event.organizerEmail.isNotBlank()
+                                        && existing?.personIds.isNullOrBlank()
+                                    ) {
+                                        emailToPersonId[event.organizerEmail.lowercase()]?.id
+                                    } else null
 
-                            db.calendarEventDao().insert(
-                                event.copy(
-                                    id           = existing?.id ?: 0,
-                                    etag         = res.etag,
-                                    calendarPath = res.href,
-                                    colorHex     = existing?.colorHex
-                                        ?.takeIf { it.isNotBlank() }
-                                        ?: account.colorHex,
-                                    personIds    = personId?.toString()
-                                        ?: (existing?.personIds ?: "")
-                                )
-                            )
-                            eventsImported++
-                        }
+                                    db.calendarEventDao().insert(
+                                        event.copy(
+                                            id           = existing?.id ?: 0,
+                                            etag         = res.etag,
+                                            calendarPath = res.href,
+                                            colorHex     = existing?.colorHex
+                                                ?.takeIf { it.isNotBlank() }
+                                                ?: account.colorHex,
+                                            personIds    = personId?.toString()
+                                                ?: (existing?.personIds ?: "")
+                                        )
+                                    )
+                                    eventsImported++
+                                }
 
-                        for (task in parsed.tasks) {
-                            val existing = db.taskDao().getByUid(task.uid, account.id)
-                            db.taskDao().insert(
-                                task.copy(
-                                    id           = existing?.id ?: 0,
-                                    etag         = res.etag,
-                                    calendarPath = res.href
-                                )
-                            )
-                            tasksImported++
+                                for (task in parsed.tasks) {
+                                    val existing = db.taskDao().getByUid(task.uid, account.id)
+                                    db.taskDao().insert(
+                                        task.copy(
+                                            id           = existing?.id ?: 0,
+                                            etag         = res.etag,
+                                            calendarPath = res.href
+                                        )
+                                    )
+                                    tasksImported++
+                                }
+                            }
                         }
                     }
                 }

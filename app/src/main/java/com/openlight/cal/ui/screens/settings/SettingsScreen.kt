@@ -50,7 +50,6 @@ fun SettingsScreen(
     val wallMode     by viewModel.wallMode.collectAsState()
     val wallKeepOn   by viewModel.wallKeepOn.collectAsState()
     val accounts     by viewModel.accounts.collectAsState()
-    val syncStatus   by viewModel.syncStatus.collectAsState()
     val isSyncing    by viewModel.isSyncing.collectAsState()
 
     var showAddAccount by remember { mutableStateOf(false) }
@@ -89,15 +88,9 @@ fun SettingsScreen(
             onClick = { showAddAccount = true }
         )
 
-        if (syncStatus != null) {
-            Text(
-                text     = syncStatus!!,
-                style    = MaterialTheme.typography.bodySmall,
-                color    = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            )
-        }
-
+        // syncStatus duplicate removed — each AccountRow already shows
+        // "Syncing…" or last-sync time inline. The separate status text
+        // below the accounts section was redundant.
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         // ── APPEARANCE ────────────────────────────────────────
