@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openlight.cal.HearthboardApp
 import com.openlight.cal.data.model.*
+import com.openlight.cal.ui.components.PersonFilterRow
 import com.openlight.cal.ui.theme.LocalWallMode
 import com.openlight.cal.ui.viewmodel.CalendarViewModel
 import com.openlight.cal.ui.viewmodel.TaskViewModel
@@ -80,6 +82,8 @@ fun HomeScreen(
         }.sortedBy { it.startMs }
     }
 
+    val personFilterId by calVm.personFilter.collectAsState()
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -87,6 +91,18 @@ fun HomeScreen(
         contentPadding = PaddingValues(bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // ── Profile strip ──────────────────────────────────────
+        if (people.isNotEmpty()) {
+            item {
+                PersonFilterRow(
+                    people     = people,
+                    selectedId = personFilterId,
+                    onSelect   = calVm::setPersonFilter,
+                    modifier   = Modifier.padding(vertical = 4.dp)
+                )
+            }
+        }
+
         // ── Week strip ────────────────────────────────────────
         item {
             WeekStrip(
@@ -414,7 +430,7 @@ private fun ListRow(list: CheckList) {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    Icons.Default.List, null,
+                    Icons.AutoMirrored.Filled.List, null,
                     tint = Color.White, modifier = Modifier.size(18.dp)
                 )
             }

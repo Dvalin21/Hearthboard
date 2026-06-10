@@ -73,15 +73,6 @@
                 android:value="androidx.startup" />
         </provider>
 
-        <!-- Boot receiver to reschedule sync -->
-        <receiver
-            android:name=".data.sync.BootReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
-
         <!-- Homescreen widget -->
         <receiver
             android:name=".ui.widget.CalendarWidget"

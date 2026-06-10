@@ -97,6 +97,8 @@ data class Task(
     val description: String = "",
     val assignedPersonId: Long = 0L,    // 0 = everyone
     val dueMs: Long? = null,
+    val startMs: Long? = null,          // scheduled start for profile-column timeline
+    val endMs: Long? = null,            // scheduled end for profile-column timeline
     val isCompleted: Boolean = false,
     val completedMs: Long? = null,
     val priority: TaskPriority = TaskPriority.NORMAL,

@@ -25,7 +25,10 @@ import androidx.window.core.layout.WindowWidthSizeClass
 import com.openlight.cal.HearthboardApp
 import com.openlight.cal.ui.components.ConnectivityBanner
 import com.openlight.cal.ui.screens.calendar.CalendarScreen
+import com.openlight.cal.ui.screens.calendar.EntryMethod
 import com.openlight.cal.ui.screens.calendar.EventEditDialog
+import com.openlight.cal.ui.screens.calendar.EventEntryMethodDialog
+import androidx.compose.ui.platform.LocalContext
 import com.openlight.cal.ui.screens.chores.ChoresScreen
 import com.openlight.cal.ui.screens.home.HomeScreen
 import com.openlight.cal.ui.screens.lists.ListsScreen
@@ -377,8 +380,29 @@ fun HearthboardNavHost(app: HearthboardApp) {
         }
     }
 
+    // ── Entry method picker (§5.4) for new events ──────────
+    // Editing always goes straight to the form.
+    var entryMethod by remember { mutableStateOf<EntryMethod?>(null) }
+    val ctx = LocalContext.current
+
+    if (showAddEvent && editEvent == null && entryMethod == null) {
+        EventEntryMethodDialog(
+            onSelect = { method ->
+                when (method) {
+                    EntryMethod.TYPE -> entryMethod = EntryMethod.TYPE
+                    else -> android.widget.Toast.makeText(
+                        ctx,
+                        "${method.name} entry coming soon — use Type for now",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            },
+            onDismiss = { calVm.hideAddEvent() }
+        )
+    }
+
     // ── Global Add/Edit Event Sheet ───────────────────────────
-    if (showAddEvent || editEvent != null) {
+    if ((showAddEvent && entryMethod == EntryMethod.TYPE) || editEvent != null) {
         EventEditDialog(
             event            = editEvent,
             people           = people,
@@ -388,7 +412,10 @@ fun HearthboardNavHost(app: HearthboardApp) {
                 calVm.saveEvent(event, accountId)
             },
             onDelete         = if (editEvent != null) {{ calVm.deleteEvent(it) }} else null,
-            onDismiss        = { calVm.hideAddEvent() }
+            onDismiss        = {
+                calVm.hideAddEvent()
+                entryMethod = null
+            }
         )
     }
 }

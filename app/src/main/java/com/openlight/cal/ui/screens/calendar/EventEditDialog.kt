@@ -486,6 +486,99 @@ private fun TimePickerAlert(
     )
 }
 
+// ─────────────────────────────────────────────────────────────
+// §5.4 Entry method picker — Type / Photo / Talk / Email
+// ─────────────────────────────────────────────────────────────
+enum class EntryMethod { TYPE, PHOTO, TALK, EMAIL }
+
+/**
+ * Skylight-style entry picker shown before the event edit form
+ * for new events. Type opens the keyboard form; Photo/Talk/Email
+ * show a snackbar for now until those engines are implemented.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EventEntryMethodDialog(
+    onSelect: (EntryMethod) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(Icons.Default.AddCircleOutline, null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp))
+        },
+        title = { Text("New Event") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "How would you like to add this event?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                EntryMethodButton(
+                    icon  = Icons.Default.Keyboard,
+                    label = "Type",
+                    desc  = "Enter event details manually",
+                    onClick = { onSelect(EntryMethod.TYPE) }
+                )
+                EntryMethodButton(
+                    icon  = Icons.Default.CameraAlt,
+                    label = "Photo",
+                    desc  = "Snap a flyer or notice",
+                    onClick = { onSelect(EntryMethod.PHOTO) }
+                )
+                EntryMethodButton(
+                    icon  = Icons.Default.Mic,
+                    label = "Talk",
+                    desc  = "Use voice to describe the event",
+                    onClick = { onSelect(EntryMethod.TALK) }
+                )
+                EntryMethodButton(
+                    icon  = Icons.Default.Email,
+                    label = "Email",
+                    desc  = "Forward an invitation",
+                    onClick = { onSelect(EntryMethod.EMAIL) }
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun EntryMethodButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    desc: String,
+    onClick: () -> Unit
+) {
+    OutlinedCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(28.dp))
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(label, style = MaterialTheme.typography.bodyLarge)
+                Text(desc, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
 // Shim to let EventEditDialog use ICalParser.generateUid without full import path collision
 private object ICalParser {
     fun generateUid() = com.openlight.cal.data.sync.ICalParser.generateUid()

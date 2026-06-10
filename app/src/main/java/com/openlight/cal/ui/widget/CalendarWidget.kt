@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.openlight.cal.ui.widget
 
 import android.appwidget.AppWidgetManager

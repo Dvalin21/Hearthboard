@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.openlight.cal.ui.screens.lists
 
 import androidx.compose.animation.*
@@ -10,6 +8,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -58,7 +58,7 @@ fun ListsScreen(
                 if (allLists.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.List, null, modifier = Modifier.size(64.dp),
+                            Icon(Icons.AutoMirrored.Filled.List, null, modifier = Modifier.size(64.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(16.dp))
                             Text("No lists yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -135,7 +135,7 @@ private fun ListCard(
                     .background(color, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.List, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                Icon(Icons.AutoMirrored.Filled.List, null, tint = Color.White, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(16.dp))
             Text(
@@ -174,7 +174,7 @@ private fun ListDetailScreen(
                             modifier = Modifier.size(28.dp).background(listColor, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.List, null, tint = Color.White,
+                            Icon(Icons.AutoMirrored.Filled.List, null, tint = Color.White,
                                 modifier = Modifier.size(16.dp))
                         }
                         Spacer(Modifier.width(10.dp))
@@ -183,7 +183,7 @@ private fun ListDetailScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 },
                 actions = {

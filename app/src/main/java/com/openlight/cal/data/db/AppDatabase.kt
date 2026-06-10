@@ -20,7 +20,7 @@ import com.openlight.cal.data.model.*
         RedeemedReward::class,
         Recipe::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -44,7 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "openlight.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .build()
                     .also { INSTANCE = it }
             }
@@ -99,6 +99,13 @@ abstract class AppDatabase : RoomDatabase() {
             """.trimIndent())
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_redeemed_personId ON redeemed_rewards(personId)")
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_redeemed_redeemedAtMs ON redeemed_rewards(redeemedAtMs)")
+        }
+
+        private val MIGRATION_7_8 = Migration(7, 8) { db ->
+            // Task schedule start/end times for profile-column timeline.
+            // Nullable INTEGER — tasks without a schedule remain null.
+            db.execSQL("ALTER TABLE tasks ADD COLUMN startMs INTEGER")
+            db.execSQL("ALTER TABLE tasks ADD COLUMN endMs INTEGER")
         }
 
         private val MIGRATION_6_7 = Migration(6, 7) { db ->

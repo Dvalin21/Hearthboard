@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
@@ -30,6 +31,7 @@ import com.openlight.cal.ui.components.*
 import com.openlight.cal.ui.theme.LocalWallMode
 import com.openlight.cal.ui.theme.WallModeState
 import com.openlight.cal.ui.viewmodel.CalendarViewModel
+import kotlinx.coroutines.delay
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle as JTextStyle
@@ -219,15 +221,30 @@ fun MonthView(
         }
     }
 
-    // Group events by their local date ONCE, instead of re-filtering
-    // (and re-converting startMs → LocalDate) for every one of the 42
-    // grid cells on every recomposition. On a calendar with ~200 events
-    // this drops 8,400 conversions per recompose to 200.
-    val eventsByDay: Map<LocalDate, List<CalendarEvent>> = remember(events) {
-        val zone = ZoneId.systemDefault()
-        events.groupBy { ev ->
+    // Split events into single-day (event chips) and multi-day (span bars).
+    // Multi-day events span 2+ days and render as continuous colored bars.
+    val zone = ZoneId.systemDefault()
+    val singleDayEvents = remember(events) {
+        events.filter { ev ->
+            val startDate = Instant.ofEpochMilli(ev.startMs).atZone(zone).toLocalDate()
+            val endDate   = Instant.ofEpochMilli(ev.endMs).atZone(zone).toLocalDate()
+            java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) < 1
+        }
+    }
+
+    // Group single-day events by their local date ONCE, instead of
+    // re-filtering (and re-converting startMs → LocalDate) for every
+    // one of the 42 grid cells on every recomposition. On a calendar
+    // with ~200 events this drops 8,400 conversions per recompose to 200.
+    val eventsByDay: Map<LocalDate, List<CalendarEvent>> = remember(singleDayEvents) {
+        singleDayEvents.groupBy { ev ->
             Instant.ofEpochMilli(ev.startMs).atZone(zone).toLocalDate()
         }
+    }
+
+    // Multi-day event spans for continuous bars
+    val multiDaySpans = remember(events, gridStart) {
+        buildMultiDaySpans(gridStart, events, people)
     }
 
     // Today's column index (Mon=0 … Sun=6) for the Skylight-style
@@ -272,6 +289,8 @@ fun MonthView(
                     val isSelected     = day == selectedDate
                     val isTodayCol     = dow == todayCol
                     val dayEvents      = eventsByDay[day].orEmpty()
+                    val cellOffset     = week * 7 + dow
+                    val cellMultiDay   = multiDaySpans[cellOffset].orEmpty()
 
                     DayCell(
                         day            = day,
@@ -280,6 +299,7 @@ fun MonthView(
                         isSelected     = isSelected,
                         isTodayColumn  = isTodayCol,
                         events         = dayEvents,
+                        multiDaySpans  = cellMultiDay,
                         forecasts      = forecasts,
                         people         = people,
                         onClick        = { onDayClick(day) },
@@ -300,6 +320,7 @@ private fun DayCell(
     isSelected: Boolean,
     isTodayColumn: Boolean,
     events: List<CalendarEvent>,
+    multiDaySpans: List<MultiDaySpan> = emptyList(),
     forecasts: Map<LocalDate, DailyForecast> = emptyMap(),
     people: List<Person>,
     onClick: () -> Unit,
@@ -375,9 +396,45 @@ private fun DayCell(
 
         Spacer(Modifier.height(2.dp))
 
-        // Skylight-style event chips: full-color rounded bubble with
-        // white text showing "H:MM Title". The person/profile color
-        // fills the background. An orange dot marks today's date.
+        // ── Multi-day event bars (§5.2.3) ──────────────────
+        // Colored bars spanning their range at the top of each
+        // spanned day cell. First-day shows title, middle shows
+        // continuation fill, last shows subtle end indicator.
+        multiDaySpans.forEach { span ->
+            val barLabel = when {
+                span.isStart && span.isEnd -> span.event.title // single-day (shouldn't happen but handle)
+                span.isStart               -> span.event.title + " ›"
+                span.isEnd                 -> "◂ " + span.event.title
+                else                       -> "" // middle — just the color bar
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(chipFontSize.value.dp + 4.dp)
+                    .padding(vertical = 1.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(span.color)
+                    .clickable { onEventClick(span.event) }
+                    .semantics {
+                        this[SemanticsProperties.Role] = Role.Button
+                        contentDescription = "Multi-day: ${span.event.title}"
+                    }
+                    .padding(horizontal = 3.dp, vertical = 1.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                if (barLabel.isNotBlank()) {
+                    Text(
+                        text      = barLabel,
+                        fontSize  = chipFontSize,
+                        color     = Color.White,
+                        maxLines  = 1,
+                        overflow  = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        // ── Single-day event chips ─────────────────────────
         events.take(maxVisible).forEach { event ->
             val chipColor = eventColor(event, people)
             val timeStr = if (!event.isAllDay) {
@@ -386,7 +443,7 @@ private fun DayCell(
                     .toLocalTime()
                     .format(DateTimeFormatter.ofPattern("h:mm a"))
             } else null
-            val loc = if (event.location.isNotBlank()) ", at ${event.location}" else ""
+            val loc = if (event.location.isNotBlank()) ", at ${event.location}" else event.location
             // Pick white or dark text depending on chip luminance
             val luma = 0.299 * chipColor.red + 0.587 * chipColor.green + 0.114 * chipColor.blue
             val chipText = if (luma > 0.5) Color(0xFF1F2A36) else Color.White
@@ -446,6 +503,15 @@ fun WeekView(
     val hourRange = if (wall.active) 6..23 else 0..23
     val hourCount = hourRange.count()
 
+    // ── Orange time bar: current time, updates every 30s ──────
+    var now by remember { mutableStateOf(LocalTime.now()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000)
+            now = LocalTime.now()
+        }
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
         // Day headers
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
@@ -494,20 +560,81 @@ fun WeekView(
         }
         HorizontalDivider()
 
+        // ── All-day event strip ─────────────────────────────
+        val zone = ZoneId.systemDefault()
+        val allDayByDay = remember(events, weekStart) {
+            val weekDays = (0..6).map { weekStart.plusDays(it.toLong()) }
+            val result = mutableMapOf<LocalDate, MutableList<CalendarEvent>>()
+            events.filter { it.isAllDay }.forEach { event ->
+                val startDate = Instant.ofEpochMilli(event.startMs).atZone(zone).toLocalDate()
+                val endDate   = Instant.ofEpochMilli(event.endMs).atZone(zone).toLocalDate()
+                for (day in weekDays) {
+                    if (!day.isBefore(startDate) && day.isBefore(endDate)) {
+                        result.getOrPut(day) { mutableListOf() }.add(event)
+                    }
+                }
+            }
+            result
+        }
+        if (allDayByDay.isNotEmpty()) {
+            val maxPerDay = 2
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                Spacer(Modifier.width(48.dp))  // time gutter alignment
+                for (i in 0..6) {
+                    val day = weekStart.plusDays(i.toLong())
+                    Column(modifier = Modifier.weight(1f)) {
+                        val dayAllDay = allDayByDay[day].orEmpty()
+                        dayAllDay.take(maxPerDay).forEach { event ->
+                            val color = eventColor(event, people)
+                            Text(
+                                text      = event.title,
+                                fontSize  = 8.sp,
+                                color     = Color.White,
+                                maxLines  = 1,
+                                overflow  = TextOverflow.Ellipsis,
+                                modifier  = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 0.5.dp, vertical = 0.5.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(color)
+                                    .clickable { onEventClick(event) }
+                                    .padding(horizontal = 2.dp, vertical = 1.dp)
+                            )
+                        }
+                        if (dayAllDay.size > maxPerDay) {
+                            Text(
+                                "+${dayAllDay.size - maxPerDay}",
+                                fontSize  = 7.sp,
+                                color     = MaterialTheme.colorScheme.primary,
+                                modifier  = Modifier.padding(start = 2.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            HorizontalDivider(thickness = 0.5.dp)
+        }
+
         // Scrollable hour grid
         val scrollState = rememberScrollState()
         Row(modifier = Modifier.weight(1f).verticalScroll(scrollState)) {
-            // Hour labels
-            Column(modifier = Modifier.width(48.dp)) {
-                for (hour in hourRange) {
-                    Box(modifier = Modifier.height(60.dp), contentAlignment = Alignment.TopEnd) {
-                        Text(
-                            text     = if (hour == 0) "" else "%02d:00".format(hour),
-                            style    = MaterialTheme.typography.labelSmall,
-                            color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(end = 8.dp, top = 2.dp)
-                        )
+            // Hour labels + orange time dot
+            Box(modifier = Modifier.width(48.dp).height(hourCount.dp * 60)) {
+                Column {
+                    for (hour in hourRange) {
+                        Box(modifier = Modifier.height(60.dp), contentAlignment = Alignment.TopEnd) {
+                            Text(
+                                text     = if (hour == 0) "" else "%02d:00".format(hour),
+                                style    = MaterialTheme.typography.labelSmall,
+                                color    = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(end = 8.dp, top = 2.dp)
+                            )
+                        }
                     }
+                }
+                // Orange dot at current time
+                if (now.hour in hourRange) {
+                    OrangeTimeDot(now = now)
                 }
             }
             // Day columns
@@ -570,6 +697,11 @@ fun WeekView(
                             )
                         }
                     }
+
+                    // Orange time line
+                    if (now.hour in hourRange) {
+                        OrangeTimeLine(now = now)
+                    }
                 }
             }
         }
@@ -596,6 +728,15 @@ fun DayView(
     val allDay  = dayEvents.filter { it.isAllDay }
     val timed   = dayEvents.filter { !it.isAllDay }
 
+    // ── Orange time bar: current time, updates every 30s ──────
+    var now by remember { mutableStateOf(LocalTime.now()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000)
+            now = LocalTime.now()
+        }
+    }
+
     // Wall mode: trim hour gutter to 06:00–23:00 to reduce vertical chrome
     val hourRange = if (wall.active) 6..23 else 0..23
     val hourCount = hourRange.count()
@@ -611,16 +752,22 @@ fun DayView(
 
         val scrollState = rememberScrollState()
         Row(modifier = Modifier.weight(1f).verticalScroll(scrollState)) {
-            Column(modifier = Modifier.width(48.dp)) {
-                for (hour in hourRange) {
-                    Box(modifier = Modifier.height(60.dp), contentAlignment = Alignment.TopEnd) {
-                        Text(
-                            text     = if (hour == 0) "" else "%02d:00".format(hour),
-                            style    = MaterialTheme.typography.labelSmall,
-                            color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(end = 8.dp, top = 2.dp)
-                        )
+            // Hour labels + orange dot
+            Box(modifier = Modifier.width(48.dp).height(hourCount.dp * 60)) {
+                Column {
+                    for (hour in hourRange) {
+                        Box(modifier = Modifier.height(60.dp), contentAlignment = Alignment.TopEnd) {
+                            Text(
+                                text     = if (hour == 0) "" else "%02d:00".format(hour),
+                                style    = MaterialTheme.typography.labelSmall,
+                                color    = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(end = 8.dp, top = 2.dp)
+                            )
+                        }
                     }
+                }
+                if (now.hour in hourRange) {
+                    OrangeTimeDot(now = now)
                 }
             }
 
@@ -663,6 +810,10 @@ fun DayView(
                             }
                         }
                     }
+                }
+                // Orange time line
+                if (now.hour in hourRange) {
+                    OrangeTimeLine(now = now)
                 }
             }
         }
@@ -740,6 +891,95 @@ fun AgendaView(
             item { Spacer(Modifier.height(8.dp)) }
         }
     }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Orange Time Bar — Skylight's current-time indicator
+// ─────────────────────────────────────────────────────────────
+@Composable
+private fun OrangeTimeDot(now: LocalTime) {
+    val offset = (now.hour * 60 + now.minute).dp
+    Box(
+        modifier = Modifier
+            .offset(y = offset)
+            .offset(x = (-4).dp)
+            .size(10.dp)
+            .clip(CircleShape)
+            .background(Color(0xFFE07B39))
+            .zIndex(10f)
+    )
+}
+
+@Composable
+private fun OrangeTimeLine(now: LocalTime) {
+    val offset = (now.hour * 60 + now.minute).dp
+    Box(
+        modifier = Modifier
+            .offset(y = offset)
+            .fillMaxWidth()
+            .height(2.dp)
+            .background(Color(0xFFE07B39))
+            .zIndex(10f)
+    )
+}
+
+// ─────────────────────────────────────────────────────────────
+// Multi-day event span — used by MonthView for §5.2.3 bars
+// ─────────────────────────────────────────────────────────────
+private data class MultiDaySpan(
+    val event: CalendarEvent,
+    val color: Color,
+    /** True if this cell is the start of the span */
+    val isStart: Boolean,
+    /** True if this cell is the end of the span */
+    val isEnd: Boolean
+)
+
+/**
+ * Build a map of day offset → list of MultiDaySpan for every multi-day
+ * event visible in the month grid. Events that span 0 days (same-day)
+ * are excluded — they render as normal chips.
+ *
+ * @param gridStart Monday of the week containing the 1st of the month
+ * @param events    All events visible in the month
+ * @param people    People list for color resolution
+ * @param gridDays  Total grid cells (42 for 6-week grid)
+ */
+private fun buildMultiDaySpans(
+    gridStart: LocalDate,
+    events: List<CalendarEvent>,
+    people: List<Person>,
+    gridDays: Int = 42
+): Map<Int, List<MultiDaySpan>> {
+    val zone = ZoneId.systemDefault()
+    val spans = mutableMapOf<Int, MutableList<MultiDaySpan>>()
+
+    events.forEach { event ->
+        val startDate = Instant.ofEpochMilli(event.startMs).atZone(zone).toLocalDate()
+        val endDate   = Instant.ofEpochMilli(event.endMs).atZone(zone).toLocalDate()
+        val dayCount  = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate)
+
+        // Only multi-day events
+        if (dayCount < 1) return@forEach
+
+        val gridStartOffset = java.time.temporal.ChronoUnit.DAYS.between(gridStart, startDate).toInt()
+        val gridEndOffset   = java.time.temporal.ChronoUnit.DAYS.between(gridStart, endDate).toInt()
+
+        // Clamp to visible grid
+        val firstCell = gridStartOffset.coerceIn(0, gridDays - 1)
+        val lastCell  = gridEndOffset.coerceIn(0, gridDays - 1)
+
+        val color = eventColor(event, people)
+
+        for (cell in firstCell..lastCell) {
+            val isStart = cell == firstCell
+            val isEnd   = cell == lastCell
+            spans.getOrPut(cell) { mutableListOf() }
+                .add(MultiDaySpan(event = event, color = color, isStart = isStart, isEnd = isEnd))
+        }
+    }
+
+    return spans
 }
 
 // ─────────────────────────────────────────────────────────────
