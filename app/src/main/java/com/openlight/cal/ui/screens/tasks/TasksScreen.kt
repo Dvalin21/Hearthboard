@@ -18,13 +18,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openlight.cal.data.model.*
 import com.openlight.cal.ui.components.*
-import com.openlight.cal.ui.viewmodel.TaskTypeFilter
 import com.openlight.cal.ui.viewmodel.TaskViewModel
 import java.time.*
 import java.time.format.DateTimeFormatter
@@ -47,7 +45,6 @@ fun TasksScreen(
     val tasks       by viewModel.filteredTasks.collectAsState()
     val people      by viewModel.people.collectAsState()
     val personFilter by viewModel.selectedPersonFilter.collectAsState()
-    val typeFilter   by viewModel.selectedTypeFilter.collectAsState()
 
     var showAddTask by remember { mutableStateOf(false) }
     var editTask    by remember { mutableStateOf<Task?>(null) }
@@ -112,22 +109,6 @@ fun TasksScreen(
                 }
             }
 
-            // ── Type filter row (All / Tasks / Chores) ───
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                TaskTypeFilter.entries.forEach { type ->
-                    FilterChip(
-                        selected = typeFilter == type,
-                        onClick  = { viewModel.setTypeFilter(type) },
-                        label = { Text(type.label, style = MaterialTheme.typography.labelMedium) }
-                    )
-                }
-            }
-
             // Person filter row (all modes)
             if (people.size > 1) {
                 PersonFilterRow(
@@ -178,31 +159,7 @@ fun TasksScreen(
 }
 
 // ═════════════════════════════════════════════════════════════
-// Time-of-day categories (§4)
-// ═════════════════════════════════════════════════════════════
-private enum class TimeCategory { MORNING, AFTERNOON, EVENING, ANYTIME }
-
-private val TimeCategory.label: String get() = when (this) {
-    TimeCategory.MORNING   -> "Morning"
-    TimeCategory.AFTERNOON -> "Afternoon"
-    TimeCategory.EVENING   -> "Evening"
-    TimeCategory.ANYTIME   -> "Any Time"
-}
-
-/** Infer time-of-day from dueMs or startMs. */
-private fun Task.timeCategory(): TimeCategory {
-    val ms = dueMs ?: startMs ?: return TimeCategory.ANYTIME
-    val cal = java.util.Calendar.getInstance().apply { timeInMillis = ms }
-    val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
-    return when {
-        hour < 12 -> TimeCategory.MORNING
-        hour < 17 -> TimeCategory.AFTERNOON
-        else      -> TimeCategory.EVENING
-    }
-}
-
-// ═════════════════════════════════════════════════════════════
-// View: LIST  — per-profile Task Box (§4)
+// View: LIST  (original flat list)
 // ═════════════════════════════════════════════════════════════
 @Composable
 private fun ListView(
@@ -235,302 +192,29 @@ private fun ListView(
             modifier       = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
-            // ── 1. Up for Grabs (unassigned active tasks) ─────
-            val upForGrabs = active.filter { it.assignedPersonId == 0L }
-            if (upForGrabs.isNotEmpty()) {
-                item(key = "up_for_grabs_header") {
-                    TaskBoxHeader(person = null, taskCount = upForGrabs.size)
-                }
-                items(upForGrabs, key = { "ug_${it.id}" }) { task ->
-                    TaskBoxCard(
-                        task       = task,
-                        person     = null,
-                        onToggle   = { viewModel.toggleComplete(task) },
-                        onEdit     = { onEdit(task) },
-                        onSnooze   = { viewModel.snoozeTask(task) },
-                        onPostpone = { viewModel.postponeTask(task) },
-                        onDelete   = { viewModel.deleteTask(task) }
-                    )
-                }
-            }
-
-            // ── 2. Per-profile Task Box sections ──────────────
-            val profilePeople = people.filter { !it.isDefault }
-            profilePeople.forEach { person ->
-                val ptasks = active.filter { it.assignedPersonId == person.id }
-                if (ptasks.isEmpty()) return@forEach
-
-                item(key = "hdr_${person.id}") {
-                    TaskBoxHeader(person = person, taskCount = ptasks.size)
-                }
-
-                // Morning
-                val morning = ptasks.filter { it.timeCategory() == TimeCategory.MORNING }
-                if (morning.isNotEmpty()) {
-                    item(key = "am_${person.id}") { TimeCategoryLabel(TimeCategory.MORNING) }
-                    items(morning, key = { "t_${it.id}" }) { task ->
-                        TaskBoxCard(task, person,
-                            onToggle   = { viewModel.toggleComplete(task) },
-                            onEdit     = { onEdit(task) },
-                            onSnooze   = { viewModel.snoozeTask(task) },
-                            onPostpone = { viewModel.postponeTask(task) },
-                            onDelete   = { viewModel.deleteTask(task) }
-                        )
-                    }
-                }
-
-                // Afternoon
-                val afternoon = ptasks.filter { it.timeCategory() == TimeCategory.AFTERNOON }
-                if (afternoon.isNotEmpty()) {
-                    item(key = "pm_${person.id}") { TimeCategoryLabel(TimeCategory.AFTERNOON) }
-                    items(afternoon, key = { "t_${it.id}" }) { task ->
-                        TaskBoxCard(task, person,
-                            onToggle   = { viewModel.toggleComplete(task) },
-                            onEdit     = { onEdit(task) },
-                            onSnooze   = { viewModel.snoozeTask(task) },
-                            onPostpone = { viewModel.postponeTask(task) },
-                            onDelete   = { viewModel.deleteTask(task) }
-                        )
-                    }
-                }
-
-                // Evening
-                val evening = ptasks.filter { it.timeCategory() == TimeCategory.EVENING }
-                if (evening.isNotEmpty()) {
-                    item(key = "eve_${person.id}") { TimeCategoryLabel(TimeCategory.EVENING) }
-                    items(evening, key = { "t_${it.id}" }) { task ->
-                        TaskBoxCard(task, person,
-                            onToggle   = { viewModel.toggleComplete(task) },
-                            onEdit     = { onEdit(task) },
-                            onSnooze   = { viewModel.snoozeTask(task) },
-                            onPostpone = { viewModel.postponeTask(task) },
-                            onDelete   = { viewModel.deleteTask(task) }
-                        )
-                    }
-                }
-
-                // Any time (no dueMs or startMs)
-                val anytime = ptasks.filter { it.timeCategory() == TimeCategory.ANYTIME }
-                if (anytime.isNotEmpty()) {
-                    item(key = "any_${person.id}") { TimeCategoryLabel(TimeCategory.ANYTIME) }
-                    items(anytime, key = { "t_${it.id}" }) { task ->
-                        TaskBoxCard(task, person,
-                            onToggle   = { viewModel.toggleComplete(task) },
-                            onEdit     = { onEdit(task) },
-                            onSnooze   = { viewModel.snoozeTask(task) },
-                            onPostpone = { viewModel.postponeTask(task) },
-                            onDelete   = { viewModel.deleteTask(task) }
-                        )
-                    }
-                }
-            }
-
-            // ── 3. Completed section ──────────────────────────
-            if (completed.isNotEmpty()) {
-                item(key = "completed_header") {
-                    SectionHeader("Completed  •  ${completed.size}")
-                }
-                items(completed, key = { "c_${it.id}" }) { task ->
+            if (active.isNotEmpty()) {
+                item { SectionHeader("Active  •  ${active.size}") }
+                items(active, key = { it.id }) { task ->
                     val person = people.find { it.id == task.assignedPersonId }
-                    TaskBoxCard(
-                        task       = task,
-                        person     = person,
-                        onToggle   = { viewModel.toggleComplete(task) },
-                        onEdit     = { onEdit(task) },
-                        onSnooze   = { viewModel.snoozeTask(task) },
-                        onPostpone = { viewModel.postponeTask(task) },
-                        onDelete   = { viewModel.deleteTask(task) }
+                    TaskItem(
+                        task     = task,
+                        person   = person,
+                        onToggle = { viewModel.toggleComplete(task) },
+                        onDelete = { viewModel.deleteTask(task) }
                     )
-                }
-            }
-        }
-    }
-}
-
-// ── Task Box section header ──────────────────────────────────
-@Composable
-private fun TaskBoxHeader(person: Person?, taskCount: Int) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (person != null) {
-            val color = runCatching {
-                Color(android.graphics.Color.parseColor(person.colorHex))
-            }.getOrElse { Color.Gray }
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .background(color, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(person.initial, color = Color.White,
-                    fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            }
-            Spacer(Modifier.width(10.dp))
-            Text("Task Box", style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.width(6.dp))
-            Text("•", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.width(6.dp))
-            Text(person.name, style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold)
-        } else {
-            Icon(Icons.Default.Group, null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Up for Grabs", style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold)
-        }
-        Spacer(Modifier.weight(1f))
-        Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            shape = RoundedCornerShape(10.dp)
-        ) {
-            Text("$taskCount",
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                style = MaterialTheme.typography.labelSmall)
-        }
-    }
-}
-
-// ── Time-of-day category label ───────────────────────────────
-@Composable
-private fun TimeCategoryLabel(category: TimeCategory) {
-    Text(
-        text  = category.label,
-        modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 2.dp),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-}
-
-// ── Task card for Task Box (with context menu) ───────────────
-@Composable
-private fun TaskBoxCard(
-    task: Task,
-    person: Person?,
-    onToggle: () -> Unit,
-    onEdit: () -> Unit,
-    onSnooze: () -> Unit,
-    onPostpone: () -> Unit,
-    onDelete: () -> Unit
-) {
-    val personColor = person?.let {
-        runCatching { Color(android.graphics.Color.parseColor(it.colorHex)) }
-            .getOrElse { Color.Gray }
-    }
-    var showMenu by remember { mutableStateOf(false) }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 3.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Color accent stripe
-            if (personColor != null) {
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .height(40.dp)
-                        .background(personColor, RoundedCornerShape(2.dp))
-                )
-                Spacer(Modifier.width(8.dp))
-            }
-
-            Checkbox(
-                checked  = task.isCompleted,
-                onCheckedChange = { onToggle() }
-            )
-            Spacer(Modifier.width(4.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text           = task.title,
-                    style          = MaterialTheme.typography.bodyMedium,
-                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null,
-                    color          = if (task.isCompleted)
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    else
-                        MaterialTheme.colorScheme.onSurface
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Due date
-                    task.dueMs?.let { dueMs ->
-                        val due = Instant.ofEpochMilli(dueMs)
-                            .atZone(ZoneId.systemDefault()).toLocalDate()
-                        val today = LocalDate.now()
-                        val isOverdue = due.isBefore(today) && !task.isCompleted
-                        Text(
-                            text  = due.format(DateTimeFormatter.ofPattern("MMM d")),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isOverdue) MaterialTheme.colorScheme.error
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // High priority
-                    if (task.priority == TaskPriority.HIGH) {
-                        if (task.dueMs != null) Spacer(Modifier.width(6.dp))
-                        Icon(Icons.Default.PriorityHigh, "High priority",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(14.dp))
-                    }
-
-                    // Stars
-                    if (task.starsEarned > 0) {
-                        Spacer(Modifier.width(6.dp))
-                        Text("⭐".repeat(task.starsEarned), fontSize = 11.sp)
-                    }
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
             }
 
-            // Context menu
-            Box {
-                IconButton(onClick = { showMenu = true }) {
-                    Icon(Icons.Default.MoreVert, "Task options",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                DropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Edit") },
-                        onClick = { showMenu = false; onEdit() },
-                        leadingIcon = { Icon(Icons.Default.Edit, null, Modifier.size(18.dp)) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Snooze 1h") },
-                        onClick = { showMenu = false; onSnooze() },
-                        leadingIcon = { Icon(Icons.Default.Snooze, null, Modifier.size(18.dp)) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Postpone 1d") },
-                        onClick = { showMenu = false; onPostpone() },
-                        leadingIcon = { Icon(Icons.Default.Schedule, null, Modifier.size(18.dp)) }
-                    )
-                    HorizontalDivider()
-                    DropdownMenuItem(
-                        text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                        onClick = { showMenu = false; onDelete() },
-                        leadingIcon = {
-                            Icon(Icons.Default.DeleteOutline, null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(18.dp))
-                        }
+            if (completed.isNotEmpty()) {
+                item { SectionHeader("Completed  •  ${completed.size}") }
+                items(completed, key = { it.id }) { task ->
+                    val person = people.find { it.id == task.assignedPersonId }
+                    TaskItem(
+                        task     = task,
+                        person   = person,
+                        onToggle = { viewModel.toggleComplete(task) },
+                        onDelete = { viewModel.deleteTask(task) }
                     )
                 }
             }

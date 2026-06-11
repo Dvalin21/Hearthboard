@@ -14,15 +14,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,7 +29,6 @@ import com.openlight.cal.data.contacts.BirthdayImporter
 import com.openlight.cal.data.contacts.ContactBirthday
 import com.openlight.cal.data.db.AppDatabase
 import com.openlight.cal.data.model.CalendarEvent
-import com.openlight.cal.data.model.Label
 import com.openlight.cal.data.model.Person
 import com.openlight.cal.data.model.PersonRole
 import com.openlight.cal.ui.components.ColorPickerGrid
@@ -49,12 +45,9 @@ fun PeopleScreen(
     modifier: Modifier = Modifier
 ) {
     val people by viewModel.people.collectAsState()
-    val labels by viewModel.labels.collectAsState()
     var showAdd   by remember { mutableStateOf(false) }
     var editPerson by remember { mutableStateOf<Person?>(null) }
-    var profilePerson by remember { mutableStateOf<Person?>(null) }
     var showBirthdayImport by remember { mutableStateOf(false) }
-    var showLabelsDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -64,9 +57,6 @@ fun PeopleScreen(
             TopAppBar(
                 title = { Text("People") },
                 actions = {
-                    IconButton(onClick = { showLabelsDialog = true }) {
-                        Icon(Icons.AutoMirrored.Filled.Label, "Labels")
-                    }
                     IconButton(onClick = { showAdd = true }) {
                         Icon(Icons.Default.PersonAdd, "Add person")
                     }
@@ -103,11 +93,9 @@ fun PeopleScreen(
             ) {
                 items(people, key = { it.id }) { person ->
                     PersonRow(
-                        person    = person,
-                        viewModel = viewModel,
-                        onClick   = { profilePerson = person },
-                        onEdit    = { editPerson = person },
-                        onDelete  = if (!person.isDefault) {
+                        person   = person,
+                        onEdit   = { editPerson = person },
+                        onDelete = if (!person.isDefault) {
                             { viewModel.deletePerson(person) }
                         } else null
                     )
@@ -135,8 +123,6 @@ fun PeopleScreen(
         PersonEditDialog(
             person    = editPerson,
             people    = people,
-            labels    = labels,
-            viewModel = viewModel,
             onSave    = { p ->
                 if (editPerson != null) viewModel.updatePerson(p)
                 else viewModel.savePerson(p)
@@ -144,26 +130,6 @@ fun PeopleScreen(
                 editPerson = null
             },
             onDismiss = { showAdd = false; editPerson = null }
-        )
-    }
-
-    // ── Label management dialog ──────────────────────────────
-    if (showLabelsDialog) {
-        LabelManagerDialog(
-            labels    = labels,
-            onSave    = viewModel::saveLabel,
-            onDelete  = viewModel::deleteLabel,
-            onDismiss = { showLabelsDialog = false }
-        )
-    }
-
-    // ── Profile sheet (tap person row) ─────────────────────────
-    if (profilePerson != null) {
-        PersonProfileSheet(
-            personId  = profilePerson!!.id,
-            viewModel = viewModel,
-            onEdit    = { editPerson = profilePerson },
-            onDismiss = { profilePerson = null }
         )
     }
 
@@ -185,8 +151,6 @@ fun PeopleScreen(
 @Composable
 private fun PersonRow(
     person: Person,
-    viewModel: PersonViewModel,
-    onClick: () -> Unit,
     onEdit: () -> Unit,
     onDelete: (() -> Unit)?
 ) {
@@ -194,14 +158,9 @@ private fun PersonRow(
         Color(android.graphics.Color.parseColor(person.colorHex))
     }.getOrElse { Color.Gray }
 
-    // Live label list for this person
-    val personLabels by viewModel.getLabelsForPersonFlow(person.id)
-        .collectAsStateWithLifecycle(initialValue = emptyList())
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -237,34 +196,6 @@ private fun PersonRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-
-            // Label chips
-            if (personLabels.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    personLabels.take(4).forEach { label ->
-                        val chipColor = runCatching {
-                            Color(android.graphics.Color.parseColor(label.colorHex))
-                        }.getOrElse { Color.Gray }
-                        Surface(
-                            color = chipColor.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text(
-                                text     = label.name,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                style    = MaterialTheme.typography.labelSmall,
-                                color    = chipColor
-                            )
-                        }
-                    }
-                    if (personLabels.size > 4) {
-                        Text("+${personLabels.size - 4}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
         }
 
         // Color swatch
@@ -293,8 +224,6 @@ private fun PersonRow(
 fun PersonEditDialog(
     person: Person?,
     people: List<Person> = emptyList(),
-    labels: List<Label> = emptyList(),
-    viewModel: PersonViewModel? = null,
     onSave: (Person) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -305,14 +234,6 @@ fun PersonEditDialog(
     var role      by remember { mutableStateOf(person?.role ?: PersonRole.PARENT) }
     var caregiverPersonId by remember { mutableStateOf(person?.caregiverPersonId ?: 0L) }
     var nameError by remember { mutableStateOf(false) }
-
-    // Current label assignments for this person (collected from viewModel)
-    var assignedLabels by remember { mutableStateOf(emptyList<Label>()) }
-    LaunchedEffect(person?.id) {
-        if (person != null && viewModel != null) {
-            viewModel.getLabelsForPersonFlow(person.id).collect { assignedLabels = it }
-        }
-    }
 
     val previewColor = runCatching {
         Color(android.graphics.Color.parseColor(colorHex))
@@ -450,41 +371,6 @@ fun PersonEditDialog(
                 }
             }
 
-            // ── Label assignment (only when editing an existing person) ──
-            if (person != null && labels.isNotEmpty()) {
-                Spacer(Modifier.height(16.dp))
-                Text("Labels", style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val currentLabels = assignedLabels
-                        labels.forEach { label ->
-                            val isAssigned = currentLabels.any { it.id == label.id }
-                            val chipColor = runCatching {
-                                Color(android.graphics.Color.parseColor(label.colorHex))
-                            }.getOrElse { Color.Gray }
-
-                            FilterChip(
-                                selected = isAssigned,
-                                onClick = {
-                                    if (isAssigned) {
-                                        viewModel?.unassignLabel(person.id, label.id)
-                                    } else {
-                                        viewModel?.assignLabel(person.id, label.id)
-                                    }
-                                },
-                                label = { Text(label.name) },
-                                leadingIcon = if (isAssigned)
-                                    { { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) } } else null,
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = chipColor.copy(alpha = 0.2f),
-                                    selectedLabelColor = chipColor
-                                )
-                            )
-                        }
-                    }
-                }
-
             Spacer(Modifier.height(20.dp))
 
             Text(
@@ -498,198 +384,6 @@ fun PersonEditDialog(
                 selectedHex = colorHex,
                 onSelect    = { colorHex = it }
             )
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Person Profile Sheet (§12)
-// ─────────────────────────────────────────────────────────────
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PersonProfileSheet(
-    personId: Long,
-    viewModel: PersonViewModel,
-    onEdit: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    // Live person data (reflects edits)
-    val people by viewModel.people.collectAsStateWithLifecycle()
-    val person = people.firstOrNull { it.id == personId } ?: return
-
-    // Labels for this person
-    val labels by viewModel.getLabelsForPersonFlow(personId)
-        .collectAsStateWithLifecycle(initialValue = emptyList())
-
-    // Stats
-    val openTasksCount by viewModel.getOpenTasksCountFlow(personId)
-        .collectAsStateWithLifecycle(initialValue = 0)
-    val balance by viewModel.getBalanceFlow(personId)
-        .collectAsStateWithLifecycle(initialValue = 0)
-
-    val color = runCatching {
-        Color(android.graphics.Color.parseColor(person.colorHex))
-    }.getOrElse { Color.Gray }
-
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 40.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Header row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = onDismiss) { Text("Close") }
-                Text("Profile", style = MaterialTheme.typography.titleMedium)
-                TextButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Edit")
-                }
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            // Large avatar
-            Box(
-                modifier = Modifier
-                    .size(96.dp)
-                    .background(color, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = person.initial,
-                    color = Color.White,
-                    fontSize = 42.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            // Name
-            Text(person.name, style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold)
-
-            Spacer(Modifier.height(4.dp))
-
-            // Role badge
-            Surface(
-                color = color.copy(alpha = 0.15f),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text(
-                    text = person.role.name.lowercase().replaceFirstChar { it.uppercase() },
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = color
-                )
-            }
-
-            // Email
-            if (person.email.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(person.email, style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-
-            // Caregiver
-            if (person.caregiverPersonId > 0L) {
-                Spacer(Modifier.height(4.dp))
-                val caregiverName = people.firstOrNull { it.id == person.caregiverPersonId }?.name
-                if (caregiverName != null) {
-                    Text("Managed by $caregiverName",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-
-            // Labels
-            if (labels.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    labels.forEach { label ->
-                        val lc = runCatching {
-                            Color(android.graphics.Color.parseColor(label.colorHex))
-                        }.getOrElse { Color.Gray }
-                        Surface(
-                            color = lc.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text(label.name,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = lc)
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            // Stats row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                StatCard(
-                    modifier = Modifier.weight(1f),
-                    value = openTasksCount.toString(),
-                    label = "Open Tasks",
-                    icon = Icons.Default.CheckCircle
-                )
-                StatCard(
-                    modifier = Modifier.weight(1f),
-                    value = balance.toString(),
-                    label = "Star Balance",
-                    icon = Icons.Default.Star,
-                    valueColor = if (balance >= 0) Color(0xFFFFC107) else MaterialTheme.colorScheme.error
-                )
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            // Edit action
-            OutlinedButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Edit, null, Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Edit Person")
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatCard(
-    modifier: Modifier = Modifier,
-    value: String,
-    label: String,
-    icon: ImageVector,
-    valueColor: Color = MaterialTheme.colorScheme.onSurface
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(icon, null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp))
-            Spacer(Modifier.height(8.dp))
-            Text(value, style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold, color = valueColor)
-            Text(label, style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -839,147 +533,4 @@ private fun BirthdayImportDialog(
             }
         }
     )
-}
-
-// ─────────────────────────────────────────────────────────────
-// Label Management Dialog (§11)
-// ─────────────────────────────────────────────────────────────
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun LabelManagerDialog(
-    labels: List<Label>,
-    onSave: (Label) -> Unit,
-    onDelete: (Label) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var editingLabel by remember { mutableStateOf<Label?>(null) }
-    var isCreating by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Manage Labels") },
-        text = {
-            Column(modifier = Modifier.heightIn(max = 400.dp)) {
-                // "Add label" button
-                OutlinedButton(
-                    onClick = {
-                        editingLabel = Label(name = "", colorHex = PersonColors.first())
-                        isCreating = true
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Add label")
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                if (labels.isEmpty()) {
-                    Text("No labels yet",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium)
-                } else {
-                    LazyColumn {
-                        items(labels) { label ->
-                            val chipColor = runCatching {
-                                Color(android.graphics.Color.parseColor(label.colorHex))
-                            }.getOrElse { Color.Gray }
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Color + name chip
-                                Surface(
-                                    color = chipColor.copy(alpha = 0.2f),
-                                    shape = RoundedCornerShape(6.dp),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(14.dp)
-                                                .background(chipColor, CircleShape)
-                                        )
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(label.name,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = chipColor)
-                                    }
-                                }
-
-                                IconButton(onClick = {
-                                    editingLabel = label
-                                    isCreating = false
-                                }) {
-                                    Icon(Icons.Default.Edit, "Edit",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp))
-                                }
-
-                                IconButton(onClick = { onDelete(label) }) {
-                                    Icon(Icons.Default.Delete, "Delete",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(20.dp))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Done") }
-        }
-    )
-
-    // Create/Edit label sub-dialog
-    if (editingLabel != null) {
-        var name by remember(editingLabel) {
-            mutableStateOf(editingLabel!!.name)
-        }
-        val previewColor = runCatching {
-            Color(android.graphics.Color.parseColor(editingLabel!!.colorHex))
-        }.getOrElse { Color(0xFF4CAF50) }
-
-        AlertDialog(
-            onDismissRequest = { editingLabel = null },
-            title = { Text(if (isCreating) "New Label" else "Edit Label") },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text("Label name") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Text("Color", style = MaterialTheme.typography.labelMedium)
-                    Spacer(Modifier.height(8.dp))
-                    ColorPickerGrid(
-                        selectedHex = editingLabel!!.colorHex,
-                        onSelect = { editingLabel = editingLabel!!.copy(colorHex = it) }
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (name.isNotBlank()) {
-                        onSave(editingLabel!!.copy(name = name.trim()))
-                        editingLabel = null
-                    }
-                }) { Text("Save") }
-            },
-            dismissButton = {
-                TextButton(onClick = { editingLabel = null }) { Text("Cancel") }
-            }
-        )
-    }
 }

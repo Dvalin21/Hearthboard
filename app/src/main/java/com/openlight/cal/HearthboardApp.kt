@@ -31,7 +31,6 @@ class HearthboardApp : Application() {
     val accountRepository: AccountRepository   by lazy { AccountRepository(database, encryptor) }
     val rewardRepository: RewardRepository     by lazy { RewardRepository(database) }
     val recipeRepository: RecipeRepository     by lazy { RecipeRepository(database) }
-    val labelRepository: LabelRepository       by lazy { LabelRepository(database) }
 
     override fun onCreate() {
         super.onCreate()

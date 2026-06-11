@@ -51,12 +51,4 @@ class RewardsViewModel(app: Application) : AndroidViewModel(app) {
     fun undoRedemption(redeemed: RedeemedReward) = viewModelScope.launch {
         rewardRepo.undoRedemption(redeemed)
     }
-
-    fun giveStars(personId: Long, amount: Int) = viewModelScope.launch {
-        rewardRepo.giveStars(personId, amount)
-    }
-
-    fun removeStars(personId: Long, amount: Int) = viewModelScope.launch {
-        rewardRepo.removeStars(personId, amount)
-    }
 }

@@ -1,10 +1,8 @@
 package com.openlight.cal.data.mealie
 
 import android.util.Log
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -113,47 +111,6 @@ class MealieApi(
             )
         } catch (e: Exception) {
             Log.e(TAG, "getRecipeDetail exception: ${e.message}")
-            null
-        }
-    }
-
-    /**
-     * Create a new recipe on the Mealie server.
-     * Returns the new recipe slug, or null on failure.
-     */
-    fun createRecipe(
-        name: String,
-        description: String,
-        ingredients: List<String>,
-        instructions: List<String>,
-        recipeYield: String,
-        totalTime: String
-    ): String? {
-        return try {
-            val body = JSONObject().apply {
-                put("name", name)
-                put("description", description)
-                put("recipeYield", recipeYield)
-                put("totalTime", totalTime)
-                put("recipeIngredient", JSONArray(ingredients))
-                put("recipeInstructions", JSONArray(instructions.map { i ->
-                    JSONObject().put("text", i)
-                }))
-            }
-            val url = "${serverUrl.trimEnd('/')}/api/recipes"
-            val req = Request.Builder()
-                .url(url)
-                .post(body.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-            val resp = client.newCall(req).execute()
-            if (!resp.isSuccessful) {
-                Log.e(TAG, "createRecipe failed: ${resp.code}")
-                return null
-            }
-            val json = JSONObject(resp.body?.string() ?: return null)
-            json.optString("slug").ifEmpty { null }
-        } catch (e: Exception) {
-            Log.e(TAG, "createRecipe exception: ${e.message}")
             null
         }
     }
