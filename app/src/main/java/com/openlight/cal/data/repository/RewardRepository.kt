@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.openlight.cal.data.db.AppDatabase
 import com.openlight.cal.data.model.RedeemedReward
 import com.openlight.cal.data.model.Reward
+import com.openlight.cal.data.model.Task
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -103,6 +104,37 @@ class RewardRepository(private val db: AppDatabase) {
 
     /** Allows parents to reverse an erroneous redemption. */
     suspend fun undoRedemption(redeemed: RedeemedReward) = redeemedDao.delete(redeemed)
+
+    // ── Manual Star Adjustment (admin) ───────────────────────
+    // We insert a completed task entry with the star delta so the
+    // existing balanceFlow (SUM of tasks.starsEarned - SUM of redeemed)
+    // picks it up automatically. The special title prefix "🌟" makes
+    // these entries visually distinct if they ever show in a task list.
+    companion object {
+        private const val STAR_ADJUST_TITLE = "\uD83C\uDF1F Star adjustment"
+    }
+
+    suspend fun giveStars(personId: Long, amount: Int) {
+        db.taskDao().insert(
+            Task(
+                title = "$STAR_ADJUST_TITLE (given)",
+                starsEarned = amount,
+                isCompleted = true,
+                assignedPersonId = personId
+            )
+        )
+    }
+
+    suspend fun removeStars(personId: Long, amount: Int) {
+        db.taskDao().insert(
+            Task(
+                title = "$STAR_ADJUST_TITLE (removed)",
+                starsEarned = -amount,  // negative to subtract
+                isCompleted = true,
+                assignedPersonId = personId
+            )
+        )
+    }
 
     // ── History ──────────────────────────────────────────────
     val historyFlow: Flow<List<RedeemedReward>> get() = redeemedDao.getHistoryFlow()

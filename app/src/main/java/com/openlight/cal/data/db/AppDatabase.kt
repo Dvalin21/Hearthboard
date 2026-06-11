@@ -18,9 +18,11 @@ import com.openlight.cal.data.model.*
         MealPlan::class,
         Reward::class,
         RedeemedReward::class,
-        Recipe::class
+        Recipe::class,
+        Label::class,
+        PersonLabel::class
     ],
-    version = 8,
+    version = 10,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -33,6 +35,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun rewardDao(): RewardDao
     abstract fun redeemedRewardDao(): RedeemedRewardDao
     abstract fun recipeDao(): RecipeDao
+    abstract fun labelDao(): LabelDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -44,7 +47,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "openlight.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                     .build()
                     .also { INSTANCE = it }
             }
@@ -106,6 +109,35 @@ abstract class AppDatabase : RoomDatabase() {
             // Nullable INTEGER — tasks without a schedule remain null.
             db.execSQL("ALTER TABLE tasks ADD COLUMN startMs INTEGER")
             db.execSQL("ALTER TABLE tasks ADD COLUMN endMs INTEGER")
+        }
+
+        private val MIGRATION_8_9 = Migration(8, 9) { db ->
+            // Reward renew-after-redemption toggle + optional profile assignment.
+            db.execSQL("ALTER TABLE rewards ADD COLUMN renewAfterRedeeming INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE rewards ADD COLUMN assignedPersonId INTEGER NOT NULL DEFAULT 0")
+        }
+
+        private val MIGRATION_9_10 = Migration(9, 10) { db ->
+            // Labels: color-coded categories for people + cross-reference table.
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS labels (
+                    id          INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    name        TEXT    NOT NULL,
+                    colorHex    TEXT    NOT NULL DEFAULT '#4CAF50',
+                    sortOrder   INTEGER NOT NULL DEFAULT 0
+                )
+            """.trimIndent())
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS person_labels (
+                    id        INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    personId  INTEGER NOT NULL,
+                    labelId   INTEGER NOT NULL,
+                    FOREIGN KEY (personId) REFERENCES people(id) ON DELETE CASCADE,
+                    FOREIGN KEY (labelId)  REFERENCES labels(id) ON DELETE CASCADE
+                )
+            """.trimIndent())
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_person_labels_personId ON person_labels(personId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_person_labels_labelId  ON person_labels(labelId)")
         }
 
         private val MIGRATION_6_7 = Migration(6, 7) { db ->

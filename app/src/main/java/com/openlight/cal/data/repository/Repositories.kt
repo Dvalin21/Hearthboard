@@ -1,6 +1,7 @@
 package com.openlight.cal.data.repository
 
 import com.openlight.cal.data.db.AppDatabase
+import com.openlight.cal.data.mealie.MealieApi
 import com.openlight.cal.data.model.*
 import com.openlight.cal.data.preferences.EncryptedPassword
 import com.openlight.cal.data.sync.CalDAVClient
@@ -260,4 +261,89 @@ class RecipeRepository(private val db: AppDatabase) {
         withContext(Dispatchers.IO) {
             db.recipeDao().delete(recipe)
         }
+
+    /**
+     * Push a local recipe to the Mealie server (one-way publish).
+     * On success the recipe's mealieId and mealieLastPushMs are updated.
+     * On failure the recipe is unchanged and the exception is returned.
+     */
+    suspend fun pushToMealie(recipe: Recipe, serverUrl: String, token: String): Result<Recipe> =
+        withContext(Dispatchers.IO) {
+            try {
+                val api = MealieApi(serverUrl, token)
+                val slug = api.createRecipe(
+                    name        = recipe.name,
+                    description = recipe.description,
+                    ingredients = parseRecipeJsonList(recipe.ingredientsJson),
+                    instructions = parseRecipeJsonList(recipe.instructionsJson),
+                    recipeYield  = if (recipe.servings > 0) "${recipe.servings} servings" else "",
+                    totalTime    = formatRecipeTime(recipe.prepTimeMinutes, recipe.cookTimeMinutes)
+                )
+                if (slug == null) {
+                    Result.failure(Exception("Mealie rejected the recipe"))
+                } else {
+                    val updated = recipe.copy(
+                        mealieId         = slug,
+                        mealieLastPushMs = System.currentTimeMillis(),
+                        updatedAtMs      = System.currentTimeMillis()
+                    )
+                    db.recipeDao().upsert(updated)
+                    Result.success(updated)
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+}
+
+private fun parseRecipeJsonList(json: String): List<String> {
+    return try {
+        val arr = org.json.JSONArray(json)
+        (0 until arr.length()).map { arr.getString(it) }
+    } catch (_: Exception) {
+        emptyList()
+    }
+}
+
+private fun formatRecipeTime(prepMin: Int, cookMin: Int): String {
+    val total = prepMin + cookMin
+    if (total <= 0) return ""
+    return if (total >= 60) {
+        "${total / 60}h ${total % 60}m"
+    } else {
+        "${total} minutes"
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// LABELS — §11 color-coded person categories
+// ─────────────────────────────────────────────────────────────
+class LabelRepository(private val db: AppDatabase) {
+
+    val labelsFlow: Flow<List<Label>> = db.labelDao().getAllFlow()
+
+    suspend fun getAll(): List<Label> = db.labelDao().getAll()
+
+    suspend fun save(label: Label): Long = db.labelDao().upsert(label)
+
+    suspend fun delete(label: Label) = db.labelDao().delete(label)
+
+    /** Get labels assigned to a specific person (Flow for reactive UI). */
+    fun getLabelsForPersonFlow(personId: Long): Flow<List<Label>> =
+        db.labelDao().getLabelsForPersonFlow(personId)
+
+    suspend fun getLabelsForPerson(personId: Long): List<Label> =
+        db.labelDao().getLabelsForPerson(personId)
+
+    suspend fun assignLabel(personId: Long, labelId: Long) =
+        db.labelDao().assignLabel(PersonLabel(personId = personId, labelId = labelId))
+
+    suspend fun unassignLabel(personId: Long, labelId: Long) =
+        db.labelDao().unassignLabel(personId, labelId)
+
+    suspend fun unassignAllLabels(personId: Long) =
+        db.labelDao().unassignAllLabels(personId)
+
+    suspend fun labelUsageCount(labelId: Long): Int =
+        db.labelDao().labelUsageCount(labelId)
 }

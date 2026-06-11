@@ -29,7 +29,6 @@ import com.openlight.cal.ui.screens.calendar.EntryMethod
 import com.openlight.cal.ui.screens.calendar.EventEditDialog
 import com.openlight.cal.ui.screens.calendar.EventEntryMethodDialog
 import androidx.compose.ui.platform.LocalContext
-import com.openlight.cal.ui.screens.chores.ChoresScreen
 import com.openlight.cal.ui.screens.home.HomeScreen
 import com.openlight.cal.ui.screens.lists.ListsScreen
 import com.openlight.cal.ui.screens.meals.MealsScreen
@@ -43,9 +42,7 @@ import com.openlight.cal.ui.screens.sleep.SleepScreen
 import com.openlight.cal.ui.screens.tasks.TasksScreen
 import com.openlight.cal.ui.viewmodel.*
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+
 
 // ─────────────────────────────────────────────────────────────
 // Screen definitions — Skylight Calendar tab order
@@ -67,7 +64,6 @@ sealed class Screen(
     object Lists    : Screen("lists",    "Lists",    Icons.AutoMirrored.Filled.List,             Icons.AutoMirrored.Outlined.List)
     object Sleep    : Screen("sleep",    "Sleep",    Icons.Filled.Bedtime,          Icons.Outlined.Bedtime)
     object People   : Screen("people",   "People",   Icons.Filled.Group,            Icons.Outlined.Group)
-    object Chores   : Screen("chores",   "Chores",   Icons.Filled.TaskAlt,          Icons.Outlined.TaskAlt)
     object Recipes  : Screen("recipes",  "Recipes",  Icons.Filled.RestaurantMenu,   Icons.Outlined.RestaurantMenu)
     object Settings : Screen("settings", "Settings", Icons.Filled.Settings,         Icons.Outlined.Settings)
 
@@ -76,13 +72,13 @@ sealed class Screen(
         val primary = listOf(Home, Calendar, Tasks, Rewards, Meals, Photos, Lists, Sleep)
 
         // Secondary items — below divider on left nav rail
-        val secondary = listOf(People, Chores, Recipes)
+        val secondary = listOf(People, Recipes)
 
         // Bottom nav items (compact/portrait) — first 4 visible, rest in "More"
         val bottomTabs = listOf(Home, Calendar, Tasks, Lists)
 
         // Items in the "More" bottom sheet on compact screens
-        val moreItems = listOf(Rewards, Meals, Photos, People, Chores, Recipes, Sleep, Settings)
+        val moreItems = listOf(Rewards, Meals, Photos, People, Recipes, Sleep, Settings)
 
         val all = primary + secondary + Settings
     }
@@ -178,27 +174,6 @@ fun HearthboardNavHost(app: HearthboardApp) {
             composable(Screen.Lists.route) {
                 ListsScreen(database = app.database)
             }
-            composable(Screen.Chores.route) {
-                ChoresScreen(
-                    database = app.database,
-                    people   = people,
-                    onComplete = { task ->
-                        CoroutineScope(Dispatchers.IO).launch {
-                            app.taskRepository.setCompleted(task.id, true)
-                        }
-                    },
-                    onSaveChore = { chore ->
-                        CoroutineScope(Dispatchers.IO).launch {
-                            app.taskRepository.saveTask(chore.copy(isChore = true, isLocalOnly = true))
-                        }
-                    },
-                    onDeleteChore = { chore ->
-                        CoroutineScope(Dispatchers.IO).launch {
-                            app.taskRepository.deleteTask(chore)
-                        }
-                    }
-                )
-            }
             composable(Screen.Meals.route) {
                 MealsScreen(database = app.database)
             }
@@ -210,6 +185,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
             }
             composable(Screen.Recipes.route) {
                 RecipesScreen(
+                    database         = app.database,
                     preferences      = app.preferences,
                     recipeRepository = app.recipeRepository,
                     onAddToMealPlan  = { /* TODO: add to meal planner */ }
