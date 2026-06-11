@@ -262,6 +262,8 @@ fun HearthboardNavHost(app: HearthboardApp) {
                 .size(48.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(bgColor)
+                .clickable { navigateTo(screen) }
+                .fillMaxWidth()
         ) {
             Icon(
                 imageVector = if (selected) screen.selectedIcon else screen.unselectedIcon,
