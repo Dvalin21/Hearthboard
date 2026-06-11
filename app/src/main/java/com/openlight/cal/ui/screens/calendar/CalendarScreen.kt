@@ -67,47 +67,60 @@ fun CalendarScreen(
     // Today's forecast for the top bar
     val todayForecast = forecasts[LocalDate.now()]
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
 
-        // ── Skylight-style AppHeader: avatar on left, date, weather ──
-        AppHeader(
-            date           = selectedDate,
-            temperature    = todayForecast?.let { "${it.iconChar}${it.tempHigh.toInt()}°" },
-            personInitial  = personInitial,
-            personColor    = personColor
-        )
-
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
-
-        // ── Calendar controls: view mode + nav + add ──────────
-        CalendarControls(
-            viewMode   = viewMode,
-            onViewMode = viewModel::setViewMode,
-            onPrev     = viewModel::navigatePrev,
-            onNext     = viewModel::navigateNext,
-            onToday    = viewModel::goToday,
-            onAdd      = onAddEvent
-        )
-
-        // ── Person filter ────────────────────────────────────
-        if (people.size > 1) {
-            PersonFilterRow(
-                people     = people,
-                selectedId = personFilterId,
-                onSelect   = viewModel::setPersonFilter,
-                modifier   = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            // ── Spec header: family name + time ──────────────────
+            CalendarHeader(
+                date        = selectedDate,
+                temperature = todayForecast?.let { "${it.iconChar}${it.tempHigh.toInt()}°" }
             )
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
+
+            // ── Calendar controls: view mode + nav ──────────────
+            CalendarControls(
+                viewMode   = viewMode,
+                onViewMode = viewModel::setViewMode,
+                onPrev     = viewModel::navigatePrev,
+                onNext     = viewModel::navigateNext,
+                onToday    = viewModel::goToday,
+                onAdd      = onAddEvent
+            )
+
+            // ── Person filter ────────────────────────────────────
+            if (people.size > 1) {
+                PersonFilterRow(
+                    people     = people,
+                    selectedId = personFilterId,
+                    onSelect   = viewModel::setPersonFilter,
+                    modifier   = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+
+            // ── Calendar body ────────────────────────────────────
+            Box(modifier = Modifier.weight(1f)) {
+                when (viewMode) {
+                    "MONTH"  -> MonthView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent)
+                    "WEEK"   -> WeekView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent, wall = wall)
+                    "DAY"    -> DayView(selectedDate, events, people, onEventClick = viewModel::editEvent, wall = wall)
+                    "AGENDA" -> AgendaView(events, people, viewModel::editEvent)
+                    else     -> MonthView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent)
+                }
+            }
         }
 
-        // ── Calendar body ────────────────────────────────────
-        Box(modifier = Modifier.weight(1f)) {
-            when (viewMode) {
-                "MONTH"  -> MonthView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent)
-                "WEEK"   -> WeekView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent, wall = wall)
-                "DAY"    -> DayView(selectedDate, events, people, onEventClick = viewModel::editEvent, wall = wall)
-                "AGENDA" -> AgendaView(events, people, viewModel::editEvent)
-                else     -> MonthView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent)
-            }
+        // ── Spec FAB: purple circle, white +, bottom-right ──────
+        FloatingActionButton(
+            onClick      = onAddEvent,
+            containerColor = Color(0xFF7C4DFF),
+            contentColor   = Color.White,
+            shape        = CircleShape,
+            modifier     = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 16.dp)
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "Add event")
         }
     }
 }
@@ -659,7 +672,7 @@ fun WeekView(
                             )
                         }
                     }
-                    // Events
+                    // Events (spec style: pastel bg, person badge, title+time)
                     dayEvents.forEach { event ->
                         val startHour = Instant.ofEpochMilli(event.startMs)
                             .atZone(ZoneId.systemDefault()).hour
@@ -669,18 +682,29 @@ fun WeekView(
                         val topOffset   = (startHour * 60 + startMin).dp
                         val heightDp    = (durationMin.toInt()).coerceAtMost(120).dp
 
-                        val color = eventColor(event, people)
+                        val strong = eventColor(event, people)
+                        val pastel = strong.copy(alpha = 0.18f)
+
+                        // Find person for badge
+                        val pid = event.personIds.split(",").firstOrNull { it.isNotBlank() }?.trim()
+                        val evPerson = pid?.let { id -> people.firstOrNull { it.id.toString() == id } }
+                        val badgeColor = evPerson?.let {
+                            runCatching { Color(android.graphics.Color.parseColor(it.colorHex)) }
+                                .getOrNull()?.copy(alpha = 0.85f) ?: strong
+                        } ?: strong
+                        val badgeInitial = evPerson?.initial ?: ""
+
                         val timeStr = Instant.ofEpochMilli(event.startMs)
                             .atZone(ZoneId.systemDefault()).toLocalTime()
                             .format(DateTimeFormatter.ofPattern("h:mm a"))
                         Box(
                             modifier = Modifier
                                 .offset(y = topOffset)
-                                .height(heightDp)
+                                .height(heightDp.coerceAtLeast(28.dp))
                                 .fillMaxWidth()
-                                .padding(1.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(color)
+                                .padding(horizontal = 1.dp, vertical = 1.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(pastel)
                                 .clickable { onEventClick(event) }
                                 .semantics {
                                     this[SemanticsProperties.Role] = Role.Button
@@ -689,12 +713,43 @@ fun WeekView(
                                 }
                                 .padding(4.dp)
                         ) {
-                            Text(
-                                text     = event.title,
-                                style    = MaterialTheme.typography.labelSmall,
-                                color    = Color.White,
-                                maxLines = 2
-                            )
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                // Person initial badge (top-right)
+                                if (badgeInitial.isNotEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.End)
+                                            .size(14.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(badgeColor),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            badgeInitial,
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(2.dp))
+                                // Time
+                                Text(
+                                    text     = timeStr.lowercase().replace(" ", ""),
+                                    fontSize = 10.sp,
+                                    color    = Color(0xFF6B7280),
+                                    maxLines = 1
+                                )
+                                // Title
+                                Text(
+                                    text     = event.title,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color    = Color(0xFF1F2937),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
 
@@ -980,6 +1035,55 @@ private fun buildMultiDaySpans(
     }
 
     return spans
+}
+
+// ─────────────────────────────────────────────────────────────
+// CalendarHeader — spec: "Miller Family" serif + time + temp
+// ─────────────────────────────────────────────────────────────
+@Composable
+private fun CalendarHeader(
+    date: LocalDate,
+    temperature: String?
+) {
+    val timeNow = remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        while (true) {
+            val now = LocalDateTime.now()
+            timeNow.value = now.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
+            val msToNextMinute = 60_000L - now.second * 1000L - now.nano / 1_000_000
+            delay(msToNextMinute)
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text    = "Miller Family",
+            // fontFamily = FontFamily.Serif, — if serif is desired
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+            color   = Color(0xFF1F2937)
+        )
+        Spacer(Modifier.weight(1f))
+        if (temperature != null) {
+            Text(
+                text    = temperature,
+                fontSize = 14.sp,
+                color   = Color(0xFF6B7280)
+            )
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(
+            text    = timeNow.value,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            color   = Color(0xFF374151)
+        )
+    }
 }
 
 // ─────────────────────────────────────────────────────────────

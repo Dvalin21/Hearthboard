@@ -87,24 +87,59 @@ fun PersonFilterRow(
     onSelect: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LazyRow(
+    Row(
         modifier             = modifier,
-        horizontalArrangement= Arrangement.spacedBy(8.dp),
-        contentPadding       = PaddingValues(horizontal = 16.dp)
+        horizontalArrangement= Arrangement.spacedBy(0.dp)
     ) {
-        item {
-            FilterChip(
-                selected = selectedId == 0L,
-                onClick  = { onSelect(0L) },
-                label    = { Text("All") }
+        // "All" button as round icon
+        val allSelected = selectedId == 0L
+        Box(
+            modifier = Modifier
+                .padding(end = 4.dp)
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (allSelected) Color(0xFFF3E8FF) else Color.Transparent)
+                .clickable { onSelect(0L) },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text     = "All",
+                fontSize = 11.sp,
+                fontWeight = if (allSelected) FontWeight.SemiBold else FontWeight.Normal,
+                color    = if (allSelected) Color(0xFF7C4DFF) else Color(0xFF6B7280)
             )
         }
-        items(people.filter { !it.isDefault }) { person ->
-            PersonChip(
-                person   = person,
-                selected = selectedId == person.id,
-                onClick  = { onSelect(person.id) }
-            )
+
+        people.filter { !it.isDefault }.forEach { person ->
+            val sel = selectedId == person.id
+            val col = runCatching { Color(android.graphics.Color.parseColor(person.colorHex)) }
+                .getOrElse { Color(0xFF7C4DFF) }
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(if (sel) col.copy(alpha = 0.12f) else Color.Transparent)
+                    .clickable { onSelect(person.id) }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(col),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(person.initial, fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold, color = Color.White)
+                }
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text     = person.name,
+                    fontSize = 12.sp,
+                    fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
+                    color    = if (sel) Color(0xFF1F2937) else Color(0xFF6B7280)
+                )
+            }
         }
     }
 }
