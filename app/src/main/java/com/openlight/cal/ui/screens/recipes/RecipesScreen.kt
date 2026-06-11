@@ -22,6 +22,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openlight.cal.data.mealie.MealieApi
+import com.openlight.cal.data.model.CalendarEvent
+import com.openlight.cal.data.model.MealPlan
+import com.openlight.cal.data.model.MealSlot
 import com.openlight.cal.data.model.Recipe
 import com.openlight.cal.data.preferences.AppPreferences
 import com.openlight.cal.data.repository.RecipeRepository
@@ -29,6 +32,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import java.time.*
+import java.time.format.DateTimeFormatter
 
 /**
  * Recipe browser — syncs from Mealie self-hosted recipe manager,
@@ -356,9 +361,27 @@ fun RecipesScreen(
                 scope.launch { recipeRepository.delete(recipe) }
                 selectedLocalRecipe = null
             },
-            onAddToMealPlan = { onAddToMealPlan(recipe.name) },
-            onAddToGroceryList = { personId ->
+            onPlanMeal = { dateIso, slot, personId ->
                 scope.launch {
+                    database.mealPlanDao().upsert(
+                        MealPlan(dateIso = dateIso, slot = slot, title = recipe.name)
+                    )
+                    val (startH, startM, endH, endM) = mealSlotToTime(slot)
+                    val day = LocalDate.parse(dateIso)
+                    val start = day.atTime(startH, startM).atZone(ZoneId.systemDefault())
+                        .toInstant().toEpochMilli()
+                    val end   = day.atTime(endH, endM).atZone(ZoneId.systemDefault())
+                        .toInstant().toEpochMilli()
+                    database.calendarEventDao().insert(
+                        CalendarEvent(
+                            uid = "meal_${dateIso}_$slot",
+                            title = recipe.name,
+                            startMs = start,
+                            endMs = end,
+                            colorHex = "#FF9800",
+                            isLocalOnly = true
+                        )
+                    )
                     groceryListHelper.addIngredientsToGroceryList(
                         recipeName = recipe.name,
                         ingredients = ings,
@@ -397,16 +420,35 @@ fun RecipesScreen(
             },
             onEdit       = null,
             onDelete     = null,
-            onAddToMealPlan = {
-                selectedMealieDetail?.let { onAddToMealPlan(it.name) }
-            },
-            onAddToGroceryList = { personId ->
-                scope.launch {
-                    groceryListHelper.addIngredientsToGroceryList(
-                        recipeName = selectedMealieDetail?.name ?: "Recipe",
-                        ingredients = ings,
-                        personId = personId
-                    )
+            onPlanMeal = { dateIso, slot, personId ->
+                val detail = selectedMealieDetail
+                if (detail != null) {
+                    scope.launch {
+                        database.mealPlanDao().upsert(
+                            MealPlan(dateIso = dateIso, slot = slot, title = detail.name)
+                        )
+                        val (startH, startM, endH, endM) = mealSlotToTime(slot)
+                        val day = LocalDate.parse(dateIso)
+                        val start = day.atTime(startH, startM).atZone(ZoneId.systemDefault())
+                            .toInstant().toEpochMilli()
+                        val end   = day.atTime(endH, endM).atZone(ZoneId.systemDefault())
+                            .toInstant().toEpochMilli()
+                        database.calendarEventDao().insert(
+                            CalendarEvent(
+                                uid = "meal_${dateIso}_$slot",
+                                title = detail.name,
+                                startMs = start,
+                                endMs = end,
+                                colorHex = "#FF9800",
+                                isLocalOnly = true
+                            )
+                        )
+                        groceryListHelper.addIngredientsToGroceryList(
+                            recipeName = detail.name,
+                            ingredients = ings,
+                            personId = personId
+                        )
+                    }
                 }
             },
             mealieConfigured = false,
@@ -418,6 +460,14 @@ fun RecipesScreen(
 // ─────────────────────────────────────────────────────────────
 // RecipeDetailDialog — shows full recipe info
 // ─────────────────────────────────────────────────────────────
+private data class TimeRange(val startHour: Int, val startMin: Int, val endHour: Int, val endMin: Int)
+private fun mealSlotToTime(slot: MealSlot) = when (slot) {
+    MealSlot.BREAKFAST -> TimeRange(7, 0, 8, 0)
+    MealSlot.LUNCH     -> TimeRange(12, 0, 13, 0)
+    MealSlot.DINNER    -> TimeRange(18, 0, 19, 0)
+    MealSlot.SNACK     -> TimeRange(15, 0, 15, 30)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RecipeDetailDialog(
@@ -430,8 +480,7 @@ private fun RecipeDetailDialog(
     onDismiss: () -> Unit,
     onEdit: (() -> Unit)?,
     onDelete: (() -> Unit)?,
-    onAddToMealPlan: () -> Unit,
-    onAddToGroceryList: (personId: Long) -> Unit = {},
+    onPlanMeal: (dateIso: String, slot: MealSlot, personId: Long) -> Unit,
     mealieConfigured: Boolean = false,
     onPublishToMealie: (suspend () -> Unit)? = null
 ) {
@@ -444,6 +493,9 @@ private fun RecipeDetailDialog(
     var publishBusy by remember { mutableStateOf(false) }
     var publishError by remember { mutableStateOf<String?>(null) }
     val dialogScope = rememberCoroutineScope()
+    var mealDate by remember { mutableStateOf(LocalDate.now()) }
+    var mealSlot by remember { mutableStateOf(MealSlot.DINNER) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     // Ingredients
     val ingredients = remember(recipe, mealieDetail) {
@@ -676,12 +728,14 @@ private fun RecipeDetailDialog(
                 }
             }
 
-            // ── Grocery list person picker ─────────────────────
+            // ── Plan meal + grocery picker ────────────────────
             var groceryPersonId by remember { mutableStateOf(0L) }
             if (ingredients.isNotEmpty() && people.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
+
+                // Person picker
                 Text("Shop for this recipe", style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(6.dp))
@@ -696,20 +750,66 @@ private fun RecipeDetailDialog(
                         )
                     }
                 }
-            }
 
-            // ── Action buttons ─────────────────────────────────
-            Spacer(Modifier.height(12.dp))
-            if (ingredients.isNotEmpty()) {
-                OutlinedButton(
-                    onClick = { onAddToGroceryList(groceryPersonId) },
+                // Meal date picker
+                Spacer(Modifier.height(12.dp))
+                Text("When?", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val today = LocalDate.now()
+                    val tomorrow = today.plusDays(1)
+                    FilterChip(
+                        selected = mealDate == today,
+                        onClick  = { mealDate = today },
+                        label    = { Text("Today") }
+                    )
+                    FilterChip(
+                        selected = mealDate == tomorrow,
+                        onClick  = { mealDate = tomorrow },
+                        label    = { Text("Tomorrow") }
+                    )
+                    FilterChip(
+                        selected = mealDate != today && mealDate != tomorrow,
+                        onClick  = { showDatePicker = true },
+                        label    = {
+                            Text(if (mealDate != today && mealDate != tomorrow)
+                                mealDate.format(DateTimeFormatter.ofPattern("MMM d")) else "Pick…")
+                        }
+                    )
+                }
+
+                // Meal slot picker
+                Spacer(Modifier.height(12.dp))
+                Text("Which meal?", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MealSlot.entries.forEach { slot ->
+                        FilterChip(
+                            selected = mealSlot == slot,
+                            onClick  = { mealSlot = slot },
+                            label    = {
+                                Text(slot.name.lowercase()
+                                    .replaceFirstChar { it.uppercase() })
+                            }
+                        )
+                    }
+                }
+
+                // Combined action button
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        onPlanMeal(mealDate.toString(), mealSlot, groceryPersonId)
+                        onDismiss()
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Filled.ShoppingCart, null, Modifier.size(18.dp))
+                    Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Add to Grocery List")
+                    Text("Plan Meal & Add to Shopping List")
                 }
-                Spacer(Modifier.height(8.dp))
             }
 
             // ── Publish to Mealie (local recipes only) ────────
@@ -746,15 +846,6 @@ private fun RecipeDetailDialog(
                 }
                 Spacer(Modifier.height(8.dp))
             }
-
-            Button(
-                onClick = { onAddToMealPlan(); onDismiss() },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Add to Meal Plan")
-            }
         }
     }
 
@@ -782,6 +873,31 @@ private fun RecipeDetailDialog(
                 }
             }
         )
+    }
+
+    // ── Date picker for meal planning ────────────────────────
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = mealDate
+                .atStartOfDay(ZoneId.systemDefault())
+                .toInstant().toEpochMilli()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        mealDate = Instant.ofEpochMilli(millis)
+                            .atZone(ZoneId.systemDefault()).toLocalDate()
+                    }
+                    showDatePicker = false
+                }) {
+                    Text("OK")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
     }
 }
 

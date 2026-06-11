@@ -23,6 +23,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.window.core.layout.WindowWidthSizeClass
 import com.openlight.cal.HearthboardApp
+import com.openlight.cal.data.model.CalendarEvent
+import com.openlight.cal.data.model.MealPlan
+import com.openlight.cal.data.model.MealSlot
 import com.openlight.cal.ui.components.ConnectivityBanner
 import com.openlight.cal.ui.screens.calendar.CalendarScreen
 import com.openlight.cal.ui.screens.calendar.EntryMethod
@@ -42,6 +45,7 @@ import com.openlight.cal.ui.screens.sleep.SleepScreen
 import com.openlight.cal.ui.screens.tasks.TasksScreen
 import com.openlight.cal.ui.viewmodel.*
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 
 
 // ─────────────────────────────────────────────────────────────
@@ -128,6 +132,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
     var showMore by remember { mutableStateOf(false) }
 
     // ── Navigation helper ─────────────────────────────────────
+    val navScope = rememberCoroutineScope()
     fun navigateTo(screen: Screen) {
         navController.navigate(screen.route) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -188,7 +193,31 @@ fun HearthboardNavHost(app: HearthboardApp) {
                     database         = app.database,
                     preferences      = app.preferences,
                     recipeRepository = app.recipeRepository,
-                    onAddToMealPlan  = { /* TODO: add to meal planner */ }
+                    onAddToMealPlan  = { name ->
+                        navScope.launch {
+                            val today = java.time.LocalDate.now()
+                            val slot = MealSlot.DINNER
+                            app.database.mealPlanDao().upsert(
+                                MealPlan(dateIso = today.toString(), slot = slot, title = name)
+                            )
+                            val start = today.atTime(18, 0)
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .toInstant().toEpochMilli()
+                            val end   = today.atTime(19, 0)
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .toInstant().toEpochMilli()
+                            app.database.calendarEventDao().insert(
+                                CalendarEvent(
+                                    uid = "meal_${today}_$slot",
+                                    title = name,
+                                    startMs = start,
+                                    endMs = end,
+                                    colorHex = "#FF9800",
+                                    isLocalOnly = true
+                                )
+                            )
+                        }
+                    }
                 )
             }
             composable(Screen.Rewards.route) {
