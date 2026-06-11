@@ -2,6 +2,8 @@ package com.openlight.cal.data.model
 
 import androidx.compose.runtime.Immutable
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -171,6 +173,8 @@ data class Reward(
     val starCost: Int,
     val description: String = "",
     val isEnabled: Boolean = true,         // soft-hide without deleting
+    val renewAfterRedeeming: Boolean = false, // re-enable reward after redemption
+    val assignedPersonId: Long = 0L,       // 0 = any profile can redeem
     val sortOrder: Int = 0
 )
 
@@ -228,4 +232,35 @@ data class Recipe(
     // ── Mealie integration (optional) ─────────────────────────
     val mealieId: String = "",           // empty = app-only
     val mealieLastPushMs: Long = 0       // 0 = never synced
+)
+
+// ─────────────────────────────────────────────────────────────
+// LABELS — color-coded categories for people
+// §11: Labels are used to group people (e.g. "Family", "Class",
+// "Team") and can be used as filters throughout the app.
+// ─────────────────────────────────────────────────────────────
+@Immutable
+@Entity(tableName = "labels")
+data class Label(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val colorHex: String = "#4CAF50",
+    val sortOrder: Int = 0
+)
+
+@Immutable
+@Entity(
+    tableName = "person_labels",
+    foreignKeys = [
+        ForeignKey(entity = Person::class, parentColumns = ["id"], childColumns = ["personId"],
+            onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = Label::class, parentColumns = ["id"], childColumns = ["labelId"],
+            onDelete = ForeignKey.CASCADE)
+    ],
+    indices = [Index("personId"), Index("labelId")]
+)
+data class PersonLabel(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val personId: Long,
+    val labelId: Long
 )
