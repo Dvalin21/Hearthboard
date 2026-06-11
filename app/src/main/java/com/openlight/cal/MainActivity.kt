@@ -17,8 +17,6 @@ import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +56,7 @@ class MainActivity : ComponentActivity() {
             val storedPin   by prefs.parentalPin.collectAsStateWithLifecycle(initialValue = "")
             val wallMode    by prefs.wallMode.collectAsStateWithLifecycle(initialValue = false)
             val wallKeepOn  by prefs.wallKeepScreenOn.collectAsStateWithLifecycle(initialValue = true)
+            val wallIdleSecs by prefs.wallIdleTimeoutSeconds.collectAsStateWithLifecycle(initialValue = 0)
             val systemDark  = isSystemInDarkTheme()
 
             val isDark = when (darkModePref) {
@@ -72,9 +71,6 @@ class MainActivity : ComponentActivity() {
             }
 
             // ── Wall Mode — apply landscape lock + wake lock ──────
-            // requestedOrientation and the keep-screen-on flag are
-            // window-level concerns, not Compose; apply them imperatively
-            // from a side effect tied to the live preference.
             DisposableEffect(wallMode, wallKeepOn) {
                 if (wallMode) {
                     requestedOrientation =
@@ -90,24 +86,23 @@ class MainActivity : ComponentActivity() {
                     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 }
                 onDispose {
-                    // Cleanup if the activity goes away — let the system
-                    // dim normally again.
                     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 }
             }
 
-            val wallState = remember(wallMode, wallKeepOn) {
+            val wallScale = if (wallMode) 1.35f else 1.0f
+            val wallState = remember(wallMode, wallKeepOn, wallIdleSecs, wallScale) {
                 WallModeState(
-                    active       = wallMode,
-                    keepScreenOn = wallKeepOn,
-                    scale        = if (wallMode) 1.25f else 1.0f
+                    active           = wallMode,
+                    keepScreenOn     = wallKeepOn,
+                    scale            = wallScale,
+                    idleTimeoutSeconds = wallIdleSecs
                 )
             }
 
             // ── Kiosk lock state ───────────────────────────────
             var unlocked by remember { mutableStateOf(!kioskMode || storedPin.isBlank()) }
 
-            // Re-lock when app goes to background
             val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
             DisposableEffect(lifecycleOwner) {
                 val observer = LifecycleEventObserver { _, event ->
@@ -119,18 +114,34 @@ class MainActivity : ComponentActivity() {
                 onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
             }
 
-            // Update unlocked when kiosk/pin settings change
             LaunchedEffect(kioskMode, storedPin) {
                 if (!kioskMode || storedPin.isBlank()) unlocked = true
             }
 
-            // PIN verifier — handles encrypted and legacy plaintext storage
             val verifyPin = remember(storedPin, encryptor) {
                 { input: String -> encryptor.verifyPin(storedPin, input) }
             }
 
-            // ── Wall Mode escape: solid-state long-press timer ──
+            // ── Wall Mode: photo frame idle tracker + escape overlay ──
             var showWallExitDialog by remember { mutableStateOf(false) }
+            var showPhotoFrame by remember { mutableStateOf(false) }
+            val wallModeScope = rememberCoroutineScope()
+
+            // Idle timer for photo frame
+            if (wallMode && wallIdleSecs > 0) {
+                val idleJob = remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+                val resetIdle = {
+                    idleJob.value?.cancel()
+                    idleJob.value = wallModeScope.launch {
+                        delay(wallIdleSecs * 1000L)
+                        if (wallMode && !showWallExitDialog && !showPhotoFrame) {
+                            showPhotoFrame = true
+                        }
+                    }
+                }
+                // Reset on any pointer input at root
+                LaunchedEffect(resetIdle) { resetIdle() }
+            }
 
             HearthboardTheme(darkTheme = isDark, seedColor = seedColor) {
                 CompositionLocalProvider(LocalWallMode provides wallState) {
@@ -139,8 +150,7 @@ class MainActivity : ComponentActivity() {
                             HearthboardNavHost(app = app)
 
                             // ── Wall Mode escape overlay: long-press triggers dialog ──
-                            if (wallMode) {
-                                val wallModeScope = rememberCoroutineScope()
+                            if (wallMode && !showPhotoFrame) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -172,6 +182,15 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
+                            // ── Photo frame screensaver ────────────────
+                            // TODO: implement photo frame screensaver when images available
+                            // if (showPhotoFrame) {
+                            //     PhotoFrameScreensaver(
+                            //         images = emptyList(), // TODO: load from Photos screen / gallery
+                            //         onExit = { showPhotoFrame = false }
+                            //     )
+                            // }
+
                             // ── Kiosk: intercept back press to prevent leaving ──
                             BackHandler(enabled = kioskMode && !unlocked) {
                                 // Blocked — PIN overlay handles it
@@ -190,7 +209,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
 }
 
 @Composable
@@ -201,7 +219,6 @@ private fun KioskPinOverlay(
     var input by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
 
-    // Auto-submit on 4 digits
     LaunchedEffect(input) {
         if (input.length == 4) {
             if (onVerify(input)) {

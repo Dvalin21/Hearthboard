@@ -30,35 +30,43 @@ import java.time.*
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 // PersonChip — colored avatar with initial, no emoji
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 @Composable
 fun PersonChip(
     person: Person,
     selected: Boolean = false,
     onClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    large: Boolean = false
 ) {
     val color = remember(person.colorHex) {
         runCatching { Color(android.graphics.Color.parseColor(person.colorHex)) }.getOrElse { Color.Gray }
     }
+    val avatarSize = if (large) 48.dp else 24.dp
+    val fontSize = if (large) 18.sp else 11.sp
+    val nameSize = if (large) 16.sp else 13.sp
+    val showName = !large // In large mode, just show avatar
+
     val content: @Composable RowScope.() -> Unit = {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(24.dp)
+                .size(avatarSize)
                 .background(color, CircleShape)
         ) {
             Text(
                 text     = person.initial,
                 color    = Color.White,
-                fontSize = 11.sp,
+                fontSize = fontSize,
                 fontWeight = FontWeight.Bold
             )
         }
-        Spacer(Modifier.width(6.dp))
-        Text(person.name, style = MaterialTheme.typography.labelMedium)
+        if (showName) {
+            Spacer(Modifier.width(6.dp))
+            Text(person.name, style = MaterialTheme.typography.labelMedium.copy(fontSize = nameSize))
+        }
     }
 
     if (onClick != null) {
@@ -77,34 +85,107 @@ fun PersonChip(
     }
 }
 
-// ─────────────────────────────────────────────────────────────
-// PersonRow — scrollable person selector
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// PersonFilterRow — compact inline colored circles with names (spec style)
+// Large avatars still supported for Home screen
+// ═══════════════════════════════════════════════════════════════
 @Composable
 fun PersonFilterRow(
     people: List<Person>,
     selectedId: Long,
     onSelect: (Long) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    largeAvatars: Boolean = false
 ) {
-    LazyRow(
-        modifier             = modifier,
-        horizontalArrangement= Arrangement.spacedBy(8.dp),
-        contentPadding       = PaddingValues(horizontal = 16.dp)
-    ) {
-        item {
-            FilterChip(
-                selected = selectedId == 0L,
-                onClick  = { onSelect(0L) },
-                label    = { Text("All") }
-            )
+    if (largeAvatars) {
+        // Home screen: large avatar mode (unchanged)
+        val spacing = 12.dp
+        val hPadding = 16.dp
+
+        LazyRow(
+            modifier             = modifier,
+            horizontalArrangement= Arrangement.spacedBy(spacing),
+            contentPadding       = PaddingValues(horizontal = hPadding)
+        ) {
+            item {
+                FilterChip(
+                    selected = selectedId == 0L,
+                    onClick  = { onSelect(0L) },
+                    label    = {
+                        Box(
+                            modifier = Modifier.size(48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Group, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+                        }
+                    }
+                )
+            }
+            items(people.filter { !it.isDefault }) { person ->
+                PersonChip(
+                    person   = person,
+                    selected = selectedId == person.id,
+                    onClick  = { onSelect(person.id) },
+                    large    = true
+                )
+            }
         }
-        items(people.filter { !it.isDefault }) { person ->
-            PersonChip(
-                person   = person,
-                selected = selectedId == person.id,
-                onClick  = { onSelect(person.id) }
-            )
+    } else {
+        // Spec style: compact inline chips with colored circle + name
+        Row(
+            modifier             = modifier,
+            horizontalArrangement= Arrangement.spacedBy(0.dp)
+        ) {
+            // "All" button as round icon
+            val allSelected = selectedId == 0L
+            Box(
+                modifier = Modifier
+                    .padding(end = 4.dp)
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (allSelected) Color(0xFFF3E8FF) else Color.Transparent)
+                    .clickable { onSelect(0L) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text     = "All",
+                    fontSize = 11.sp,
+                    fontWeight = if (allSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    color    = if (allSelected) Color(0xFF7C4DFF) else Color(0xFF6B7280)
+                )
+            }
+
+            people.filter { !it.isDefault }.forEach { person ->
+                val sel = selectedId == person.id
+                val col = runCatching { Color(android.graphics.Color.parseColor(person.colorHex)) }
+                    .getOrElse { Color(0xFF7C4DFF) }
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (sel) col.copy(alpha = 0.12f) else Color.Transparent)
+                        .clickable { onSelect(person.id) }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(col),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(person.initial, fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text     = person.name,
+                        fontSize = 12.sp,
+                        fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
+                        color    = if (sel) Color(0xFF1F2937) else Color(0xFF6B7280)
+                    )
+                }
+            }
         }
     }
 }

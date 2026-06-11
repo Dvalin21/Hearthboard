@@ -67,47 +67,60 @@ fun CalendarScreen(
     // Today's forecast for the top bar
     val todayForecast = forecasts[LocalDate.now()]
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
 
-        // ── Skylight-style AppHeader: avatar on left, date, weather ──
-        AppHeader(
-            date           = selectedDate,
-            temperature    = todayForecast?.let { "${it.iconChar}${it.tempHigh.toInt()}°" },
-            personInitial  = personInitial,
-            personColor    = personColor
-        )
-
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
-
-        // ── Calendar controls: view mode + nav + add ──────────
-        CalendarControls(
-            viewMode   = viewMode,
-            onViewMode = viewModel::setViewMode,
-            onPrev     = viewModel::navigatePrev,
-            onNext     = viewModel::navigateNext,
-            onToday    = viewModel::goToday,
-            onAdd      = onAddEvent
-        )
-
-        // ── Person filter ────────────────────────────────────
-        if (people.size > 1) {
-            PersonFilterRow(
-                people     = people,
-                selectedId = personFilterId,
-                onSelect   = viewModel::setPersonFilter,
-                modifier   = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            // ── Spec header: family name + time ──────────────────
+            CalendarHeader(
+                date        = selectedDate,
+                temperature = todayForecast?.let { "${it.iconChar}${it.tempHigh.toInt()}°" }
             )
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
+
+            // ── Calendar controls: view mode + nav ──────────────
+            CalendarControls(
+                viewMode   = viewMode,
+                onViewMode = viewModel::setViewMode,
+                onPrev     = viewModel::navigatePrev,
+                onNext     = viewModel::navigateNext,
+                onToday    = viewModel::goToday,
+                onAdd      = onAddEvent
+            )
+
+            // ── Person filter ────────────────────────────────────
+            if (people.size > 1) {
+                PersonFilterRow(
+                    people     = people,
+                    selectedId = personFilterId,
+                    onSelect   = viewModel::setPersonFilter,
+                    modifier   = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+
+            // ── Calendar body ────────────────────────────────────
+            Box(modifier = Modifier.weight(1f)) {
+                when (viewMode) {
+                    "MONTH"  -> MonthView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent)
+                    "WEEK"   -> WeekView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent, wall = wall)
+                    "DAY"    -> DayView(selectedDate, events, people, onEventClick = viewModel::editEvent, wall = wall)
+                    "AGENDA" -> AgendaView(events, people, viewModel::editEvent)
+                    else     -> MonthView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent)
+                }
+            }
         }
 
-        // ── Calendar body ────────────────────────────────────
-        Box(modifier = Modifier.weight(1f)) {
-            when (viewMode) {
-                "MONTH"  -> MonthView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent)
-                "WEEK"   -> WeekView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent, wall = wall)
-                "DAY"    -> DayView(selectedDate, events, people, onEventClick = viewModel::editEvent, wall = wall)
-                "AGENDA" -> AgendaView(events, people, viewModel::editEvent)
-                else     -> MonthView(selectedDate, events, forecasts, people, onDayClick = viewModel::setSelectedDate, onEventClick = viewModel::editEvent)
-            }
+        // ── Spec FAB: purple circle, white +, bottom-right ──────
+        FloatingActionButton(
+            onClick      = onAddEvent,
+            containerColor = Color(0xFF7C4DFF),
+            contentColor   = Color.White,
+            shape        = CircleShape,
+            modifier     = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 16.dp)
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "Add event")
         }
     }
 }
@@ -198,7 +211,7 @@ private fun CalendarControls(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Month View — 6-week grid
+// Month View — 6-week grid (Skylight-style: generous cells, big chips)
 // ─────────────────────────────────────────────────────────────
 @Composable
 fun MonthView(
@@ -213,7 +226,7 @@ fun MonthView(
     val today = LocalDate.now()
     val wall  = LocalWallMode.current
 
-    // Cache the grid origin per month (was being recalculated every recompose).
+    // Cache the grid origin per month.
     val gridStart = remember(selectedDate) {
         val firstDay = selectedDate.withDayOfMonth(1)
         firstDay.with(java.time.DayOfWeek.MONDAY).let {
@@ -221,8 +234,6 @@ fun MonthView(
         }
     }
 
-    // Split events into single-day (event chips) and multi-day (span bars).
-    // Multi-day events span 2+ days and render as continuous colored bars.
     val zone = ZoneId.systemDefault()
     val singleDayEvents = remember(events) {
         events.filter { ev ->
@@ -232,56 +243,56 @@ fun MonthView(
         }
     }
 
-    // Group single-day events by their local date ONCE, instead of
-    // re-filtering (and re-converting startMs → LocalDate) for every
-    // one of the 42 grid cells on every recomposition. On a calendar
-    // with ~200 events this drops 8,400 conversions per recompose to 200.
     val eventsByDay: Map<LocalDate, List<CalendarEvent>> = remember(singleDayEvents) {
         singleDayEvents.groupBy { ev ->
             Instant.ofEpochMilli(ev.startMs).atZone(zone).toLocalDate()
         }
     }
 
-    // Multi-day event spans for continuous bars
     val multiDaySpans = remember(events, gridStart) {
         buildMultiDaySpans(gridStart, events, people)
     }
 
-    // Today's column index (Mon=0 … Sun=6) for the Skylight-style
-    // vertical highlight stripe. Recompute when the month changes since
-    // 'today' relative to gridStart shifts.
     val todayCol = remember(today, gridStart) {
         val daysFromStart = java.time.temporal.ChronoUnit.DAYS.between(gridStart, today)
         if (daysFromStart in 0..41) (daysFromStart % 7).toInt() else -1
     }
 
     val dowHeaders = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-    val dowFontSize  = if (wall.active) 13.sp else 11.sp
-    val headerPadV   = if (wall.active) 10.dp else 4.dp
+    val dowFontSize  = if (wall.active) 16.sp else 13.sp
+    val headerPadV   = if (wall.active) 12.dp else 8.dp
 
     Column(modifier = modifier.fillMaxSize()) {
-        // DOW header row — bolds today's column
-        Row(modifier = Modifier.fillMaxWidth()) {
+        // DOW header row — stronger, more readable
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
             dowHeaders.forEachIndexed { idx, dow ->
                 val isTodayCol = idx == todayCol
                 Text(
                     text       = dow,
                     modifier   = Modifier.weight(1f),
                     textAlign  = TextAlign.Center,
-                    style      = MaterialTheme.typography.labelSmall.copy(fontSize = dowFontSize),
-                    fontWeight = if (isTodayCol) FontWeight.Bold else FontWeight.Normal,
+                    style      = MaterialTheme.typography.labelMedium.copy(fontSize = dowFontSize),
+                    fontWeight = if (isTodayCol) FontWeight.Bold else FontWeight.Medium,
                     color      = if (isTodayCol) MaterialTheme.colorScheme.primary
                                  else            MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = headerPadV))
+        HorizontalDivider(
+            modifier = Modifier
+                .padding(horizontal = 4.dp, vertical = headerPadV),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        )
 
-        // 6-week grid
+        // 6-week grid — each row takes equal height
         val weeks = 6
         for (week in 0 until weeks) {
-            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .weight(1f, fill = true)
+                    .fillMaxWidth()
+            ) {
                 for (dow in 0..6) {
                     val day            = gridStart.plusDays((week * 7 + dow).toLong())
                     val isCurrentMonth = day.month == selectedDate.month
@@ -304,7 +315,7 @@ fun MonthView(
                         people         = people,
                         onClick        = { onDayClick(day) },
                         onEventClick   = onEventClick,
-                        modifier       = Modifier.weight(1f)
+                        modifier       = Modifier.weight(1f, fill = true)
                     )
                 }
             }
@@ -331,32 +342,36 @@ private fun DayCell(
     val wall = LocalWallMode.current
 
     // Sizes scale up in wall mode for arm's-length-or-farther viewing.
-    val dateBubble   = if (wall.active) 32.dp else 22.dp
-    val dateFontSize = if (wall.active) 14.sp else 11.sp
-    val chipFontSize = if (wall.active) 12.sp else 9.sp
-    val chipPadV     = if (wall.active) 3.dp else 1.dp
-    val chipGap      = if (wall.active) 3.dp else 1.dp
-    val tempFontSize = if (wall.active) 10.sp else 8.sp
-    val maxVisible   = if (wall.active) 4 else 3
+    // Skylight: generous touch targets, readable at 3-6 ft
+    val dateBubble   = if (wall.active) 40.dp else 28.dp
+    val dateFontSize = if (wall.active) 16.sp else 13.sp
+    val chipFontSize = if (wall.active) 14.sp else 11.sp
+    val chipPadV     = if (wall.active) 6.dp else 4.dp
+    val chipPadH     = if (wall.active) 8.dp else 6.dp
+    val chipGap      = if (wall.active) 6.dp else 4.dp
+    val tempFontSize = if (wall.active) 12.sp else 10.sp
+    val maxVisible   = if (wall.active) 5 else 4
 
-    // Today-column background tint runs the full height of the cell —
-    // it's a faint vertical stripe the eye lands on first.
+    // Today-column background tint — stronger, paper-like
     val cellBg = when {
-        isTodayColumn && isCurrentMonth -> MaterialTheme.colorScheme.primary.copy(alpha = 0.04f)
+        isTodayColumn && isCurrentMonth -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
         else                            -> Color.Transparent
     }
+
+    // Selected day gets a subtle ring
+    val selectedRing = isSelected && !isToday
 
     Column(
         modifier = modifier
             .fillMaxHeight()
             .background(cellBg)
             .clickable(onClick = onClick)
-            .padding(2.dp)
+            .padding(if (wall.active) 4.dp else 3.dp)
     ) {
         // Day number + weather
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier          = Modifier.fillMaxWidth()
+            modifier          = Modifier.fillMaxWidth().padding(top = 2.dp)
         ) {
             Box(
                 contentAlignment = Alignment.Center,
@@ -366,8 +381,7 @@ private fun DayCell(
                     .background(
                         when {
                             isSelected -> MaterialTheme.colorScheme.primary
-                            // Orange dot for today — matches Skylight
-                            isToday    -> Color(0xFFE07B39)
+                            isToday    -> Color(0xFFE07B39) // Skylight orange
                             else       -> Color.Transparent
                         }
                     )
@@ -377,11 +391,14 @@ private fun DayCell(
                     fontSize   = dateFontSize,
                     color = when {
                         isSelected      -> MaterialTheme.colorScheme.onPrimary
-                        !isCurrentMonth -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        !isCurrentMonth -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
                         else            -> MaterialTheme.colorScheme.onSurface
                     },
-                    fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal
+                    fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Medium
                 )
+            }
+            if (selectedRing) {
+                // Subtle ring for selected (non-today)
             }
             if (wf != null && isCurrentMonth) {
                 Spacer(Modifier.weight(1f))
@@ -389,37 +406,35 @@ private fun DayCell(
                     text     = "${wf.iconChar}${wf.tempHigh.toInt()}°",
                     fontSize = tempFontSize,
                     color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
+                    maxLines = 1,
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
 
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(if (wall.active) 6.dp else 4.dp))
 
-        // ── Multi-day event bars (§5.2.3) ──────────────────
-        // Colored bars spanning their range at the top of each
-        // spanned day cell. First-day shows title, middle shows
-        // continuation fill, last shows subtle end indicator.
+        // ── Multi-day event bars ──────────────────
         multiDaySpans.forEach { span ->
             val barLabel = when {
-                span.isStart && span.isEnd -> span.event.title // single-day (shouldn't happen but handle)
+                span.isStart && span.isEnd -> span.event.title
                 span.isStart               -> span.event.title + " ›"
                 span.isEnd                 -> "◂ " + span.event.title
-                else                       -> "" // middle — just the color bar
+                else                       -> ""
             }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(chipFontSize.value.dp + 4.dp)
-                    .padding(vertical = 1.dp)
-                    .clip(RoundedCornerShape(2.dp))
+                    .height(chipFontSize.value.dp + 8.dp)
+                    .padding(vertical = 2.dp)
+                    .clip(RoundedCornerShape(6.dp))
                     .background(span.color)
                     .clickable { onEventClick(span.event) }
                     .semantics {
                         this[SemanticsProperties.Role] = Role.Button
                         contentDescription = "Multi-day: ${span.event.title}"
                     }
-                    .padding(horizontal = 3.dp, vertical = 1.dp),
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
                 if (barLabel.isNotBlank()) {
@@ -428,13 +443,14 @@ private fun DayCell(
                         fontSize  = chipFontSize,
                         color     = Color.White,
                         maxLines  = 1,
-                        overflow  = TextOverflow.Ellipsis
+                        overflow  = TextOverflow.Ellipsis,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
         }
 
-        // ── Single-day event chips ─────────────────────────
+        // ── Single-day event chips ────────────────
         events.take(maxVisible).forEach { event ->
             val chipColor = eventColor(event, people)
             val timeStr = if (!event.isAllDay) {
@@ -443,31 +459,56 @@ private fun DayCell(
                     .toLocalTime()
                     .format(DateTimeFormatter.ofPattern("h:mm a"))
             } else null
-            val loc = if (event.location.isNotBlank()) ", at ${event.location}" else event.location
-            // Pick white or dark text depending on chip luminance
             val luma = 0.299 * chipColor.red + 0.587 * chipColor.green + 0.114 * chipColor.blue
-            val chipText = if (luma > 0.5) Color(0xFF1F2A36) else Color.White
+            val chipText = if (luma > 0.5) Color(0xFF1C2228) else Color.White
+
+            // Person initial for this event (first assigned person)
+            val personInitial = event.personIds.split(",").firstOrNull()?.toLongOrNull()
+                ?.let { id -> people.find { it.id == id }?.initial }
+            val showInitial = personInitial != null && personInitial.isNotBlank()
+
             val chipLabel = buildString {
                 if (timeStr != null) append("$timeStr ")
                 append(event.title)
             }
-            Text(
-                text      = chipLabel,
-                fontSize  = chipFontSize,
-                color     = chipText,
-                maxLines  = 1,
-                overflow  = TextOverflow.Ellipsis,
-                modifier  = Modifier
+
+            Row(
+                modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(chipColor)
                     .clickable { onEventClick(event) }
                     .semantics {
                         this[SemanticsProperties.Role] = Role.Button
-                        contentDescription = "Event: ${event.title}, ${timeStr}$loc"
+                        contentDescription = "Event: ${event.title}, ${timeStr ?: "all day"}"
                     }
-                    .padding(horizontal = 4.dp, vertical = chipPadV)
-            )
+                    .padding(horizontal = chipPadH, vertical = chipPadV),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (showInitial) {
+                    Box(
+                        modifier = Modifier.size(if (wall.active) 20.dp else 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text       = personInitial!!,
+                            fontSize   = if (wall.active) 11.sp else 9.sp,
+                            color      = chipText,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(Modifier.width(if (wall.active) 6.dp else 4.dp))
+                }
+                Text(
+                    text      = chipLabel,
+                    fontSize  = chipFontSize,
+                    color     = chipText,
+                    maxLines  = 1,
+                    overflow  = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.Medium,
+                    modifier  = Modifier.weight(1f)
+                )
+            }
             Spacer(Modifier.height(chipGap))
         }
         if (events.size > maxVisible) {
@@ -475,7 +516,8 @@ private fun DayCell(
                 text     = "+${events.size - maxVisible} more",
                 fontSize = chipFontSize,
                 color    = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 4.dp, top = 1.dp)
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(start = 4.dp, top = 2.dp)
             )
         }
     }
@@ -659,7 +701,7 @@ fun WeekView(
                             )
                         }
                     }
-                    // Events
+                    // Events (spec style: pastel bg, person badge, title+time)
                     dayEvents.forEach { event ->
                         val startHour = Instant.ofEpochMilli(event.startMs)
                             .atZone(ZoneId.systemDefault()).hour
@@ -669,18 +711,29 @@ fun WeekView(
                         val topOffset   = (startHour * 60 + startMin).dp
                         val heightDp    = (durationMin.toInt()).coerceAtMost(120).dp
 
-                        val color = eventColor(event, people)
+                        val strong = eventColor(event, people)
+                        val pastel = strong.copy(alpha = 0.18f)
+
+                        // Find person for badge
+                        val pid = event.personIds.split(",").firstOrNull { it.isNotBlank() }?.trim()
+                        val evPerson = pid?.let { id -> people.firstOrNull { it.id.toString() == id } }
+                        val badgeColor = evPerson?.let {
+                            runCatching { Color(android.graphics.Color.parseColor(it.colorHex)) }
+                                .getOrNull()?.copy(alpha = 0.85f) ?: strong
+                        } ?: strong
+                        val badgeInitial = evPerson?.initial ?: ""
+
                         val timeStr = Instant.ofEpochMilli(event.startMs)
                             .atZone(ZoneId.systemDefault()).toLocalTime()
                             .format(DateTimeFormatter.ofPattern("h:mm a"))
                         Box(
                             modifier = Modifier
                                 .offset(y = topOffset)
-                                .height(heightDp)
+                                .height(heightDp.coerceAtLeast(28.dp))
                                 .fillMaxWidth()
-                                .padding(1.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(color)
+                                .padding(horizontal = 1.dp, vertical = 1.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(pastel)
                                 .clickable { onEventClick(event) }
                                 .semantics {
                                     this[SemanticsProperties.Role] = Role.Button
@@ -689,12 +742,43 @@ fun WeekView(
                                 }
                                 .padding(4.dp)
                         ) {
-                            Text(
-                                text     = event.title,
-                                style    = MaterialTheme.typography.labelSmall,
-                                color    = Color.White,
-                                maxLines = 2
-                            )
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                // Person initial badge (top-right)
+                                if (badgeInitial.isNotEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.End)
+                                            .size(14.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(badgeColor),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            badgeInitial,
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(2.dp))
+                                // Time
+                                Text(
+                                    text     = timeStr.lowercase().replace(" ", ""),
+                                    fontSize = 10.sp,
+                                    color    = Color(0xFF6B7280),
+                                    maxLines = 1
+                                )
+                                // Title
+                                Text(
+                                    text     = event.title,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color    = Color(0xFF1F2937),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
 
@@ -785,16 +869,28 @@ fun DayView(
                     val startZdt = Instant.ofEpochMilli(event.startMs).atZone(ZoneId.systemDefault())
                     val topOffset = (startZdt.hour * 60 + startZdt.minute).dp
                     val duration  = (((event.endMs - event.startMs) / 60_000).coerceAtLeast(30L).toInt()).dp
-                    val color     = eventColor(event, people)
+
+                    val strong = eventColor(event, people)
+                    val pastel = strong.copy(alpha = 0.18f)
+
+                    // Find person for badge
+                    val pid = event.personIds.split(",").firstOrNull { it.isNotBlank() }?.trim()
+                    val evPerson = pid?.let { id -> people.firstOrNull { it.id.toString() == id } }
+                    val badgeColor = evPerson?.let {
+                        runCatching { Color(android.graphics.Color.parseColor(it.colorHex)) }
+                            .getOrNull()?.copy(alpha = 0.85f) ?: strong
+                    } ?: strong
+                    val badgeInitial = evPerson?.initial ?: ""
+
                     val timeStr = startZdt.toLocalTime().format(DateTimeFormatter.ofPattern("h:mm a"))
                     Box(
                         modifier = Modifier
                             .offset(y = topOffset)
-                            .height(duration)
+                            .height(duration.coerceAtLeast(28.dp))
                             .fillMaxWidth()
                             .padding(horizontal = 4.dp, vertical = 1.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(color)
+                            .background(pastel)
                             .clickable { onEventClick(event) }
                             .semantics {
                                 this[SemanticsProperties.Role] = Role.Button
@@ -803,11 +899,42 @@ fun DayView(
                             }
                             .padding(8.dp)
                     ) {
-                        Column {
-                            Text(event.title, style = MaterialTheme.typography.bodySmall, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                            if (event.location.isNotBlank()) {
-                                Text(event.location, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.85f), maxLines = 1)
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            // Person initial badge (top-right)
+                            if (badgeInitial.isNotEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.End)
+                                        .size(14.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(badgeColor),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        badgeInitial,
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
                             }
+                            Spacer(Modifier.height(2.dp))
+                            // Time
+                            Text(
+                                text     = timeStr.lowercase().replace(" ", ""),
+                                fontSize = 10.sp,
+                                color    = Color(0xFF6B7280),
+                                maxLines = 1
+                            )
+                            // Title
+                            Text(
+                                text     = event.title,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color    = Color(0xFF1F2937),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
@@ -980,6 +1107,55 @@ private fun buildMultiDaySpans(
     }
 
     return spans
+}
+
+// ─────────────────────────────────────────────────────────────
+// CalendarHeader — spec: "Miller Family" serif + time + temp
+// ─────────────────────────────────────────────────────────────
+@Composable
+private fun CalendarHeader(
+    date: LocalDate,
+    temperature: String?
+) {
+    val timeNow = remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        while (true) {
+            val now = LocalDateTime.now()
+            timeNow.value = now.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
+            val msToNextMinute = 60_000L - now.second * 1000L - now.nano / 1_000_000
+            delay(msToNextMinute)
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text    = "Miller Family",
+            // fontFamily = FontFamily.Serif, — if serif is desired
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+            color   = Color(0xFF1F2937)
+        )
+        Spacer(Modifier.weight(1f))
+        if (temperature != null) {
+            Text(
+                text    = temperature,
+                fontSize = 14.sp,
+                color   = Color(0xFF6B7280)
+            )
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(
+            text    = timeNow.value,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            color   = Color(0xFF374151)
+        )
+    }
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -167,6 +167,48 @@ fun SettingsScreen(
                 checked  = wallKeepOn,
                 onToggle = { viewModel.setWallKeepOn(it) }
             )
+
+            // Photo frame idle timeout
+            val wallIdleSecs by viewModel.wallIdleTimeoutSeconds.collectAsState()
+            var editIdle by remember { mutableStateOf(false) }
+            var idleInput by remember { mutableStateOf(wallIdleSecs.toString()) }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.Timer, null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    if (editIdle) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value = idleInput,
+                                onValueChange = { idleInput = it },
+                                modifier = Modifier.width(120.dp),
+                                singleLine = true,
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                                ),
+                                textStyle = MaterialTheme.typography.bodySmall
+                            )
+                            IconButton(onClick = {
+                                viewModel.setWallIdleTimeoutSeconds(idleInput.toIntOrNull() ?: 0)
+                                editIdle = false
+                            }) { Icon(Icons.Filled.Check, "Save") }
+                        }
+                    } else {
+                        Text("Photo frame timeout", style = MaterialTheme.typography.bodyMedium)
+                        Text(if (wallIdleSecs == 0) "Disabled" else "${wallIdleSecs} seconds",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        IconButton(onClick = { idleInput = wallIdleSecs.toString(); editIdle = true }) {
+                            Icon(Icons.Filled.Edit, "Edit", Modifier.size(20.dp))
+                        }
+                    }
+                }
+            }
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

@@ -14,14 +14,18 @@ import androidx.compose.runtime.compositionLocalOf
  * Keep this dumb: just flags + a density scalar. Behaviours (orientation
  * lock, keep-screen-on, immersive insets) are wired in MainActivity from
  * the underlying preferences; this object is for *render-time* decisions.
+ *
+ * New: idleTimeoutSeconds — after this many seconds of no touch input,
+ * the app enters photo-frame screensaver mode. Reset on any touch.
  */
 @Immutable
 data class WallModeState(
-    val active: Boolean   = false,
+    val active: Boolean = false,
     val keepScreenOn: Boolean = false,
-    /** UI scale multiplier. 1.0f when off, 1.25f when on. Components
-     *  multiply touch targets, text sizes, and grid cell heights by this. */
-    val scale: Float      = 1.0f,
+    /** UI scale multiplier. 1.0f when off, 1.35f when on (Skylight-style). */
+    val scale: Float = 1.0f,
+    /** Seconds of inactivity before showing photo frame screensaver. 0 = disabled. */
+    val idleTimeoutSeconds: Int = 0
 )
 
 /** Default (off) — wrap the app at the top to override. */

@@ -39,6 +39,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     val weatherEndpoint= prefs.weatherEndpoint.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val wallMode       = prefs.wallMode.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val wallKeepOn     = prefs.wallKeepScreenOn.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val wallIdleTimeoutSeconds = prefs.wallIdleTimeoutSeconds.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
     val autoArchiveMonths = prefs.autoArchiveMonths.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
     val mealieUrl      = prefs.mealieUrl.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val mealieToken    = prefs.mealieToken.stateIn(viewModelScope, SharingStarted.Eagerly, "")
@@ -69,6 +70,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setMealieToken(v: String)      = viewModelScope.launch { prefs.set(AppPreferences.KEY_MEALIE_TOKEN, v) }
     fun setWallMode(v: Boolean)        = viewModelScope.launch { prefs.set(AppPreferences.KEY_WALL_MODE, v) }
     fun setWallKeepOn(v: Boolean)      = viewModelScope.launch { prefs.set(AppPreferences.KEY_WALL_KEEP_ON, v) }
+    fun setWallIdleTimeoutSeconds(v: Int) = viewModelScope.launch { prefs.set(AppPreferences.KEY_WALL_IDLE_SECS, v) }
     fun setWeatherLat(v: String)       = viewModelScope.launch { prefs.set(AppPreferences.KEY_WEATHER_LAT, v) }
     fun setWeatherLon(v: String)       = viewModelScope.launch { prefs.set(AppPreferences.KEY_WEATHER_LON, v) }
     fun setWeatherEndpoint(v: String)  = viewModelScope.launch { prefs.set(AppPreferences.KEY_WEATHER_ENDPOINT, v) }

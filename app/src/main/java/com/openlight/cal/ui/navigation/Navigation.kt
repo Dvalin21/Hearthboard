@@ -1,7 +1,11 @@
 package com.openlight.cal.ui.navigation
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.outlined.List
@@ -12,8 +16,12 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -32,6 +40,7 @@ import com.openlight.cal.ui.screens.calendar.EntryMethod
 import com.openlight.cal.ui.screens.calendar.EventEditDialog
 import com.openlight.cal.ui.screens.calendar.EventEntryMethodDialog
 import androidx.compose.ui.platform.LocalContext
+import com.openlight.cal.ui.screens.chores.ChoresScreen
 import com.openlight.cal.ui.screens.home.HomeScreen
 import com.openlight.cal.ui.screens.lists.ListsScreen
 import com.openlight.cal.ui.screens.meals.MealsScreen
@@ -47,11 +56,13 @@ import com.openlight.cal.ui.viewmodel.*
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 
-
 // ─────────────────────────────────────────────────────────────
-// Screen definitions — Skylight Calendar tab order
-// Per spec §1.1: Home → Calendar → Tasks → Rewards → Meals →
-// Photos → Lists → Sleep → Settings
+// Screen definitions — Spec order for left nav rail
+// Primary: Calendar → Lists → Tasks → Chores → Rewards → Meals → Recipes → Photos
+// Secondary (below divider): Sleep
+// Settings at bottom
+// Bottom tabs (compact): Calendar, Lists, Tasks, Chores
+// More sheet: Rewards, Meals, Recipes, Photos, Sleep, Settings
 // ─────────────────────────────────────────────────────────────
 sealed class Screen(
     val route: String,
@@ -70,27 +81,31 @@ sealed class Screen(
     object People   : Screen("people",   "People",   Icons.Filled.Group,            Icons.Outlined.Group)
     object Recipes  : Screen("recipes",  "Recipes",  Icons.Filled.RestaurantMenu,   Icons.Outlined.RestaurantMenu)
     object Settings : Screen("settings", "Settings", Icons.Filled.Settings,         Icons.Outlined.Settings)
+    object Chores   : Screen("chores",   "Chores",   Icons.Filled.TaskAlt,          Icons.Outlined.TaskAlt)
 
     companion object {
-        // Primary items — shown in left nav rail on large screens
-        val primary = listOf(Home, Calendar, Tasks, Rewards, Meals, Photos, Lists, Sleep)
+        // Primary items — shown in left nav rail (specified order)
+        val primary = listOf(Calendar, Lists, Tasks, Chores, Rewards, Meals, Recipes, Photos)
 
-        // Secondary items — below divider on left nav rail
-        val secondary = listOf(People, Recipes)
+        // Below divider in the rail
+        val secondary = listOf(Sleep)
 
         // Bottom nav items (compact/portrait) — first 4 visible, rest in "More"
-        val bottomTabs = listOf(Home, Calendar, Tasks, Lists)
+        val bottomTabs = listOf(Calendar, Lists, Tasks, Chores)
 
         // Items in the "More" bottom sheet on compact screens
-        val moreItems = listOf(Rewards, Meals, Photos, People, Recipes, Sleep, Settings)
+        val moreItems = listOf(Rewards, Meals, Recipes, Photos, Sleep, Settings)
 
         val all = primary + secondary + Settings
     }
 }
 
-// ── RAIL WIDTHS ──────────────────────────────────────────────
+// ── RAIL CONSTANTS ──────────────────────────────────────────
 private val RailWidthCompact   = 56.dp
-private val RailWidthExpanded  = 80.dp
+private val RailWidthExpanded  = 72.dp
+private val SpecActivePurple   = Color(0xFF7C4DFF)
+private val SpecActiveBg       = Color(0xFFF3E8FF)
+private val SpecInactiveGray   = Color(0xFF9CA3AF)
 
 // ─────────────────────────────────────────────────────────────
 // Main Navigation Host
@@ -146,7 +161,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
     fun MainNav(mod: Modifier) {
         NavHost(
             navController    = navController,
-            startDestination = Screen.Home.route,
+            startDestination = Screen.Calendar.route,
             modifier         = mod
         ) {
             composable(Screen.Home.route) {
@@ -169,6 +184,15 @@ fun HearthboardNavHost(app: HearthboardApp) {
             }
             composable(Screen.Tasks.route) {
                 TasksScreen(viewModel = taskVm)
+            }
+            composable(Screen.Chores.route) {
+                ChoresScreen(
+                    database    = app.database,
+                    people      = people,
+                    onComplete  = { task -> taskVm.saveTask(task) },
+                    onSaveChore = { task -> taskVm.saveTask(task) },
+                    onDeleteChore = { task -> taskVm.deleteTask(task) }
+                )
             }
             composable(Screen.Photos.route) {
                 PhotosScreen()
@@ -226,34 +250,26 @@ fun HearthboardNavHost(app: HearthboardApp) {
         }
     }
 
-    // ── RailItem helper ───────────────────────────────────────
+    // ── Spec-style rail icon ──────────────────────────────────
     @Composable
-    fun NavRailItem(
-        screen: Screen,
-        colors: NavigationRailItemColors = NavigationRailItemDefaults.colors()
-    ) {
+    fun SpecNavIcon(screen: Screen) {
         val selected = currentDest?.hierarchy?.any { it.route == screen.route } == true
-        NavigationRailItem(
-            selected = selected,
-            onClick  = { navigateTo(screen) },
-            icon  = {
-                Icon(
-                    if (selected) screen.selectedIcon else screen.unselectedIcon,
-                    contentDescription = screen.label
-                )
-            },
-            label = {
-                if (!isCompact) {
-                    Text(
-                        text       = screen.label,
-                        style      = MaterialTheme.typography.labelSmall,
-                        maxLines   = 1
-                    )
-                }
-            },
-            alwaysShowLabel = !isCompact,
-            colors = colors
-        )
+        val bgColor  = if (selected) SpecActiveBg else Color.Transparent
+        val tint     = if (selected) SpecActivePurple else SpecInactiveGray
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(bgColor)
+        ) {
+            Icon(
+                imageVector = if (selected) screen.selectedIcon else screen.unselectedIcon,
+                contentDescription = screen.label,
+                tint    = tint,
+                modifier = Modifier.size(24.dp)
+            )
+        }
     }
 
     // ── Layout: Bottom Nav (compact) or NavigationRail (expanded) ──
@@ -268,7 +284,8 @@ fun HearthboardNavHost(app: HearthboardApp) {
             topBar = { /* content uses its own headers */ },
             bottomBar = {
                 NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.padding(bottom = 0.dp)
                 ) {
                     Screen.bottomTabs.forEach { screen ->
                         val selected = currentDest?.hierarchy?.any { it.route == screen.route } == true
@@ -278,19 +295,23 @@ fun HearthboardNavHost(app: HearthboardApp) {
                             icon = {
                                 Icon(
                                     if (selected) screen.selectedIcon else screen.unselectedIcon,
-                                    contentDescription = screen.label
+                                    contentDescription = screen.label,
+                                    modifier = Modifier.size(24.dp)
                                 )
                             },
                             label = {
                                 Text(
                                     text     = screen.label,
                                     style    = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 indicatorColor    = MaterialTheme.colorScheme.primaryContainer
                             )
                         )
@@ -300,8 +321,12 @@ fun HearthboardNavHost(app: HearthboardApp) {
                     NavigationBarItem(
                         selected = showMore,
                         onClick  = { showMore = true },
-                        icon     = {                 Icon(Icons.Filled.MoreHoriz, "More") },
-                        label    = { Text("More") }
+                        icon     = { Icon(Icons.Filled.MoreHoriz, "More", modifier = Modifier.size(24.dp)) },
+                        label    = { Text("More") },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                 }
             }
@@ -316,41 +341,46 @@ fun HearthboardNavHost(app: HearthboardApp) {
             }
         }
     } else {
-        // ── LANDSCAPE / TABLET: Left Navigation Rail ────────────
+        // ── LANDSCAPE / TABLET: Navigation Rail ──────────────
         Row(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.systemBars)
         ) {
             NavigationRail(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                containerColor = Color.White,
                 modifier       = Modifier.width(RailWidthExpanded)
             ) {
-                Spacer(Modifier.height(8.dp))
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Spacer(Modifier.height(24.dp))
 
-                // Primary items
-                Screen.primary.forEach { screen ->
-                    NavRailItem(screen = screen)
+                    // Primary items: Calendar, Lists, Tasks, Chores, Rewards, Meals, Recipes, Photos
+                    Screen.primary.forEach { screen ->
+                        Spacer(Modifier.height(12.dp))
+                        SpecNavIcon(screen)
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
+                    Spacer(Modifier.height(8.dp))
+
+                    // Sleep below divider
+                    Screen.secondary.forEach { screen ->
+                        Spacer(Modifier.height(12.dp))
+                        SpecNavIcon(screen)
+                    }
                 }
 
-                // Secondary items below divider
+                // Settings at very bottom
                 Spacer(Modifier.height(8.dp))
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
-                Screen.secondary.forEach { screen ->
-                    NavRailItem(
-                        screen = screen,
-                        colors = NavigationRailItemDefaults.colors(
-                            indicatorColor = MaterialTheme.colorScheme.tertiaryContainer
-                        )
-                    )
-                }
-
-                Spacer(Modifier.weight(1f))
-
-                // Settings at bottom
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
-                NavRailItem(screen = Screen.Settings)
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
                 Spacer(Modifier.height(8.dp))
+                SpecNavIcon(Screen.Settings)
+                Spacer(Modifier.height(16.dp))
             }
 
             // Content area
@@ -372,14 +402,24 @@ fun HearthboardNavHost(app: HearthboardApp) {
                         leadingContent  = {
                             Icon(
                                 if (selected) screen.selectedIcon else screen.unselectedIcon,
-                                contentDescription = null
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp)
                             )
                         },
-                        modifier = Modifier.clickable {
-                            showMore = false
-                            navigateTo(screen)
-                        }
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showMore = false
+                                navigateTo(screen)
+                            }
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
                     )
+                    if (screen != Screen.moreItems.last()) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                        )
+                    }
                 }
             }
         }

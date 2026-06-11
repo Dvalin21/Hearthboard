@@ -15,15 +15,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 
-// ─────────────────────────────────────────────────────────────
-// Person palette — 16 muted, accessible colors
-// ─────────────────────────────────────────────────────────────
-// Replaces the previous saturated Material accents (which clashed with
-// the new slate/warm-white surfaces). Each color is muted ~40%, sits
-// comfortably on cream/warm-white backgrounds, and stays distinct at
-// the small dot/avatar sizes used throughout the app. Ordered for
-// maximum perceptual distance between adjacent picks so the first 4–6
-// people in a household don't end up with neighboring hues.
+// ═══════════════════════════════════════════════════════════════
+// Person palette — 16 muted, accessible colors (unchanged)
+// Ordered for maximum perceptual distance between adjacent picks
+// ═══════════════════════════════════════════════════════════════
 val PersonColors = listOf(
     "#7E967B",   // sage
     "#B07D5C",   // terracotta
@@ -43,116 +38,133 @@ val PersonColors = listOf(
     "#8A8278"    // warm gray
 )
 
-// ─────────────────────────────────────────────────────────────
-// Slate + warm white palette
-// ─────────────────────────────────────────────────────────────
-// Surface ramp (warm whites → grays):
-//   #FAFAF7  background          warm white, slightly off-white
-//   #F0EFEA  surface             card / panel
-//   #DCDAD2  surface-variant     dividers, person-filter chips
-// Primary (slate blue):  #4A6178  /  on-primary #FAFAF7
-// Secondary (steel):     #B9C7D2  /  on-secondary #1F2A36
-// Tertiary (terracotta): #C28860  /  on-tertiary #FAFAF7
-// Text: #1F2A36 (primary) / #6A7480 (muted)
+// ═══════════════════════════════════════════════════════════════
+// SKYLIGHT PALETTE — Warm, paper-like, readable at 3–6 ft
+// ═══════════════════════════════════════════════════════════════
+// Light (daymode) — cream paper, warm slate ink
+// Surface ramp:
+//   #FDFBF7  background          warm white (paper)
+//   #F5F2EB  surface             card / panel
+//   #E8E4DB  surface-variant     dividers, chips, rail background
+//   #DDD9D0  surface-container   elevated cards
+// Primary (slate):     #3D556B  / on-primary #FDFBF7
+// Secondary (terracotta): #A86B4F / on-secondary #FDFBF7
+// Tertiary (sage):     #6B8A6B  / on-tertiary #FDFBF7
+// Outline:             #C4C0B8  / outline-variant #E8E4DB
+// Text primary:        #1C2228  / muted: #7A7770
 private val LightColorScheme = lightColorScheme(
-    primary                = Color(0xFF4A6178),
-    onPrimary              = Color(0xFFFAFAF7),
-    primaryContainer       = Color(0xFFD5DFE9),
-    onPrimaryContainer     = Color(0xFF101B26),
-    secondary              = Color(0xFF6E7E8C),
-    onSecondary            = Color(0xFFFAFAF7),
-    secondaryContainer     = Color(0xFFB9C7D2),
-    onSecondaryContainer   = Color(0xFF1F2A36),
-    tertiary               = Color(0xFFB07D5C),
-    onTertiary             = Color(0xFFFAFAF7),
-    tertiaryContainer      = Color(0xFFEAD6C5),
-    onTertiaryContainer    = Color(0xFF3A1F0E),
-    error                  = Color(0xFFA94442),
-    onError                = Color(0xFFFAFAF7),
+    primary                = Color(0xFF3D556B),
+    onPrimary              = Color(0xFFFDFBF7),
+    primaryContainer       = Color(0xFFD0DCE8),
+    onPrimaryContainer     = Color(0xFF0F1A24),
+    secondary              = Color(0xFFA86B4F),
+    onSecondary            = Color(0xFFFDFBF7),
+    secondaryContainer     = Color(0xFFEADCCF),
+    onSecondaryContainer   = Color(0xFF3A1F0E),
+    tertiary               = Color(0xFF6B8A6B),
+    onTertiary             = Color(0xFFFDFBF7),
+    tertiaryContainer      = Color(0xFFD4E5D4),
+    onTertiaryContainer    = Color(0xFF1A301A),
+    error                  = Color(0xFFB3423E),
+    onError                = Color(0xFFFDFBF7),
     errorContainer         = Color(0xFFF2D5D4),
     onErrorContainer       = Color(0xFF3A0E0D),
-    background             = Color(0xFFFAFAF7),
-    onBackground           = Color(0xFF1F2A36),
-    surface                = Color(0xFFF0EFEA),
-    onSurface              = Color(0xFF1F2A36),
-    surfaceVariant         = Color(0xFFDCDAD2),
-    onSurfaceVariant       = Color(0xFF6A7480),
-    outline                = Color(0xFFB6B5AE),
-    outlineVariant         = Color(0xFFDCDAD2),
-    inverseSurface         = Color(0xFF2D3845),
-    inverseOnSurface       = Color(0xFFF0EFEA),
+    background             = Color(0xFFFDFBF7),
+    onBackground           = Color(0xFF1C2228),
+    surface                = Color(0xFFF5F2EB),
+    onSurface              = Color(0xFF1C2228),
+    surfaceVariant         = Color(0xFFE8E4DB),
+    onSurfaceVariant       = Color(0xFF7A7770),
+    outline                = Color(0xFFC4C0B8),
+    outlineVariant         = Color(0xFFE8E4DB),
+    inverseSurface         = Color(0xFF2A2F36),
+    inverseOnSurface       = Color(0xFFF5F2EB),
     inversePrimary         = Color(0xFFB9C7D2),
-    surfaceTint            = Color(0xFF4A6178),
-    scrim                  = Color.Black
+    surfaceTint            = Color(0xFF3D556B),
+    scrim                  = Color.Black,
+    surfaceBright          = Color(0xFFFDFBF7),
+    surfaceDim             = Color(0xFFE0DDD5),
+    surfaceContainerLow    = Color(0xFFEEEBE3),
+    surfaceContainer       = Color(0xFFE8E4DB),
+    surfaceContainerHigh   = Color(0xFFE0DDD5),
+    surfaceContainerHighest= Color(0xFFD8D5CC)
 )
 
 private val DarkColorScheme = darkColorScheme(
     primary                = Color(0xFFB9C7D2),
-    onPrimary              = Color(0xFF1F2A36),
-    primaryContainer       = Color(0xFF35475A),
-    onPrimaryContainer     = Color(0xFFD5DFE9),
-    secondary              = Color(0xFF9CA9B5),
-    onSecondary            = Color(0xFF1F2A36),
-    secondaryContainer     = Color(0xFF3F4A55),
-    onSecondaryContainer   = Color(0xFFD5DFE9),
-    tertiary               = Color(0xFFE2B594),
-    onTertiary             = Color(0xFF3A1F0E),
-    tertiaryContainer      = Color(0xFF7A4F30),
-    onTertiaryContainer    = Color(0xFFEAD6C5),
-    error                  = Color(0xFFE5A8A6),
+    onPrimary              = Color(0xFF1C2228),
+    primaryContainer       = Color(0xFF3D556B),
+    onPrimaryContainer     = Color(0xFFD0DCE8),
+    secondary              = Color(0xFFE2B594),
+    onSecondary            = Color(0xFF3A1F0E),
+    secondaryContainer     = Color(0xFF7A4F30),
+    onSecondaryContainer   = Color(0xFFEADCCF),
+    tertiary               = Color(0xFFC4E0C4),
+    onTertiary             = Color(0xFF1A301A),
+    tertiaryContainer      = Color(0xFF4A6E4A),
+    onTertiaryContainer    = Color(0xFFD4E5D4),
+    error                  = Color(0xFFF2B8B5),
     onError                = Color(0xFF3A0E0D),
-    errorContainer         = Color(0xFF6B2A28),
+    errorContainer         = Color(0xFF7A302D),
     onErrorContainer       = Color(0xFFF2D5D4),
-    background             = Color(0xFF14181E),
-    onBackground           = Color(0xFFE6E6E2),
-    surface                = Color(0xFF1C2128),
-    onSurface              = Color(0xFFE6E6E2),
-    surfaceVariant         = Color(0xFF2A3038),
-    onSurfaceVariant       = Color(0xFFB6BCC3),
-    outline                = Color(0xFF4D535B),
-    outlineVariant         = Color(0xFF2A3038),
-    inverseSurface         = Color(0xFFE6E6E2),
-    inverseOnSurface       = Color(0xFF1F2A36),
-    inversePrimary         = Color(0xFF4A6178),
+    background             = Color(0xFF1A1E22),
+    onBackground           = Color(0xFFE8E4DB),
+    surface                = Color(0xFF22272D),
+    onSurface              = Color(0xFFE8E4DB),
+    surfaceVariant         = Color(0xFF3A3F46),
+    onSurfaceVariant       = Color(0xFFB8B4AC),
+    outline                = Color(0xFF6A6D74),
+    outlineVariant         = Color(0xFF3A3F46),
+    inverseSurface         = Color(0xFFE8E4DB),
+    inverseOnSurface       = Color(0xFF1C2228),
+    inversePrimary         = Color(0xFF3D556B),
     surfaceTint            = Color(0xFFB9C7D2),
-    scrim                  = Color.Black
+    scrim                  = Color.Black,
+    surfaceBright          = Color(0xFF2D3239),
+    surfaceDim             = Color(0xFF1A1E22),
+    surfaceContainerLow    = Color(0xFF242930),
+    surfaceContainer       = Color(0xFF2A2F36),
+    surfaceContainerHigh   = Color(0xFF32373F),
+    surfaceContainerHighest= Color(0xFF3A3F46)
 )
 
-// ─────────────────────────────────────────────────────────────
-// Shapes — M3 size hierarchy
-// ─────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════
+// Shapes — softer, friendlier (Skylight uses generous rounding)
+// ═══════════════════════════════════════════════════════════════
 val HearthboardShapes = Shapes(
-    extraSmall = RoundedCornerShape(4.dp),
-    small      = RoundedCornerShape(8.dp),
-    medium     = RoundedCornerShape(12.dp),
-    large      = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(24.dp)
+    extraSmall = RoundedCornerShape(6.dp),   // chips, avatars
+    small      = RoundedCornerShape(12.dp),  // buttons, cards
+    medium     = RoundedCornerShape(16.dp),  // dialogs, sheets
+    large      = RoundedCornerShape(20.dp),  // large sheets
+    extraLarge = RoundedCornerShape(28.dp)   // full-screen modals
 )
 
-// ─────────────────────────────────────────────────────────────
-// Typography — M3 type scale with letter-spacing
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// Typography — larger, airier, readable at arm's length + beyond
+// Letter-spacing opened up for distance viewing
+// Base scale bumped +2sp across the board vs M3 default
+// ═══════════════════════════════════════════════════════════════
 val HearthboardTypography = Typography(
-    displayLarge  = TextStyle(fontWeight = FontWeight.W300, fontSize = 57.sp, lineHeight = 64.sp, letterSpacing = (-0.25).sp),
-    displayMedium = TextStyle(fontWeight = FontWeight.W300, fontSize = 45.sp, lineHeight = 52.sp, letterSpacing = 0.sp),
-    displaySmall  = TextStyle(fontWeight = FontWeight.W400, fontSize = 36.sp, lineHeight = 44.sp, letterSpacing = 0.sp),
-    headlineLarge = TextStyle(fontWeight = FontWeight.W600, fontSize = 32.sp, lineHeight = 40.sp, letterSpacing = 0.sp),
-    headlineMedium= TextStyle(fontWeight = FontWeight.W600, fontSize = 28.sp, lineHeight = 36.sp, letterSpacing = 0.sp),
-    headlineSmall = TextStyle(fontWeight = FontWeight.W600, fontSize = 24.sp, lineHeight = 32.sp, letterSpacing = 0.sp),
-    titleLarge    = TextStyle(fontWeight = FontWeight.W500, fontSize = 22.sp, lineHeight = 28.sp, letterSpacing = 0.sp),
-    titleMedium   = TextStyle(fontWeight = FontWeight.W500, fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.15.sp),
-    titleSmall    = TextStyle(fontWeight = FontWeight.W500, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.1.sp),
-    bodyLarge     = TextStyle(fontWeight = FontWeight.W400, fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.5.sp),
-    bodyMedium    = TextStyle(fontWeight = FontWeight.W400, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.25.sp),
-    bodySmall     = TextStyle(fontWeight = FontWeight.W400, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.4.sp),
-    labelLarge    = TextStyle(fontWeight = FontWeight.W500, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.1.sp),
-    labelMedium   = TextStyle(fontWeight = FontWeight.W500, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.5.sp),
-    labelSmall    = TextStyle(fontWeight = FontWeight.W500, fontSize = 11.sp, lineHeight = 16.sp, letterSpacing = 0.5.sp)
+    displayLarge  = TextStyle(fontWeight = FontWeight.W300, fontSize = 64.sp, lineHeight = 72.sp, letterSpacing = (-0.5).sp),
+    displayMedium = TextStyle(fontWeight = FontWeight.W300, fontSize = 52.sp, lineHeight = 60.sp, letterSpacing = 0.sp),
+    displaySmall  = TextStyle(fontWeight = FontWeight.W400, fontSize = 44.sp, lineHeight = 52.sp, letterSpacing = 0.sp),
+    headlineLarge = TextStyle(fontWeight = FontWeight.W600, fontSize = 36.sp, lineHeight = 44.sp, letterSpacing = 0.sp),
+    headlineMedium= TextStyle(fontWeight = FontWeight.W600, fontSize = 32.sp, lineHeight = 40.sp, letterSpacing = 0.sp),
+    headlineSmall = TextStyle(fontWeight = FontWeight.W600, fontSize = 28.sp, lineHeight = 36.sp, letterSpacing = 0.sp),
+    titleLarge    = TextStyle(fontWeight = FontWeight.W500, fontSize = 26.sp, lineHeight = 32.sp, letterSpacing = 0.sp),
+    titleMedium   = TextStyle(fontWeight = FontWeight.W500, fontSize = 18.sp, lineHeight = 26.sp, letterSpacing = 0.15.sp),
+    titleSmall    = TextStyle(fontWeight = FontWeight.W500, fontSize = 16.sp, lineHeight = 22.sp, letterSpacing = 0.1.sp),
+    bodyLarge     = TextStyle(fontWeight = FontWeight.W400, fontSize = 18.sp, lineHeight = 26.sp, letterSpacing = 0.3.sp),
+    bodyMedium    = TextStyle(fontWeight = FontWeight.W400, fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.25.sp),
+    bodySmall     = TextStyle(fontWeight = FontWeight.W400, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.2.sp),
+    labelLarge    = TextStyle(fontWeight = FontWeight.W500, fontSize = 16.sp, lineHeight = 22.sp, letterSpacing = 0.1.sp),
+    labelMedium   = TextStyle(fontWeight = FontWeight.W500, fontSize = 14.sp, lineHeight = 18.sp, letterSpacing = 0.3.sp),
+    labelSmall    = TextStyle(fontWeight = FontWeight.W500, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.4.sp)
 )
 
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 // Theme composable
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 @Composable
 fun HearthboardTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -161,14 +173,10 @@ fun HearthboardTheme(
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
-        // Monet from wallpaper (Android 12+)
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = androidx.compose.ui.platform.LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        // Custom seed: derive a tonal palette from the user's color,
-        // but keep our designed neutrals so the rest of the UI doesn't
-        // get clobbered by a single seed. Only `primary` is overridden.
         seedColor != null -> {
             val base = if (darkTheme) DarkColorScheme else LightColorScheme
             base.copy(
@@ -181,10 +189,6 @@ fun HearthboardTheme(
         else      -> LightColorScheme
     }
 
-    // Edge-to-edge is enabled in MainActivity; the status bar should be
-    // transparent and let the app draw underneath. We only set the bar
-    // icon color (light/dark) here, not its background — setting the
-    // background fights edge-to-edge and is deprecated in API 35+.
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {

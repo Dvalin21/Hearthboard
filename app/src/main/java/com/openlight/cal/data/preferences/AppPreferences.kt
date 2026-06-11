@@ -39,6 +39,7 @@ class AppPreferences(private val context: Context) {
         // Wall Mode — Skylight-style permanent display
         val KEY_WALL_MODE       = booleanPreferencesKey("wall_mode")
         val KEY_WALL_KEEP_ON    = booleanPreferencesKey("wall_keep_screen_on")
+        val KEY_WALL_IDLE_SECS  = intPreferencesKey("wall_idle_timeout_seconds") // 0 = disabled
         // No telemetry keys - period.
     }
 
@@ -63,6 +64,7 @@ class AppPreferences(private val context: Context) {
     val mealieToken: Flow<String>     = context.dataStore.data.map { it[KEY_MEALIE_TOKEN] ?: "" }
     val wallMode: Flow<Boolean>       = context.dataStore.data.map { it[KEY_WALL_MODE] ?: false }
     val wallKeepScreenOn: Flow<Boolean> = context.dataStore.data.map { it[KEY_WALL_KEEP_ON] ?: true }
+    val wallIdleTimeoutSeconds: Flow<Int> = context.dataStore.data.map { it[KEY_WALL_IDLE_SECS] ?: 0 }
 
     suspend fun set(key: Preferences.Key<Int>, value: Int) {
         context.dataStore.edit { it[key] = value }
