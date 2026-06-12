@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.tokens.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +49,7 @@ fun SettingsScreen(
     val showWeekends by viewModel.showWeekends.collectAsState()
     val wallMode     by viewModel.wallMode.collectAsState()
     val wallKeepOn   by viewModel.wallKeepOn.collectAsState()
+    val familyName   by viewModel.familyName.collectAsState()
     val accounts     by viewModel.accounts.collectAsState()
     val isSyncing    by viewModel.isSyncing.collectAsState()
 
@@ -140,6 +142,29 @@ fun SettingsScreen(
                 valueRange    = 0.75f..1.4f,
                 steps         = 4,
                 modifier      = Modifier.fillMaxWidth()
+            )
+        }
+
+        // Family name
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Family Name", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    familyName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            OutlinedTextField(
+                value = familyName,
+                onValueChange = { viewModel.setFamilyName(it) },
+                label = { Text("Family Name (e.g., Miller Family)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
         }
 

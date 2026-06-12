@@ -129,6 +129,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
 
     val people by personVm.people.collectAsState()
     val accounts by settingsVm.accounts.collectAsState()
+    val familyName by app.preferences.familyName.collectAsStateWithLifecycle(initialValue = "Family")
     val showAddEvent by calVm.showAddEvent.collectAsState()
     val editEvent    by calVm.editEvent.collectAsState()
     val selectedDate by calVm.selectedDate.collectAsState()
@@ -183,7 +184,8 @@ fun HearthboardNavHost(app: HearthboardApp) {
                 CalendarScreen(
                     viewModel  = calVm,
                     people     = people,
-                    onAddEvent = { calVm.showAddEvent() }
+                    onAddEvent = { calVm.showAddEvent() },
+                    familyName = familyName
                 )
             }
             composable(Screen.Tasks.route) {
