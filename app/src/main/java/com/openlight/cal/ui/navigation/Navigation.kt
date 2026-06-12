@@ -1,6 +1,7 @@
 package com.openlight.cal.ui.navigation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -57,12 +58,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 
 // ─────────────────────────────────────────────────────────────
-// Screen definitions — Spec order for left nav rail
-// Primary: Calendar → Lists → Tasks → Chores → Rewards → Meals → Recipes → Photos
-// Secondary (below divider): Sleep
-// Settings at bottom
-// Bottom tabs (compact): Calendar, Lists, Tasks, Chores
-// More sheet: Rewards, Meals, Recipes, Photos, Sleep, Settings
+// Screen definitions — Skylight Calendar 2 exact order
+// Primary rail (top to bottom): Calendar → Links → Tasks → Rewards → Meals → Recipes → Photos → Sleep → Settings
+// Bottom tabs (compact): Calendar, Links, Tasks, Rewards
+// More sheet: Meals, Recipes, Photos, Sleep, Settings
 // ─────────────────────────────────────────────────────────────
 sealed class Screen(
     val route: String,
@@ -76,36 +75,40 @@ sealed class Screen(
     object Rewards  : Screen("rewards",  "Rewards",  Icons.Filled.Star,             Icons.Outlined.Star)
     object Meals    : Screen("meals",    "Meals",    Icons.Filled.Restaurant,       Icons.Outlined.Restaurant)
     object Photos   : Screen("photos",   "Photos",   Icons.Filled.PhotoLibrary,     Icons.Outlined.PhotoLibrary)
-    object Lists    : Screen("lists",    "Lists",    Icons.AutoMirrored.Filled.List,             Icons.AutoMirrored.Outlined.List)
+    object Lists    : Screen("links",    "Links",    Icons.Filled.Link,             Icons.Outlined.Link)
     object Sleep    : Screen("sleep",    "Sleep",    Icons.Filled.Bedtime,          Icons.Outlined.Bedtime)
     object People   : Screen("people",   "People",   Icons.Filled.Group,            Icons.Outlined.Group)
-    object Recipes  : Screen("recipes",  "Recipes",  Icons.Filled.RestaurantMenu,   Icons.Outlined.RestaurantMenu)
+    object Recipes  : Screen("recipes",  "Recipes",  Icons.Filled.MenuBook,         Icons.Outlined.MenuBook)
     object Settings : Screen("settings", "Settings", Icons.Filled.Settings,         Icons.Outlined.Settings)
     object Chores   : Screen("chores",   "Chores",   Icons.Filled.TaskAlt,          Icons.Outlined.TaskAlt)
 
     companion object {
-        // Primary items — shown in left nav rail (specified order)
-        val primary = listOf(Calendar, Lists, Tasks, Chores, Rewards, Meals, Recipes, Photos)
+        // Primary items — Skylight Calendar 2 exact rail order (top to bottom)
+        val primary = listOf(Calendar, Lists, Tasks, Rewards, Meals, Recipes, Photos, Sleep)
 
-        // Below divider in the rail
-        val secondary = listOf(Sleep)
+        // Settings at bottom (after divider)
+        val secondary = listOf(Settings)
 
         // Bottom nav items (compact/portrait) — first 4 visible, rest in "More"
-        val bottomTabs = listOf(Calendar, Lists, Tasks, Chores)
+        val bottomTabs = listOf(Calendar, Lists, Tasks, Rewards)
 
         // Items in the "More" bottom sheet on compact screens
-        val moreItems = listOf(Rewards, Meals, Recipes, Photos, Sleep, Settings)
+        val moreItems = listOf(Meals, Recipes, Photos, Sleep, Settings)
 
-        val all = primary + secondary + Settings
+        val all = primary + secondary
     }
 }
 
-// ── RAIL CONSTANTS ──────────────────────────────────────────
+// ── RAIL CONSTANTS (Skylight Calendar 2 spec) ────────────────────
 private val RailWidthCompact   = 56.dp
-private val RailWidthExpanded  = 72.dp
-private val SpecActivePurple   = Color(0xFF7C4DFF)
-private val SpecActiveBg       = Color(0xFFF3E8FF)
-private val SpecInactiveGray   = Color(0xFF9CA3AF)
+private val RailWidthExpanded  = 80.dp
+
+// Skylight Purple palette
+private val SkylightPurple700 = Color(0xFF7B1FA2)  // Selected icon/label
+private val SkylightPurple50  = Color(0xFFF3E5F5)  // Selected background
+private val SkylightPurple100 = Color(0xFFE1BEE7)  // Hover/pressed
+private val RailDividerColor  = Color(0xFFEEEEEE)  // Right edge divider
+private val UnselectedGray    = Color(0xFF757575)  // Unselected icon/label
 
 // ─────────────────────────────────────────────────────────────
 // Main Navigation Host
@@ -250,26 +253,51 @@ fun HearthboardNavHost(app: HearthboardApp) {
         }
     }
 
-    // ── Spec-style rail icon ──────────────────────────────────
+    // ── Skylight-style Navigation Rail Item ─────────────────────
     @Composable
-    fun SpecNavIcon(screen: Screen) {
+    fun SkylightNavItem(screen: Screen) {
         val selected = currentDest?.hierarchy?.any { it.route == screen.route } == true
-        val bgColor  = if (selected) SpecActiveBg else Color.Transparent
-        val tint     = if (selected) SpecActivePurple else SpecInactiveGray
-        Box(
-            contentAlignment = Alignment.Center,
+
+        val bgColor    = if (selected) SkylightPurple50 else Color.Transparent
+        val tint       = if (selected) SkylightPurple700 else UnselectedGray
+        val labelColor = if (selected) SkylightPurple700 else UnselectedGray
+
+        // Full-width clickable row: 80dp wide, 48dp tall touch target
+        Row(
             modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(bgColor)
-                .clickable { navigateTo(screen) }
                 .fillMaxWidth()
+                .height(48.dp)
+                .clickable { navigateTo(screen) }
+                .background(bgColor)
+                .padding(horizontal = 16.dp, vertical = 0.dp)
+                .then(
+                    if (selected)
+                        Modifier.border(
+                            width = 3.dp,
+                            color = SkylightPurple700,
+                            shape = RoundedCornerShape(0.dp)
+                        )
+                    else
+                        Modifier
+                )
         ) {
+            // Icon (24dp) - centered vertically
             Icon(
                 imageVector = if (selected) screen.selectedIcon else screen.unselectedIcon,
                 contentDescription = screen.label,
                 tint    = tint,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier
+                    .size(24.dp)
+                    .align(Alignment.CenterVertically)
+            )
+            Spacer(Modifier.width(8.dp))
+            // Label (always visible, 12sp Medium)
+            Text(
+                text       = screen.label,
+                fontSize   = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color      = labelColor,
+                modifier   = Modifier.align(Alignment.CenterVertically)
             )
         }
     }
@@ -343,46 +371,47 @@ fun HearthboardNavHost(app: HearthboardApp) {
             }
         }
     } else {
-        // ── LANDSCAPE / TABLET: Navigation Rail ──────────────
+        // ── LANDSCAPE / TABLET: Navigation Rail (Skylight spec) ──────────────
         Row(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.systemBars)
         ) {
+            // Rail: 80dp wide, white background, right divider
             NavigationRail(
                 containerColor = Color.White,
-                modifier       = Modifier.width(RailWidthExpanded)
+                modifier       = Modifier
+                    .width(RailWidthExpanded)
+                    .border(width = 1.dp, color = RailDividerColor, shape = RoundedCornerShape(0.dp))
             ) {
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
+                        .padding(vertical = 24.dp)
                 ) {
+                    // Primary items: Calendar, Links, Tasks, Rewards, Meals, Recipes, Photos, Sleep
+                    Screen.primary.forEachIndexed { index, screen ->
+                        SkylightNavItem(screen)
+                        // 24dp spacing between items
+                        if (index != Screen.primary.lastIndex) {
+                            Spacer(Modifier.height(24.dp))
+                        }
+                    }
+
+                    // Divider before Settings
+                    Spacer(Modifier.height(24.dp))
+                    Divider(
+                        color = RailDividerColor,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
                     Spacer(Modifier.height(24.dp))
 
-                    // Primary items: Calendar, Lists, Tasks, Chores, Rewards, Meals, Recipes, Photos
-                    Screen.primary.forEach { screen ->
-                        Spacer(Modifier.height(12.dp))
-                        SpecNavIcon(screen)
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
-                    Spacer(Modifier.height(8.dp))
-
-                    // Sleep below divider
+                    // Settings at bottom
                     Screen.secondary.forEach { screen ->
-                        Spacer(Modifier.height(12.dp))
-                        SpecNavIcon(screen)
+                        SkylightNavItem(screen)
                     }
                 }
-
-                // Settings at very bottom
-                Spacer(Modifier.height(8.dp))
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
-                Spacer(Modifier.height(8.dp))
-                SpecNavIcon(Screen.Settings)
-                Spacer(Modifier.height(16.dp))
             }
 
             // Content area
@@ -428,7 +457,6 @@ fun HearthboardNavHost(app: HearthboardApp) {
     }
 
     // ── Entry method picker (§5.4) for new events ──────────
-    // Editing always goes straight to the form.
     var entryMethod by remember { mutableStateOf<EntryMethod?>(null) }
     val ctx = LocalContext.current
 
