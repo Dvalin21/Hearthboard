@@ -146,7 +146,7 @@ fun SettingsScreen(
             )
         }
 
-        // Family name
+        // Family name (display only, not editable)
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -160,13 +160,6 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.primary
                 )
             }
-            OutlinedTextField(
-                value = familyName,
-                onValueChange = { viewModel.setFamilyName(it) },
-                label = { Text("Family Name (e.g., Miller Family)") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
         }
 
         Spacer(Modifier.height(8.dp))

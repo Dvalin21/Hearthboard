@@ -312,7 +312,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                         color      = if (selected) SelectedLabel else UnselectedTint,
                         letterSpacing = 2.sp
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(2.dp))
                 }
 
                 // Icon (28dp)
@@ -454,9 +454,9 @@ fun HearthboardNavHost(app: HearthboardApp) {
                             adminInitial = adminInitial,
                             showInitial  = isCalendar
                         )
-                        // 16dp spacing between items
+                        // 8dp spacing between items (tighter)
                         if (index != Screen.primary.lastIndex) {
-                            Spacer(Modifier.height(16.dp))
+                            Spacer(Modifier.height(8.dp))
                         }
                     }
 

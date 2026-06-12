@@ -139,19 +139,7 @@ fun CalendarScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // ── Calendar controls: nav, today, schedule, filter ─────────
-            CalendarControls(
-                viewMode   = viewMode,
-                onViewMode = viewModel::setViewMode,
-                onPrev     = viewModel::navigatePrev,
-                onNext     = viewModel::navigateNext,
-                onToday    = viewModel::goToday,
-                onAdd      = onAddEvent,
-                onScheduleClick = { /* navigate to agenda */ },
-                onFilterClick   = { showFilterSheet = true }
-            )
-
-            // ── Filter bottom sheet (view mode + person filter) ─────────
+            // ── Person filter row: horizontal scrollable chips ──
             if (showFilterSheet) {
                 ModalBottomSheet(
                     onDismissRequest = { showFilterSheet = false },
@@ -538,31 +526,30 @@ private fun SkylightMonthView(
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp)) {
-        // Day headers: Mon, Tue, Wed, Thu, Fri, Sat, Sun (3-letter abbreviations) - BOLD AND LARGER
+        // Day headers: Mon, Tue, Wed, Thu, Fri, Sat, Sun (3-letter abbreviations) - BOLD BLACK
         Row(modifier = Modifier.fillMaxWidth().height(40.dp)) {
             listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEachIndexed { idx, dow ->
-                val isTodayCol = idx == todayCol
                 Text(
                     text       = dow,
                     modifier   = Modifier
                         .weight(1f)
                         .fillMaxHeight(),
                     textAlign  = TextAlign.Center,
-                    style      = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp),  // LARGER
-                    fontWeight = FontWeight.Bold,  // BOLD
-                    color      = if (isTodayCol) SkylightOrange else MaterialTheme.colorScheme.onSurfaceVariant
+                    style      = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp),
+                    fontWeight = FontWeight.Bold,
+                    color      = MaterialTheme.colorScheme.onSurface  // BLACK/BOLD for all
                 )
             }
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(horizontal = 4.dp))
 
-        // 6-week grid
+        // 6-week grid - bigger cells with more spacing
         LazyVerticalGrid(
             columns = GridCells.Fixed(7),
-            modifier = Modifier.weight(1f).padding(vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(1.dp),
-            horizontalArrangement = Arrangement.spacedBy(1.dp)
+            modifier = Modifier.weight(1f).padding(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             items(42) { index: Int ->
                 val day = gridStart.plusDays(index.toLong())
