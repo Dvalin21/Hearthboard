@@ -131,7 +131,10 @@ fun CalendarScreen(
                 tempUnit        = tempUnit,
                 familyName      = familyName,
                 onScheduleClick = { /* navigate to agenda */ },
-                onFilterClick   = { showFilterSheet = true }
+                onFilterClick   = { showFilterSheet = true },
+                onPrevClick     = viewModel::navigatePrev,
+                onNextClick     = viewModel::navigateNext,
+                onTodayClick    = viewModel::goToday
             )
 
             HorizontalDivider(
@@ -262,7 +265,7 @@ fun CalendarScreen(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Skylight Header — 80dp, family name (serif) + time + temp + Schedule + Filter text
+// Skylight Header — 80dp, family name (serif) + time + temp + Schedule + Filter + nav controls
 // ─────────────────────────────────────────────────────────────
 @Composable
 private fun SkylightHeader(
@@ -272,7 +275,10 @@ private fun SkylightHeader(
     tempUnit: String,
     familyName: String,
     onScheduleClick: () -> Unit,
-    onFilterClick: () -> Unit
+    onFilterClick: () -> Unit,
+    onPrevClick: () -> Unit,
+    onNextClick: () -> Unit,
+    onTodayClick: () -> Unit
 ) {
     // Convert temperature based on unit
     val (tempStr, weatherIcon) = remember(forecast, tempUnit) {
@@ -309,7 +315,7 @@ private fun SkylightHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Left: Family name (serif) + Time + Weather inline
+        // Left: Family name (serif) + Time + Weather inline - 3 font sizes larger
         Row(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
@@ -319,7 +325,7 @@ private fun SkylightHeader(
             Text(
                 text       = familyName,
                 fontFamily = FontFamily.Serif,
-                fontSize   = 20.sp,
+                fontSize   = 28.sp,  // 3 sizes larger (was 20sp)
                 fontWeight = FontWeight.Bold,
                 color      = MaterialTheme.colorScheme.onSurface
             )
@@ -355,7 +361,7 @@ private fun SkylightHeader(
             }
         }
 
-        // Right: Schedule button + Filter TEXT button
+        // Right: Schedule button + Filter TEXT button + nav controls (Today between arrows)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             TextButton(onClick = onScheduleClick) {
                 Text(
@@ -373,6 +379,18 @@ private fun SkylightHeader(
                     fontWeight = FontWeight.Medium,
                     color    = MaterialTheme.colorScheme.primary
                 )
+            }
+            // Nav controls: Prev / Today / Next
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                IconButton(onClick = onPrevClick) { 
+                    Icon(Icons.Default.ChevronLeft, "Previous", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface) 
+                }
+                TextButton(onClick = onTodayClick) {
+                    Text("Today", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = onNextClick) { 
+                    Icon(Icons.Default.ChevronRight, "Next", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface) 
+                }
             }
         }
     }
@@ -687,8 +705,8 @@ private fun SkylightDayCell(
                         fontSize   = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color      = if (span.color == PastelDeepOrange100) PastelDeepOrange900 else Color.White,
-                        maxLines   = 1,
-                        overflow   = TextOverflow.Ellipsis,
+                        maxLines   = 2,  // Allow more lines
+                        overflow   = TextOverflow.Visible,
                         modifier   = Modifier.padding(start = 8.dp, end = 8.dp)
                     )
                 }
@@ -736,8 +754,8 @@ private fun SkylightDayCell(
                         fontSize   = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color      = textColor,
-                        maxLines   = 2,
-                        overflow   = TextOverflow.Ellipsis
+                        maxLines   = 3,  // Allow more lines so name never cut off
+                        overflow   = TextOverflow.Visible  // No ellipsis, show full text
                     )
                 }
                 // Person badge (16dp circle)
@@ -803,7 +821,7 @@ private fun SkylightWeekView(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Day headers - bold, bigger, current day first
+        // Day headers - bold, bigger, current day first - date beside day name, no orange highlight
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
             Spacer(Modifier.width(48.dp))
             weekDays.forEach { day ->
@@ -813,26 +831,33 @@ private fun SkylightWeekView(
                     modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        day.dayOfWeek.getDisplayName(JTextStyle.SHORT, Locale.getDefault()),
-                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 14.sp),
-                        fontWeight = FontWeight.Bold,
-                        color = if (isToday) SkylightOrange else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(if (isToday) SkylightOrange else Color.Transparent)
-                            .clickable { onDayClick(day) }
+                    // Day name and date on same line
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            day.dayOfMonth.toString(),
-                            style = MaterialTheme.typography.bodyMedium,
+                            day.dayOfWeek.getDisplayName(JTextStyle.SHORT, Locale.getDefault()).uppercase(),
+                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 18.sp),
                             fontWeight = FontWeight.Bold,
-                            color = if (isToday) Color.White else MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface  // BOLD BLACK for all
                         )
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(if (isToday) SkylightOrange else Color.Transparent)
+                                .clickable { onDayClick(day) }
+                        ) {
+                            Text(
+                                day.dayOfMonth.toString(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isToday) Color.White else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                     if (wf != null) {
                         Text("${wf.iconChar}${wf.tempHigh.toInt()}°",
@@ -972,8 +997,8 @@ private fun SkylightWeekView(
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = textColor,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis)
+                                    maxLines = 3,  // Allow more lines so name never cut off
+                                    overflow = TextOverflow.Visible)
                             }
                         }
                     }
@@ -1095,7 +1120,7 @@ private fun SkylightDayView(
                             }
                             Spacer(Modifier.height(4.dp))
                             Text(timeRange.lowercase().replace(" ", ""), fontSize = 11.sp, color = textColor.copy(alpha = 0.7f), maxLines = 1)
-                            Text(event.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textColor, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(event.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textColor, maxLines = 3, overflow = TextOverflow.Visible)
                             if (event.location.isNotBlank()) {
                                 Text(event.location, style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f), maxLines = 1)
                             }

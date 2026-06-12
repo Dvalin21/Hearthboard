@@ -25,7 +25,7 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = (app as HearthboardApp).preferences
     private val weatherApi = WeatherApi()
 
-    private val _viewMode = MutableStateFlow("MONTH")
+    private val _viewMode = MutableStateFlow("WEEK")
     val viewMode: StateFlow<String> = _viewMode
 
     private val _selectedDate = MutableStateFlow(LocalDate.now())

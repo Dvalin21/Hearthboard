@@ -109,16 +109,15 @@ sealed class Screen(
 
 // ── RAIL CONSTANTS (Skylight Calendar 2 spec) ────────────────────
 private val RailWidthCompact   = 56.dp
-private val RailWidthExpanded  = 80.dp
+private val RailWidthExpanded  = 100.dp  // Wider to fit all names
 
-// Colors — using theme for dark mode support
-// Selected: White rounded pill, grayish rail background
-private val RailBgColor        = Color(0xFFF5F5F5)  // Grayish rail bg
+// Colors — 2-3 shades darker gray, rounded rail
+private val RailBgColor        = Color(0xFFE0E0E0)  // Darker grayish rail bg
 private val SelectedPillColor  = Color.White        // White pill for active
-private val UnselectedTint     = Color(0xFF757575)  // Gray for inactive
-private val UnselectedLabel    = Color(0xFF757575)
+private val UnselectedTint     = Color(0xFF616161)  // Darker gray for inactive
+private val UnselectedLabel    = Color(0xFF616161)
 private val SelectedLabel      = Color(0xFF1F1F1F)  // Dark for active
-private val RailDividerColor   = Color(0xFFEEEEEE)  // Right edge divider
+private val RailDividerColor   = Color(0xFFDDDDDD)  // Right edge divider
 
 // ─────────────────────────────────────────────────────────────
 // Main Navigation Host
@@ -349,7 +348,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
             topBar = { /* content uses its own headers */ },
             bottomBar = {
                 NavigationBar(
-                    containerColor = Color(0xFFF5F5F5),  // Grayish, not white
+                    containerColor = RailBgColor,  // Use darker gray
                     modifier = Modifier.padding(bottom = 0.dp)
                 ) {
                     Screen.bottomTabs.forEach { screen ->
@@ -430,43 +429,53 @@ fun HearthboardNavHost(app: HearthboardApp) {
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.systemBars)
         ) {
-            // Rail: 80dp wide, grayish background, right divider
+            // Rail: 100dp wide, darker gray background, rounded corners
             NavigationRail(
                 containerColor = RailBgColor,
                 modifier       = Modifier
                     .width(RailWidthExpanded)
-                    .border(width = 1.dp, color = RailDividerColor, shape = RoundedCornerShape(0.dp))
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(width = 1.dp, color = RailDividerColor, shape = RoundedCornerShape(16.dp))
             ) {
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
-                        .padding(vertical = 16.dp)
+                        .padding(vertical = 12.dp)
                 ) {
-                    // Calendar initial badge at top of rail (above Calendar item)
-                    // We'll handle this inside SkylightNavItem for Calendar
+                    // Old English initial as SEPARATE item at top (not part of Calendar button)
+                    if (adminInitial != null) {
+                        Text(
+                            text       = adminInitial,
+                            fontFamily = FontFamily.Serif,
+                            fontSize   = 28.sp,
+                            fontWeight = FontWeight.Bold,
+                            color      = UnselectedTint,
+                            letterSpacing = 2.sp,
+                            modifier   = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                                .padding(horizontal = 16.dp)
+                                .wrapContentSize(Alignment.Center)
+                        )
+                    }
 
                     // Primary items: Calendar, Lists, Tasks, Chores, Rewards, Meals, Recipes, Photos, Sleep
                     Screen.primary.forEachIndexed { index, screen ->
-                        val isCalendar = screen == Screen.Calendar
-                        SkylightNavItem(
-                            screen,
-                            adminInitial = adminInitial,
-                            showInitial  = isCalendar
-                        )
-                        // 8dp spacing between items (tighter)
+                        SkylightNavItem(screen)
+                        // 4dp spacing between items (tightest)
                         if (index != Screen.primary.lastIndex) {
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(4.dp))
                         }
                     }
 
-                    // Divider before Settings
-                    Spacer(Modifier.height(24.dp))
+                    // Divider before Settings - smaller gap
+                    Spacer(Modifier.height(12.dp))
                     HorizontalDivider(
                         color = RailDividerColor,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
-                    Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(12.dp))
 
                     // Settings at bottom (only item below divider)
                     Screen.secondary.forEach { screen ->
