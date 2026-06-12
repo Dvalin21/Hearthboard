@@ -20,7 +20,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -60,9 +63,10 @@ import kotlinx.coroutines.launch
 // ─────────────────────────────────────────────────────────────
 // Screen definitions — All Hearthboard features, Skylight visual style
 // Primary rail (top to bottom): Calendar → Lists → Tasks → Chores → Rewards → Meals → Recipes → Photos → Sleep
-// Secondary (below divider): People → Settings
+// Divider
+// Settings
 // Bottom tabs (compact): Calendar, Lists, Tasks, Chores
-// More sheet: Rewards, Meals, Recipes, Photos, People, Sleep, Settings
+// More sheet: Rewards, Meals, Recipes, Photos, Sleep, Settings
 // ─────────────────────────────────────────────────────────────
 sealed class Screen(
     val route: String,
@@ -81,20 +85,21 @@ sealed class Screen(
     object People   : Screen("people",   "People",   Icons.Filled.Group,            Icons.Outlined.Group)
     object Recipes  : Screen("recipes",  "Recipes",  Icons.Filled.MenuBook,         Icons.Outlined.MenuBook)
     object Settings : Screen("settings", "Settings", Icons.Filled.Settings,         Icons.Outlined.Settings)
-    object Chores   : Screen("chores",   "Chores",   Icons.Filled.TaskAlt,          Icons.Outlined.TaskAlt)
+    // Chores uses distinct icon from Tasks (not checkmark)
+    object Chores   : Screen("chores",   "Chores",   Icons.Filled.CleaningServices,     Icons.Outlined.CleaningServices)
 
     companion object {
         // Primary items — all features in user-specified order, Skylight visual style
         val primary = listOf(Calendar, Lists, Tasks, Chores, Rewards, Meals, Recipes, Photos, Sleep)
 
-        // Below divider in the rail
-        val secondary = listOf(People, Settings)
+        // Below divider in the rail: ONLY Settings (People moved to Settings screen)
+        val secondary = listOf(Settings)
 
         // Bottom nav items (compact/portrait) — first 4 visible, rest in "More"
         val bottomTabs = listOf(Calendar, Lists, Tasks, Chores)
 
         // Items in the "More" bottom sheet on compact screens
-        val moreItems = listOf(Rewards, Meals, Recipes, Photos, People, Sleep, Settings)
+        val moreItems = listOf(Rewards, Meals, Recipes, Photos, Sleep, Settings)
 
         val all = primary + secondary
     }
@@ -104,12 +109,14 @@ sealed class Screen(
 private val RailWidthCompact   = 56.dp
 private val RailWidthExpanded  = 80.dp
 
-// Skylight Purple palette
-private val SkylightPurple700 = Color(0xFF7B1FA2)  // Selected icon/label
-private val SkylightPurple50  = Color(0xFFF3E5F5)  // Selected background
-private val SkylightPurple100 = Color(0xFFE1BEE7)  // Hover/pressed
-private val RailDividerColor  = Color(0xFFEEEEEE)  // Right edge divider
-private val UnselectedGray    = Color(0xFF757575)  // Unselected icon/label
+// Colors — using theme for dark mode support
+// Selected: White rounded pill, grayish rail background
+private val RailBgColor        = Color(0xFFF5F5F5)  // Grayish rail bg
+private val SelectedPillColor  = Color.White        // White pill for active
+private val UnselectedTint     = Color(0xFF757575)  // Gray for inactive
+private val UnselectedLabel    = Color(0xFF757575)
+private val SelectedLabel      = Color(0xFF1F1F1F)  // Dark for active
+private val RailDividerColor   = Color(0xFFEEEEEE)  // Right edge divider
 
 // ─────────────────────────────────────────────────────────────
 // Main Navigation Host
@@ -130,10 +137,19 @@ fun HearthboardNavHost(app: HearthboardApp) {
     val people by personVm.people.collectAsState()
     val accounts by settingsVm.accounts.collectAsState()
     val familyName by app.preferences.familyName.collectAsStateWithLifecycle(initialValue = "Family")
+    val tempUnit by app.preferences.tempUnit.collectAsStateWithLifecycle(initialValue = "F")
     val showAddEvent by calVm.showAddEvent.collectAsState()
     val editEvent    by calVm.editEvent.collectAsState()
     val selectedDate by calVm.selectedDate.collectAsState()
 
+    // Admin person for initial (first non-default person, or first person)
+    // Also used for "The [LastName] Family" format
+    val adminPerson = remember(people) {
+        people.firstOrNull { !it.isDefault } ?: people.firstOrNull()
+    }
+    val adminInitial = adminPerson?.name?.firstOrNull()?.uppercase() ?: "?"
+    val adminLastName = adminPerson?.name?.split(" ")?.lastOrNull() ?: "Family"
+    val displayFamilyName = "The $adminLastName Family"
     // ── Setup check: show onboarding on first launch ──────────
     val setupDone by app.preferences.setupDone.collectAsStateWithLifecycle(initialValue = false)
     if (!setupDone) {
@@ -185,7 +201,8 @@ fun HearthboardNavHost(app: HearthboardApp) {
                     viewModel  = calVm,
                     people     = people,
                     onAddEvent = { calVm.showAddEvent() },
-                    familyName = familyName
+                    familyName = displayFamilyName,
+                    tempUnit   = tempUnit
                 )
             }
             composable(Screen.Tasks.route) {
@@ -257,51 +274,67 @@ fun HearthboardNavHost(app: HearthboardApp) {
     }
 
     // ── Skylight-style Navigation Rail Item ─────────────────────
+    // Vertical stack: Icon ABOVE Label, single-word labels
+    // Active: White rounded pill full width; Inactive: Transparent
     @Composable
-    fun SkylightNavItem(screen: Screen) {
+    fun SkylightNavItem(screen: Screen, adminInitial: String? = null) {
         val selected = currentDest?.hierarchy?.any { it.route == screen.route } == true
 
-        val bgColor    = if (selected) SkylightPurple50 else Color.Transparent
-        val tint       = if (selected) SkylightPurple700 else UnselectedGray
-        val labelColor = if (selected) SkylightPurple700 else UnselectedGray
+        val bgColor    = if (selected) SelectedPillColor else Color.Transparent
+        val tint       = if (selected) SelectedLabel else UnselectedTint
+        val labelColor = if (selected) SelectedLabel else UnselectedLabel
 
-        // Full-width clickable row: 80dp wide, 48dp tall touch target
-        Row(
+        // Check if this is Calendar (for initial badge)
+        val isCalendar = screen == Screen.Calendar
+
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
                 .clickable { navigateTo(screen) }
-                .background(bgColor)
-                .padding(horizontal = 16.dp, vertical = 0.dp)
-                .then(
-                    if (selected)
-                        Modifier.border(
-                            width = 3.dp,
-                            color = SkylightPurple700,
-                            shape = RoundedCornerShape(0.dp)
-                        )
-                    else
-                        Modifier
+                .padding(horizontal = 12.dp, vertical = 4.dp)
+                .background(
+                    if (selected) SelectedPillColor else Color.Transparent,
+                    RoundedCornerShape(12.dp)
                 )
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            contentAlignment = Alignment.TopCenter
         ) {
-            // Icon (24dp) - centered vertically
-            Icon(
-                imageVector = if (selected) screen.selectedIcon else screen.unselectedIcon,
-                contentDescription = screen.label,
-                tint    = tint,
-                modifier = Modifier
-                    .size(24.dp)
-                    .align(Alignment.CenterVertically)
-            )
-            Spacer(Modifier.width(8.dp))
-            // Label (always visible, 12sp Medium)
-            Text(
-                text       = screen.label,
-                fontSize   = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color      = labelColor,
-                modifier   = Modifier.align(Alignment.CenterVertically)
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Calendar initial badge (above icon)
+                if (isCalendar && adminInitial != null) {
+                    Text(
+                        text       = adminInitial,
+                        fontFamily = FontFamily.Serif,
+                        fontSize   = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color      = if (selected) SelectedLabel else UnselectedTint,
+                        letterSpacing = 2.sp
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
+
+                // Icon (28dp)
+                Icon(
+                    imageVector = if (selected) screen.selectedIcon else screen.unselectedIcon,
+                    contentDescription = screen.label,
+                    tint    = tint,
+                    modifier = Modifier.size(28.dp)
+                )
+
+                // Label (single word, 11sp Medium, centered)
+                Text(
+                    text       = screen.label,
+                    fontSize   = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color      = labelColor,
+                    textAlign  = TextAlign.Center,
+                    maxLines   = 1,
+                    overflow   = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 
@@ -317,7 +350,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
             topBar = { /* content uses its own headers */ },
             bottomBar = {
                 NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
+                    containerColor = Color(0xFFF5F5F5),  // Grayish, not white
                     modifier = Modifier.padding(bottom = 0.dp)
                 ) {
                     Screen.bottomTabs.forEach { screen ->
@@ -329,7 +362,8 @@ fun HearthboardNavHost(app: HearthboardApp) {
                                 Icon(
                                     if (selected) screen.selectedIcon else screen.unselectedIcon,
                                     contentDescription = screen.label,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(24.dp),
+                                    tint = if (selected) Color.White else UnselectedTint
                                 )
                             },
                             label = {
@@ -337,15 +371,16 @@ fun HearthboardNavHost(app: HearthboardApp) {
                                     text     = screen.label,
                                     style    = MaterialTheme.typography.labelSmall,
                                     maxLines = 1,
-                                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
+                                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                                    color = if (selected) Color.White else UnselectedLabel
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                indicatorColor    = MaterialTheme.colorScheme.primaryContainer
+                                selectedIconColor = Color.White,
+                                selectedTextColor = Color.White,
+                                unselectedIconColor = UnselectedTint,
+                                unselectedTextColor = UnselectedLabel,
+                                indicatorColor    = Color.White  // White pill indicator
                             )
                         )
                     }
@@ -354,11 +389,27 @@ fun HearthboardNavHost(app: HearthboardApp) {
                     NavigationBarItem(
                         selected = showMore,
                         onClick  = { showMore = true },
-                        icon     = { Icon(Icons.Filled.MoreHoriz, "More", modifier = Modifier.size(24.dp)) },
-                        label    = { Text("More") },
+                        icon = {
+                            Icon(
+                                Icons.Filled.MoreHoriz,
+                                "More",
+                                modifier = Modifier.size(24.dp),
+                                tint = if (showMore) Color.White else UnselectedTint
+                            )
+                        },
+                        label = {
+                            Text(
+                                "More",
+                                color = if (showMore) Color.White else UnselectedLabel,
+                                fontWeight = if (showMore) FontWeight.Medium else FontWeight.Normal
+                            )
+                        },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            selectedIconColor = Color.White,
+                            selectedTextColor = Color.White,
+                            unselectedIconColor = UnselectedTint,
+                            unselectedTextColor = UnselectedLabel,
+                            indicatorColor    = Color.White
                         )
                     )
                 }
@@ -380,9 +431,9 @@ fun HearthboardNavHost(app: HearthboardApp) {
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.systemBars)
         ) {
-            // Rail: 80dp wide, white background, right divider
+            // Rail: 80dp wide, grayish background, right divider
             NavigationRail(
-                containerColor = Color.White,
+                containerColor = RailBgColor,
                 modifier       = Modifier
                     .width(RailWidthExpanded)
                     .border(width = 1.dp, color = RailDividerColor, shape = RoundedCornerShape(0.dp))
@@ -391,14 +442,17 @@ fun HearthboardNavHost(app: HearthboardApp) {
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
-                        .padding(vertical = 24.dp)
+                        .padding(vertical = 16.dp)
                 ) {
-                    // Primary items: Calendar, Links, Tasks, Rewards, Meals, Recipes, Photos, Sleep
+                    // Calendar initial badge at top of rail (above Calendar item)
+                    // We'll handle this inside SkylightNavItem for Calendar
+
+                    // Primary items: Calendar, Lists, Tasks, Chores, Rewards, Meals, Recipes, Photos, Sleep
                     Screen.primary.forEachIndexed { index, screen ->
-                        SkylightNavItem(screen)
-                        // 24dp spacing between items
+                        SkylightNavItem(screen, adminInitial = adminInitial)
+                        // 16dp spacing between items
                         if (index != Screen.primary.lastIndex) {
-                            Spacer(Modifier.height(24.dp))
+                            Spacer(Modifier.height(16.dp))
                         }
                     }
 
@@ -410,7 +464,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                     )
                     Spacer(Modifier.height(24.dp))
 
-                    // Settings at bottom
+                    // Settings at bottom (only item below divider)
                     Screen.secondary.forEach { screen ->
                         SkylightNavItem(screen)
                     }

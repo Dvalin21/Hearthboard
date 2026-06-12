@@ -50,6 +50,7 @@ fun SettingsScreen(
     val wallMode     by viewModel.wallMode.collectAsState()
     val wallKeepOn   by viewModel.wallKeepOn.collectAsState()
     val familyName   by viewModel.familyName.collectAsState()
+    val tempUnit     by viewModel.tempUnit.collectAsState()
     val accounts     by viewModel.accounts.collectAsState()
     val isSyncing    by viewModel.isSyncing.collectAsState()
 
@@ -166,6 +167,34 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        // Temperature unit (C/F)
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Temperature Unit", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    tempUnit,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("°F" to "F", "°C" to "C").forEach { (label, value) ->
+                    FilterChip(
+                        selected = tempUnit == value,
+                        onClick  = { viewModel.setTempUnit(value) },
+                        label    = { Text(label) },
+                        leadingIcon = { Icon(Icons.Filled.Thermostat, null, Modifier.size(16.dp)) }
+                    )
+                }
+            }
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

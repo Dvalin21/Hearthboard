@@ -93,6 +93,7 @@ fun CalendarScreen(
     people: List<Person>,
     onAddEvent: () -> Unit,
     familyName: String = "Family",
+    tempUnit: String = "F",
     modifier: Modifier = Modifier
 ) {
     val viewMode       by viewModel.viewMode.collectAsState()
@@ -116,17 +117,21 @@ fun CalendarScreen(
         }
     }
 
+    // Filter sheet state
+    var showFilterSheet by remember { mutableStateOf(false) }
+
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // ── Skylight Header: 80dp, family name (serif) + time + temp + Schedule + avatar ──
+            // ── Skylight Header: 80dp, family name (serif) + time + temp + Schedule + filter ──
             SkylightHeader(
                 date        = selectedDate,
                 time        = currentTime,
-                temperature = todayForecast?.let { "${it.iconChar}${it.tempHigh.toInt()}°" },
+                forecast    = todayForecast,
+                tempUnit    = tempUnit,
                 familyName  = familyName,
                 onScheduleClick = { /* navigate to agenda */ },
-                onFilterClick   = { /* open person filter bottom sheet */ }
+                onFilterClick   = { showFilterSheet = true }
             )
 
             HorizontalDivider(
@@ -134,15 +139,68 @@ fun CalendarScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // ── Calendar controls: view mode + nav ──────────────
+            // ── Calendar controls: nav, today, schedule, filter ─────────
             CalendarControls(
                 viewMode   = viewMode,
                 onViewMode = viewModel::setViewMode,
                 onPrev     = viewModel::navigatePrev,
                 onNext     = viewModel::navigateNext,
                 onToday    = viewModel::goToday,
-                onAdd      = onAddEvent
+                onAdd      = onAddEvent,
+                onScheduleClick = { /* navigate to agenda */ },
+                onFilterClick   = { showFilterSheet = true }
             )
+
+            // ── Filter bottom sheet (view mode + person filter) ─────────
+            if (showFilterSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showFilterSheet = false },
+                    sheetState = rememberModalBottomSheetState(false) // false = hidden
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp, vertical = 16.dp)
+                            .padding(bottom = 32.dp) // Handle navigation bar
+                    ) {
+                        Text("View", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(16.dp))
+                        Column {
+                            listOf("MONTH" to "Month", "WEEK" to "Week", "DAY" to "Day", "AGENDA" to "Agenda").forEach { (mode, label) ->
+                                val selected = viewMode == mode
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 12.dp)
+                                        .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent, RoundedCornerShape(12.dp))
+                                        .clickable {
+                                            viewModel.setViewMode(mode)
+                                            showFilterSheet = false
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
+                                    if (selected) Icon(Icons.Filled.Check, "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(24.dp))
+                        HorizontalDivider()
+                        Spacer(Modifier.height(16.dp))
+                        Text("Filter by Person", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(16.dp))
+                        SkylightPersonFilterRow(
+                            people       = people,
+                            selectedId   = personFilterId,
+                            onSelect     = { id ->
+                                viewModel.setPersonFilter(id)
+                                showFilterSheet = false
+                            }
+                        )
+                    }
+                }
+            }
 
             // ── Person filter row: horizontal scrollable chips ──
             if (people.size > 1) {
@@ -212,17 +270,45 @@ fun CalendarScreen(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Skylight Header — 80dp, family name (serif) + time + temp + Schedule + avatar
+// Skylight Header — 80dp, family name (serif) + time + temp + Schedule + filter
 // ─────────────────────────────────────────────────────────────
 @Composable
 private fun SkylightHeader(
     date: LocalDate,
     time: String,
-    temperature: String?,
+    forecast: DailyForecast?,
+    tempUnit: String,
     familyName: String,
     onScheduleClick: () -> Unit,
     onFilterClick: () -> Unit
 ) {
+    // Convert temperature based on unit
+    val (tempStr, weatherIcon) = remember(forecast, tempUnit) {
+        if (forecast != null) {
+            val tempHigh = if (tempUnit == "C") {
+                // Convert F to C: (F - 32) * 5/9
+                ((forecast.tempHigh - 32) * 5 / 9).toInt()
+            } else {
+                forecast.tempHigh.toInt()
+            }
+            val icon = when (forecast.conditionLabel.lowercase()) {
+                "clear" -> Icons.Filled.WbSunny
+                "cloudy" -> Icons.Filled.Cloud
+                "fog" -> Icons.Filled.CloudQueue
+                "drizzle" -> Icons.Filled.Grain
+                "freezing drizzle" -> Icons.Filled.AcUnit
+                "rain" -> Icons.Filled.CloudQueue
+                "freezing rain" -> Icons.Filled.CloudQueue
+                "snow" -> Icons.Filled.AcUnit
+                "rain showers" -> Icons.Filled.CloudQueue
+                else -> Icons.Filled.WbSunny
+            }
+            "${tempHigh}°" to icon
+        } else {
+            "" to Icons.Filled.WbSunny
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -250,10 +336,17 @@ private fun SkylightHeader(
                     fontWeight = FontWeight.Normal,
                     color    = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (temperature != null) {
+                if (forecast != null) {
                     Spacer(Modifier.width(12.dp))
+                    Icon(
+                        imageVector = weatherIcon,
+                        contentDescription = forecast.conditionLabel,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
                     Text(
-                        text     = temperature,
+                        text     = tempStr,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color    = MaterialTheme.colorScheme.onSurfaceVariant
@@ -262,7 +355,7 @@ private fun SkylightHeader(
             }
         }
 
-        // Right: Schedule button + Avatar/Filter
+        // Right: Schedule button + Filter button
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             TextButton(onClick = onScheduleClick) {
                 Text(
@@ -272,7 +365,7 @@ private fun SkylightHeader(
                     color    = MaterialTheme.colorScheme.primary
                 )
             }
-            // Avatar / Filter button (32dp circle)
+            // Filter button (32dp circle)
             Box(
                 modifier = Modifier
                     .size(32.dp)
@@ -281,14 +374,14 @@ private fun SkylightHeader(
                     .clickable { onFilterClick() },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Filled.Person, contentDescription = "Filter by person", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.FilterList, contentDescription = "Filter", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
             }
         }
     }
 }
 
 // ─────────────────────────────────────────────────────────────
-// Calendar Controls — view mode tabs, nav, add
+// Calendar Controls — nav, today, schedule, filter (no view mode tabs)
 // ─────────────────────────────────────────────────────────────
 @Composable
 private fun CalendarControls(
@@ -297,7 +390,9 @@ private fun CalendarControls(
     onPrev: () -> Unit,
     onNext: () -> Unit,
     onToday: () -> Unit,
-    onAdd: () -> Unit
+    onAdd: () -> Unit,
+    onScheduleClick: () -> Unit,
+    onFilterClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -315,22 +410,13 @@ private fun CalendarControls(
             IconButton(onClick = onNext) { Icon(Icons.Default.ChevronRight, "Next", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface) }
         }
 
-        // Center: View mode tabs (Mo, Wk, Dy, Ag)
-        val modes  = listOf("MONTH", "WEEK", "DAY", "AGENDA")
-        val labels = listOf("Mo", "Wk", "Dy", "Ag")
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            modes.forEachIndexed { i, mode ->
-                TextButton(
-                    onClick = { onViewMode(mode) },
-                    modifier = Modifier.height(32.dp).padding(horizontal = 8.dp)
-                ) {
-                    Text(
-                        labels[i],
-                        fontSize   = 12.sp,
-                        fontWeight = if (viewMode == mode) FontWeight.Bold else FontWeight.Normal,
-                        color      = if (viewMode == mode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+        // Right: Schedule button + Filter button (view mode in filter sheet)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onScheduleClick) {
+                Text("Schedule", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
+            }
+            IconButton(onClick = onFilterClick) {
+                Icon(Icons.Filled.FilterList, "Filter", modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurface)
             }
         }
     }
@@ -436,7 +522,7 @@ private fun SkylightMonthView(
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp)) {
-        // Day headers: S, M, T, W, T, F, S (Monday start) — use 3-letter abbreviations
+        // Day headers: Mon, Tue, Wed, Thu, Fri, Sat, Sun (3-letter abbreviations)
         Row(modifier = Modifier.fillMaxWidth().height(32.dp)) {
             listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEachIndexed { idx, dow ->
                 val isTodayCol = idx == todayCol
@@ -446,7 +532,7 @@ private fun SkylightMonthView(
                         .weight(1f)
                         .fillMaxHeight(),
                     textAlign  = TextAlign.Center,
-                    style      = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
+                    style      = MaterialTheme.typography.labelMedium.copy(fontSize = 14.sp),
                     fontWeight = if (isTodayCol) FontWeight.Bold else FontWeight.Medium,
                     color      = if (isTodayCol) SkylightOrange else MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -684,7 +770,7 @@ private fun SkylightDayCell(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Skylight Week View — horizontal days, vertical time, pastel event blocks
+// Skylight Week View — 5 days visible, current day first, bold headers
 // ─────────────────────────────────────────────────────────────
 @Composable
 private fun SkylightWeekView(
@@ -696,9 +782,10 @@ private fun SkylightWeekView(
     onEventClick: (CalendarEvent) -> Unit,
     wall: WallModeState
 ) {
-    val weekStart = selectedDate.with(java.time.DayOfWeek.MONDAY)
-        .let { if (it.isAfter(selectedDate)) it.minusWeeks(1) else it }
     val today = LocalDate.now()
+    val currentDay = selectedDate
+    // Show 5 days: current day + next 4
+    val weekDays = (0..4).map { currentDay.plusDays(it.toLong()) }
 
     val hourRange = if (wall.active) 6..23 else 0..23
     val hourCount = hourRange.count()
@@ -712,35 +799,40 @@ private fun SkylightWeekView(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Day headers
+        // Day headers - bold, bigger, current day first
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
             Spacer(Modifier.width(48.dp))
-            (0..6).forEach { i ->
-                val day = weekStart.plusDays(i.toLong())
+            weekDays.forEach { day ->
                 val isToday = day == today
                 val wf = forecasts[day]
                 Column(
                     modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(day.dayOfWeek.getDisplayName(JTextStyle.SHORT, Locale.getDefault()),
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        day.dayOfWeek.getDisplayName(JTextStyle.SHORT, Locale.getDefault()),
+                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 14.sp),
+                        fontWeight = FontWeight.Bold,
+                        color = if (isToday) SkylightOrange else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
-                            .background(if (isToday) MaterialTheme.colorScheme.primary else Color.Transparent)
+                            .background(if (isToday) SkylightOrange else Color.Transparent)
                             .clickable { onDayClick(day) }
                     ) {
-                        Text(day.dayOfMonth.toString(),
+                        Text(
+                            day.dayOfMonth.toString(),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (isToday) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal)
+                            fontWeight = FontWeight.Bold,
+                            color = if (isToday) Color.White else MaterialTheme.colorScheme.onSurface
+                        )
                     }
                     if (wf != null) {
                         Text("${wf.iconChar}${wf.tempHigh.toInt()}°",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -750,8 +842,7 @@ private fun SkylightWeekView(
 
         // All-day events strip
         val zone = ZoneId.systemDefault()
-        val allDayByDay = remember(events, weekStart) {
-            val weekDays = (0..6).map { weekStart.plusDays(it.toLong()) }
+        val allDayByDay = remember(events, currentDay) {
             val result = mutableMapOf<LocalDate, MutableList<CalendarEvent>>()
             events.filter { it.isAllDay }.forEach { event ->
                 val startDate = Instant.ofEpochMilli(event.startMs).atZone(zone).toLocalDate()
@@ -767,28 +858,27 @@ private fun SkylightWeekView(
         if (allDayByDay.isNotEmpty()) {
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                 Spacer(Modifier.width(48.dp))
-                (0..6).forEach { i ->
-                    val day = weekStart.plusDays(i.toLong())
+                weekDays.forEach { day ->
                     Column(modifier = Modifier.weight(1f)) {
                         val dayAllDay = allDayByDay[day].orEmpty()
                         dayAllDay.take(2).forEach { event ->
                             val (bgColor, textColor) = eventPastelColors(event, people)
                             Text(event.title,
-                                fontSize = 8.sp, color = textColor, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                fontSize = 10.sp, color = textColor, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 0.5.dp, vertical = 0.5.dp)
-                                    .clip(RoundedCornerShape(2.dp))
+                                    .padding(horizontal = 2.dp, vertical = 2.dp)
+                                    .clip(RoundedCornerShape(4.dp))
                                     .background(bgColor)
                                     .clickable { onEventClick(event) }
-                                    .padding(horizontal = 2.dp, vertical = 1.dp))
+                                    .padding(horizontal = 4.dp, vertical = 2.dp))
                         }
-                        if (dayAllDay.size > 2) Text("+${dayAllDay.size - 2}", fontSize = 7.sp, color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(start = 2.dp))
+                        if (dayAllDay.size > 2) Text("+${dayAllDay.size - 2}", fontSize = 9.sp, color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 4.dp))
                     }
                 }
             }
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
         }
 
         // Scrollable hour grid
@@ -810,9 +900,8 @@ private fun SkylightWeekView(
                     OrangeTimeLine(now = now, fullWidth = false)
                 }
             }
-            // Day columns
-            (0..6).forEach { i ->
-                val day = weekStart.plusDays(i.toLong())
+            // Day columns (5 days)
+            weekDays.forEach { day ->
                 val dayEvents = events.filter { event ->
                     val d = Instant.ofEpochMilli(event.startMs).atZone(ZoneId.systemDefault()).toLocalDate()
                     d == day && !event.isAllDay
@@ -822,7 +911,7 @@ private fun SkylightWeekView(
                     Column {
                         for (hour in hourRange) {
                             HorizontalDivider(modifier = Modifier.padding(top = 60.dp),
-                                thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                                thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                         }
                     }
                     // Events (pastel bg, person badge, time range)
@@ -852,31 +941,31 @@ private fun SkylightWeekView(
                                 .height(heightDp)
                                 .fillMaxWidth()
                                 .padding(horizontal = 1.dp, vertical = 1.dp)
-                                .clip(RoundedCornerShape(6.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(bgColor)
                                 .clickable { onEventClick(event) }
                                 .semantics {
                                     this[SemanticsProperties.Role] = Role.Button
                                     contentDescription = "Event: ${event.title}, $timeRange"
                                 }
-                                .padding(6.dp)
+                                .padding(8.dp)
                         ) {
                             Column(modifier = Modifier.fillMaxSize()) {
                                 // Person badge top-right
                                 if (personInitial != null) {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                         Box(
-                                            modifier = Modifier.size(14.dp).clip(RoundedCornerShape(4.dp)).background(badgeColor),
+                                            modifier = Modifier.size(16.dp).clip(RoundedCornerShape(4.dp)).background(badgeColor),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Text(personInitial.uppercase(), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                            Text(personInitial.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                         }
                                     }
                                 }
-                                Spacer(Modifier.height(2.dp))
-                                Text(timeRange.lowercase().replace(" ", ""), fontSize = 10.sp, color = textColor.copy(alpha = 0.7f), maxLines = 1)
+                                Spacer(Modifier.height(4.dp))
+                                Text(timeRange.lowercase().replace(" ", ""), fontSize = 11.sp, color = textColor.copy(alpha = 0.7f), maxLines = 1)
                                 Text(event.title,
-                                    fontSize = 12.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = textColor,
                                     maxLines = 2,
@@ -955,7 +1044,7 @@ private fun SkylightDayView(
                 Column {
                     for (hour in hourRange) {
                         HorizontalDivider(modifier = Modifier.padding(top = 60.dp),
-                            thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                            thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                     }
                 }
                 timed.forEach { event ->
@@ -980,7 +1069,7 @@ private fun SkylightDayView(
                             .height(duration.coerceAtLeast(28.dp))
                             .fillMaxWidth()
                             .padding(horizontal = 4.dp, vertical = 1.dp)
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(8.dp))
                             .background(bgColor)
                             .clickable { onEventClick(event) }
                             .semantics {
@@ -993,16 +1082,16 @@ private fun SkylightDayView(
                             if (personInitial != null) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                     Box(
-                                        modifier = Modifier.size(14.dp).clip(RoundedCornerShape(4.dp)).background(badgeColor),
+                                        modifier = Modifier.size(16.dp).clip(RoundedCornerShape(4.dp)).background(badgeColor),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text(personInitial.uppercase(), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text(personInitial.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                     }
                                 }
                             }
-                            Spacer(Modifier.height(2.dp))
-                            Text(timeRange.lowercase().replace(" ", ""), fontSize = 10.sp, color = textColor.copy(alpha = 0.7f), maxLines = 1)
-                            Text(event.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = textColor, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Spacer(Modifier.height(4.dp))
+                            Text(timeRange.lowercase().replace(" ", ""), fontSize = 11.sp, color = textColor.copy(alpha = 0.7f), maxLines = 1)
+                            Text(event.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textColor, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             if (event.location.isNotBlank()) {
                                 Text(event.location, style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f), maxLines = 1)
                             }

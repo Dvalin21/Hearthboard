@@ -42,6 +42,8 @@ class AppPreferences(private val context: Context) {
         val KEY_WALL_IDLE_SECS  = intPreferencesKey("wall_idle_timeout_seconds") // 0 = disabled
         val KEY_SLEEP_SYNC      = booleanPreferencesKey("sleep_sync")
         val KEY_FAMILY_NAME     = stringPreferencesKey("family_name")
+        // Weather preferences
+        val KEY_TEMP_UNIT       = stringPreferencesKey("temp_unit") // "C" or "F"
         // No telemetry keys - period.
     }
 
@@ -68,6 +70,7 @@ class AppPreferences(private val context: Context) {
     val wallKeepScreenOn: Flow<Boolean> = context.dataStore.data.map { it[KEY_WALL_KEEP_ON] ?: true }
     val wallIdleTimeoutSeconds: Flow<Int> = context.dataStore.data.map { it[KEY_WALL_IDLE_SECS] ?: 0 }
     val familyName: Flow<String> = context.dataStore.data.map { it[KEY_FAMILY_NAME] ?: "Family" }
+    val tempUnit: Flow<String> = context.dataStore.data.map { it[KEY_TEMP_UNIT] ?: "F" }
 
     suspend fun set(key: Preferences.Key<Int>, value: Int) {
         context.dataStore.edit { it[key] = value }
