@@ -58,10 +58,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 
 // ─────────────────────────────────────────────────────────────
-// Screen definitions — Skylight Calendar 2 exact order
-// Primary rail (top to bottom): Calendar → Links → Tasks → Rewards → Meals → Recipes → Photos → Sleep → Settings
-// Bottom tabs (compact): Calendar, Links, Tasks, Rewards
-// More sheet: Meals, Recipes, Photos, Sleep, Settings
+// Screen definitions — All Hearthboard features, Skylight visual style
+// Primary rail (top to bottom): Calendar → Lists → Tasks → Chores → Rewards → Meals → Recipes → Photos → Sleep
+// Secondary (below divider): People → Settings
+// Bottom tabs (compact): Calendar, Lists, Tasks, Chores
+// More sheet: Rewards, Meals, Recipes, Photos, People, Sleep, Settings
 // ─────────────────────────────────────────────────────────────
 sealed class Screen(
     val route: String,
@@ -75,7 +76,7 @@ sealed class Screen(
     object Rewards  : Screen("rewards",  "Rewards",  Icons.Filled.Star,             Icons.Outlined.Star)
     object Meals    : Screen("meals",    "Meals",    Icons.Filled.Restaurant,       Icons.Outlined.Restaurant)
     object Photos   : Screen("photos",   "Photos",   Icons.Filled.PhotoLibrary,     Icons.Outlined.PhotoLibrary)
-    object Lists    : Screen("links",    "Links",    Icons.Filled.Link,             Icons.Outlined.Link)
+    object Lists    : Screen("lists",    "Lists",    Icons.AutoMirrored.Filled.List,             Icons.AutoMirrored.Outlined.List)
     object Sleep    : Screen("sleep",    "Sleep",    Icons.Filled.Bedtime,          Icons.Outlined.Bedtime)
     object People   : Screen("people",   "People",   Icons.Filled.Group,            Icons.Outlined.Group)
     object Recipes  : Screen("recipes",  "Recipes",  Icons.Filled.MenuBook,         Icons.Outlined.MenuBook)
@@ -83,17 +84,17 @@ sealed class Screen(
     object Chores   : Screen("chores",   "Chores",   Icons.Filled.TaskAlt,          Icons.Outlined.TaskAlt)
 
     companion object {
-        // Primary items — Skylight Calendar 2 exact rail order (top to bottom)
-        val primary = listOf(Calendar, Lists, Tasks, Rewards, Meals, Recipes, Photos, Sleep)
+        // Primary items — all features in user-specified order, Skylight visual style
+        val primary = listOf(Calendar, Lists, Tasks, Chores, Rewards, Meals, Recipes, Photos, Sleep)
 
-        // Settings at bottom (after divider)
-        val secondary = listOf(Settings)
+        // Below divider in the rail
+        val secondary = listOf(People, Settings)
 
         // Bottom nav items (compact/portrait) — first 4 visible, rest in "More"
-        val bottomTabs = listOf(Calendar, Lists, Tasks, Rewards)
+        val bottomTabs = listOf(Calendar, Lists, Tasks, Chores)
 
         // Items in the "More" bottom sheet on compact screens
-        val moreItems = listOf(Meals, Recipes, Photos, Sleep, Settings)
+        val moreItems = listOf(Rewards, Meals, Recipes, Photos, People, Sleep, Settings)
 
         val all = primary + secondary
     }
