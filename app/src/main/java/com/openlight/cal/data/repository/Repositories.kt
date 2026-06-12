@@ -178,6 +178,10 @@ class TaskRepository(
             }
         }
     }
+
+    suspend fun getActiveTaskCountByPerson(personId: Long): Int = db.taskDao().getActiveTaskCountByPerson(personId)
+    suspend fun getActiveChoreCountByPerson(personId: Long): Int = db.taskDao().getActiveChoreCountByPerson(personId)
+    suspend fun getActiveTotalCountByPerson(personId: Long): Int = db.taskDao().getActiveTotalCountByPerson(personId)
 }
 
 // ─────────────────────────────────────────────────────────────

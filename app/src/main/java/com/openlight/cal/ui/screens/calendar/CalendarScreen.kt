@@ -196,7 +196,9 @@ fun CalendarScreen(
                             onSelect     = { id ->
                                 viewModel.setPersonFilter(id)
                                 showFilterSheet = false
-                            }
+                            },
+                            taskChoreCounts = viewModel.taskChoreCounts.value,
+                            vacationCountdown = viewModel.nextVacationCountdown.value
                         )
                     }
                 }
@@ -208,6 +210,8 @@ fun CalendarScreen(
                     people       = people,
                     selectedId   = personFilterId,
                     onSelect     = viewModel::setPersonFilter,
+                    taskChoreCounts = viewModel.taskChoreCounts.value,
+                    vacationCountdown = viewModel.nextVacationCountdown.value
                 )
             }
 
@@ -431,16 +435,21 @@ private fun CalendarControls(
 private fun SkylightPersonFilterRow(
     people: List<Person>,
     selectedId: Long,
-    onSelect: (Long) -> Unit
+    onSelect: (Long) -> Unit,
+    taskChoreCounts: Map<Long, Int> = emptyMap(), // personId -> active count
+    vacationCountdown: String? = null,
 ) {
-    val filterItems = remember(people) {
+    val filterItems = remember(people, taskChoreCounts, vacationCountdown) {
         buildList<FilterItem> {
+            if (vacationCountdown != null) {
+                add(FilterItem(id = -1L, label = vacationCountdown, dotColor = null, isVacation = true))
+            }
             add(FilterItem(id = 0L, label = "All", dotColor = null, isVacation = true))
             people.filter { !it.isDefault }.forEach { person ->
-                val count = 1 + (20 * (person.id % 3)) // placeholder: actual chore/event count
+                val total = taskChoreCounts[person.id] ?: 0
                 val color = runCatching { Color(android.graphics.Color.parseColor(person.colorHex)) }
                     .getOrElse { Color.Gray }
-                add(FilterItem(id = person.id, label = "${person.name} 1/$count", dotColor = color))
+                add(FilterItem(id = person.id, label = "${person.name} $total", dotColor = color))
             }
         }
     }

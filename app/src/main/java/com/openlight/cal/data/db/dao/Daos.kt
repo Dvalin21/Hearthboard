@@ -151,6 +151,15 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE isCompleted = 0 ORDER BY priority DESC, dueMs, sortOrder")
     fun getActiveFlow(): Flow<List<Task>>
 
+    @Query("SELECT COUNT(*) FROM tasks WHERE assignedPersonId = :personId AND isCompleted = 0 AND isChore = 0")
+    suspend fun getActiveTaskCountByPerson(personId: Long): Int
+
+    @Query("SELECT COUNT(*) FROM tasks WHERE assignedPersonId = :personId AND isCompleted = 0 AND isChore = 1")
+    suspend fun getActiveChoreCountByPerson(personId: Long): Int
+
+    @Query("SELECT COUNT(*) FROM tasks WHERE assignedPersonId = :personId AND isCompleted = 0")
+    suspend fun getActiveTotalCountByPerson(personId: Long): Int
+
     /** Used by ChoresScreen: kid-friendly chores only, excludes completed ones. */
     @Query("SELECT * FROM tasks WHERE isChore = 1 AND isCompleted = 0 ORDER BY sortOrder, dueMs")
     fun getActiveChoresFlow(): Flow<List<Task>>

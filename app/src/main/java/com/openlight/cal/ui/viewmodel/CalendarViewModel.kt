@@ -13,6 +13,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.*
+import java.time.temporal.ChronoUnit
 
 // ─────────────────────────────────────────────────────────────
 // Calendar ViewModel
@@ -20,6 +21,7 @@ import java.time.*
 class CalendarViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = (app as HearthboardApp).calendarRepository
+    private val taskRepo = (app as HearthboardApp).taskRepository
     private val prefs = (app as HearthboardApp).preferences
     private val weatherApi = WeatherApi()
 
@@ -47,6 +49,29 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
 
     val countdowns: StateFlow<List<CalendarEvent>> = repo.getCountdowns()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Next vacation countdown (for filter row)
+    val nextVacationCountdown: StateFlow<String?> = countdowns
+        .map { events ->
+            events.firstOrNull { event ->
+                event.title.lowercase().contains("vacation") || 
+                event.title.lowercase().contains("holiday") ||
+                event.title.lowercase().contains("break")
+            }?.let { event ->
+                val days = ChronoUnit.DAYS.between(LocalDate.now(), Instant.ofEpochMilli(event.startMs).atZone(ZoneId.systemDefault()).toLocalDate())
+                if (days > 0) "Vacation: $days days" else null
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // Active task/chore counts per person (for filter row) -- total active per person
+    val taskChoreCounts: StateFlow<Map<Long, Int>> = taskRepo.getActiveFlow()
+        .map { tasks ->
+            tasks.filter { !it.isCompleted }
+                .groupBy { it.assignedPersonId }
+                .mapValues { (_, list) -> list.size }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     // ── Weather ────────────────────────────────────────────────
     private val _forecasts = MutableStateFlow<Map<LocalDate, DailyForecast>>(emptyMap())
