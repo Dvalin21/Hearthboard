@@ -94,7 +94,6 @@ fun CalendarScreen(
     onAddEvent: () -> Unit,
     familyName: String = "Family",
     tempUnit: String = "F",
-    adminInitial: String = "?",
     modifier: Modifier = Modifier
 ) {
     val viewMode       by viewModel.viewMode.collectAsState()
@@ -131,7 +130,6 @@ fun CalendarScreen(
                 forecast        = todayForecast,
                 tempUnit        = tempUnit,
                 familyName      = familyName,
-                adminInitial    = adminInitial,
                 onScheduleClick = { /* navigate to agenda */ },
                 onFilterClick   = { showFilterSheet = true }
             )
@@ -285,7 +283,6 @@ private fun SkylightHeader(
     forecast: DailyForecast?,
     tempUnit: String,
     familyName: String,
-    adminInitial: String = "?",
     onScheduleClick: () -> Unit,
     onFilterClick: () -> Unit
 ) {
@@ -370,17 +367,8 @@ private fun SkylightHeader(
             }
         }
 
-        // Right: Old English initial + Schedule button + Filter TEXT button
+        // Right: Schedule button + Filter TEXT button
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            // Old English initial (top right decorative)
-            Text(
-                text       = adminInitial,
-                fontFamily = FontFamily.Serif,
-                fontSize   = 28.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp,
-                color      = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-            )
             TextButton(onClick = onScheduleClick) {
                 Text(
                     text     = "Schedule",
