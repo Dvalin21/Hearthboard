@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.*
 import com.openlight.cal.HearthboardApp
 import com.openlight.cal.data.model.*
+import com.openlight.cal.data.preferences.AppPreferences
 import com.openlight.cal.data.sync.CalDAVClient
 import com.openlight.cal.data.sync.CalDAVSyncEngine
 import com.openlight.cal.data.sync.ICalParser
@@ -21,12 +22,22 @@ import java.time.temporal.ChronoUnit
 class CalendarViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = (app as HearthboardApp).calendarRepository
-    private val taskRepo = (app as HearthboardApp).taskRepository
     private val prefs = (app as HearthboardApp).preferences
+    private val taskRepo = (app as HearthboardApp).taskRepository
     private val weatherApi = WeatherApi()
 
+    // View mode synced with Settings defaultView preference
     private val _viewMode = MutableStateFlow("WEEK")
     val viewMode: StateFlow<String> = _viewMode
+
+    init {
+        // Sync with preferences
+        viewModelScope.launch {
+            prefs.defaultView.collect { mode ->
+                _viewMode.value = mode
+            }
+        }
+    }
 
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     val selectedDate: StateFlow<LocalDate> = _selectedDate
@@ -138,7 +149,10 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun setViewMode(mode: String) { _viewMode.value = mode }
+    fun setViewMode(mode: String) {
+        _viewMode.value = mode
+        viewModelScope.launch { prefs.set(AppPreferences.KEY_DEFAULT_VIEW, mode) }
+    }
     fun setSelectedDate(date: LocalDate) { _selectedDate.value = date }
     fun setPersonFilter(personId: Long) { _personFilter.value = personId }
     fun showAddEvent() { _showAddEvent.value = true }

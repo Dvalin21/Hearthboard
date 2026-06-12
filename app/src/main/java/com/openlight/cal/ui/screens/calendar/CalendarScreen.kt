@@ -361,13 +361,13 @@ private fun SkylightHeader(
             }
         }
 
-        // Right: Schedule + Filter + nav controls - ALL IN ROUNDED RECTANGULAR BOXES
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Right: Schedule + Filter + nav controls - ALL IN ROUNDED RECTANGULAR BOXES (with breathing room)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             // Schedule button in rounded box
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp))
+                    .padding(horizontal = 24.dp, vertical = 10.dp)
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(24.dp))
                     .clickable { onScheduleClick() }
             ) {
                 Text(
@@ -380,8 +380,8 @@ private fun SkylightHeader(
             // Filter button in rounded box
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp))
+                    .padding(horizontal = 24.dp, vertical = 10.dp)
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(24.dp))
                     .clickable { onFilterClick() }
             ) {
                 Text(
@@ -392,27 +392,27 @@ private fun SkylightHeader(
                 )
             }
             // Nav controls: Prev / Today / Next - each in rounded boxes
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 18.dp, vertical = 10.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(24.dp))
                         .clickable { onPrevClick() }
                 ) {
                     Icon(Icons.Default.ChevronLeft, "Previous", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 24.dp, vertical = 10.dp)
+                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(24.dp))
                         .clickable { onTodayClick() }
                 ) {
                     Text("Today", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                 }
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 18.dp, vertical = 10.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(24.dp))
                         .clickable { onNextClick() }
                 ) {
                     Icon(Icons.Default.ChevronRight, "Next", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
