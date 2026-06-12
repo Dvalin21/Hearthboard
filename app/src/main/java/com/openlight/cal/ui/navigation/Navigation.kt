@@ -10,6 +10,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -83,7 +85,7 @@ sealed class Screen(
     object Lists    : Screen("lists",    "Lists",    Icons.AutoMirrored.Filled.List,             Icons.AutoMirrored.Outlined.List)
     object Sleep    : Screen("sleep",    "Sleep",    Icons.Filled.Bedtime,          Icons.Outlined.Bedtime)
     object People   : Screen("people",   "People",   Icons.Filled.Group,            Icons.Outlined.Group)
-    object Recipes  : Screen("recipes",  "Recipes",  Icons.Filled.MenuBook,         Icons.Outlined.MenuBook)
+    object Recipes  : Screen("recipes",  "Recipes",  Icons.AutoMirrored.Filled.MenuBook,         Icons.AutoMirrored.Outlined.MenuBook)
     object Settings : Screen("settings", "Settings", Icons.Filled.Settings,         Icons.Outlined.Settings)
     // Chores uses distinct icon from Tasks (not checkmark)
     object Chores   : Screen("chores",   "Chores",   Icons.Filled.CleaningServices,     Icons.Outlined.CleaningServices)
@@ -458,7 +460,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
 
                     // Divider before Settings
                     Spacer(Modifier.height(24.dp))
-                    Divider(
+                    HorizontalDivider(
                         color = RailDividerColor,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
