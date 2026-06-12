@@ -2,6 +2,7 @@ package com.openlight.cal
 
 import android.content.pm.ActivityInfo
 import android.os.Bundle
+import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,8 +14,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Backspace
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,8 +26,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.openlight.cal.data.preferences.AppPreferences
 import com.openlight.cal.ui.navigation.HearthboardNavHost
@@ -70,7 +67,7 @@ class MainActivity : ComponentActivity() {
                 else runCatching { Color(android.graphics.Color.parseColor(themeSeedHex)) }.getOrNull()
             }
 
-            // ── Wall Mode — apply landscape lock + wake lock ──────
+            // ── Wall Mode — apply landscape lock + wake lock + immersive fullscreen ──────
             DisposableEffect(wallMode, wallKeepOn) {
                 if (wallMode) {
                     requestedOrientation =
@@ -80,13 +77,27 @@ class MainActivity : ComponentActivity() {
                     } else {
                         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                     }
+                    // Fullscreen immersive mode - hide navigation bar
+                    window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        or View.SYSTEM_UI_FLAG_FULLSCREEN)
                 } else {
                     requestedOrientation =
                         ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    // Restore system UI
+                    window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN)
                 }
                 onDispose {
                     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN)
                 }
             }
 
@@ -100,27 +111,8 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            // ── Kiosk lock state ───────────────────────────────
-            var unlocked by remember { mutableStateOf(!kioskMode || storedPin.isBlank()) }
-
-            val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-            DisposableEffect(lifecycleOwner) {
-                val observer = LifecycleEventObserver { _, event ->
-                    if (event == Lifecycle.Event.ON_STOP) {
-                        unlocked = !kioskMode || storedPin.isBlank()
-                    }
-                }
-                lifecycleOwner.lifecycle.addObserver(observer)
-                onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-            }
-
-            LaunchedEffect(kioskMode, storedPin) {
-                if (!kioskMode || storedPin.isBlank()) unlocked = true
-            }
-
-            val verifyPin = remember(storedPin, encryptor) {
-                { input: String -> encryptor.verifyPin(storedPin, input) }
-            }
+            // ── Kiosk mode REMOVED — only Wall Mode remains ──────
+            // (kioskMode, parentalPin, unlocked, verifyPin, KioskPinOverlay removed)
 
             // ── Wall Mode: photo frame idle tracker + escape overlay ──
             var showWallExitDialog by remember { mutableStateOf(false) }
@@ -190,134 +182,9 @@ class MainActivity : ComponentActivity() {
                             //         onExit = { showPhotoFrame = false }
                             //     )
                             // }
-
-                            // ── Kiosk: intercept back press to prevent leaving ──
-                            BackHandler(enabled = kioskMode && !unlocked) {
-                                // Blocked — PIN overlay handles it
-                            }
-
-                            // ── Kiosk PIN overlay ──────────────────
-                            if (kioskMode && storedPin.isNotBlank() && !unlocked) {
-                                KioskPinOverlay(
-                                    onVerify  = verifyPin,
-                                    onUnlock  = { unlocked = true }
-                                )
-                            }
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun KioskPinOverlay(
-    onVerify: (String) -> Boolean,
-    onUnlock: () -> Unit
-) {
-    var input by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf(false) }
-
-    LaunchedEffect(input) {
-        if (input.length == 4) {
-            if (onVerify(input)) {
-                onUnlock()
-            } else {
-                error = true
-                kotlinx.coroutines.delay(800)
-                input = ""
-                error = false
-            }
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Default.Lock,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.height(24.dp))
-            Text(
-                "HearthBoard Locked",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Enter PIN to unlock",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(Modifier.height(32.dp))
-
-            // PIN dots display
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                for (i in 0..3) {
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .background(
-                                if (i < input.length) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                                CircleShape
-                            )
-                    )
-                }
-            }
-
-            if (error) {
-                Spacer(Modifier.height(8.dp))
-                Text("Wrong PIN", color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall)
-            }
-
-            Spacer(Modifier.height(32.dp))
-
-            // Numeric keypad
-            val keys = listOf(
-                listOf("1", "2", "3"),
-                listOf("4", "5", "6"),
-                listOf("7", "8", "9"),
-                listOf("", "0", "⌫")
-            )
-
-            keys.forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    row.forEach { key ->
-                        val size = 72.dp
-                        when {
-                            key.isEmpty() -> Spacer(Modifier.width(size))
-                            key == "⌫" -> {
-                                IconButton(
-                                    onClick = { if (input.isNotEmpty()) { input = input.dropLast(1); error = false } },
-                                    modifier = Modifier.size(size)
-                                ) {
-                                    Icon(Icons.AutoMirrored.Filled.Backspace, "Delete", tint = MaterialTheme.colorScheme.onSurface)
-                                }
-                            }
-                            else -> {
-                                FilledTonalButton(
-                                    onClick = { if (input.length < 4) { input += key; error = false } },
-                                    modifier = Modifier.size(size),
-                                    shape = CircleShape
-                                ) {
-                                    Text(key, fontSize = 24.sp, fontWeight = FontWeight.Medium)
-                                }
-                            }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
             }
         }
     }

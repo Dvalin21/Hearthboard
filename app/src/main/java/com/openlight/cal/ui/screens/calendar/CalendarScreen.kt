@@ -325,71 +325,97 @@ private fun SkylightHeader(
             Text(
                 text       = familyName,
                 fontFamily = FontFamily.Serif,
-                fontSize   = 28.sp,  // 3 sizes larger (was 20sp)
+                fontSize   = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color      = MaterialTheme.colorScheme.onSurface
             )
-            // Time + Weather on same line
+            // Time + Weather on same line - BOLD BLACK, LARGER
             if (forecast != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         text     = time,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Normal,
-                        color    = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color    = MaterialTheme.colorScheme.onSurface
                     )
                     Icon(
                         imageVector = weatherIcon,
                         contentDescription = forecast.conditionLabel,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
                     )
                     Text(
                         text     = tempStr,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color    = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color    = MaterialTheme.colorScheme.onSurface
                     )
                 }
             } else {
                 Text(
                     text     = time,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Normal,
-                    color    = MaterialTheme.colorScheme.onSurfaceVariant
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color    = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
 
-        // Right: Schedule button + Filter TEXT button + nav controls (Today between arrows)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            TextButton(onClick = onScheduleClick) {
+        // Right: Schedule + Filter + nav controls - ALL IN ROUNDED RECTANGULAR BOXES
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Schedule button in rounded box
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp))
+                    .clickable { onScheduleClick() }
+            ) {
                 Text(
                     text     = "Schedule",
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color    = MaterialTheme.colorScheme.primary
+                    fontWeight = FontWeight.Bold,
+                    color    = MaterialTheme.colorScheme.onPrimary
                 )
             }
-            // Filter text button - "Filter" label
-            TextButton(onClick = onFilterClick) {
+            // Filter button in rounded box
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp))
+                    .clickable { onFilterClick() }
+            ) {
                 Text(
                     text     = "Filter",
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color    = MaterialTheme.colorScheme.primary
+                    fontWeight = FontWeight.Bold,
+                    color    = MaterialTheme.colorScheme.onPrimary
                 )
             }
-            // Nav controls: Prev / Today / Next
+            // Nav controls: Prev / Today / Next - each in rounded boxes
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                IconButton(onClick = onPrevClick) { 
-                    Icon(Icons.Default.ChevronLeft, "Previous", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface) 
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(20.dp))
+                        .clickable { onPrevClick() }
+                ) {
+                    Icon(Icons.Default.ChevronLeft, "Previous", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
                 }
-                TextButton(onClick = onTodayClick) {
-                    Text("Today", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp))
+                        .clickable { onTodayClick() }
+                ) {
+                    Text("Today", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                 }
-                IconButton(onClick = onNextClick) { 
-                    Icon(Icons.Default.ChevronRight, "Next", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface) 
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(20.dp))
+                        .clickable { onNextClick() }
+                ) {
+                    Icon(Icons.Default.ChevronRight, "Next", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
                 }
             }
         }
@@ -677,6 +703,22 @@ private fun SkylightDayCell(
 
         Spacer(Modifier.height(4.dp))
 
+        // Weather for this day (month view)
+        if (wf != null && isCurrentMonth) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(wf.iconChar, fontSize = 10.sp)
+                Text("${wf.tempHigh.toInt()}°",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Spacer(Modifier.height(2.dp))
+        }
+
         // Multi-day event bars
         multiDaySpans.forEach { span ->
             val barLabel = when {
@@ -792,8 +834,9 @@ private fun SkylightDayCell(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Skylight Week View — 5 days visible, current day first, bold headers
+// Skylight Week View — 5 days visible, current day first, swipe to navigate, black time line
 // ─────────────────────────────────────────────────────────────
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun SkylightWeekView(
     selectedDate: LocalDate,
@@ -805,9 +848,9 @@ private fun SkylightWeekView(
     wall: WallModeState
 ) {
     val today = LocalDate.now()
-    val currentDay = selectedDate
-    // Show 5 days: current day + next 4
-    val weekDays = (0..4).map { currentDay.plusDays(it.toLong()) }
+    // Generate 14 days: 7 before + today + 6 after (allows swipe both directions)
+    val allDays = remember { (-7..6).map { today.plusDays(it.toLong()) } }
+    val startIndex = allDays.indexOfFirst { it == selectedDate }.coerceAtLeast(0)
 
     val hourRange = if (wall.active) 6..23 else 0..23
     val hourCount = hourRange.count()
@@ -820,191 +863,217 @@ private fun SkylightWeekView(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Day headers - bold, bigger, current day first - date beside day name, no orange highlight
-        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-            Spacer(Modifier.width(48.dp))
-            weekDays.forEach { day ->
-                val isToday = day == today
-                val wf = forecasts[day]
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally
+    // Auto-scroll to current day
+    val scrollState = rememberLazyListState()
+    LaunchedEffect(key1 = Unit) {
+        scrollState.scrollToItem(startIndex)
+    }
+
+    // Horizontal list of days with swipe navigation
+    LazyRow(
+        state = scrollState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 0.dp, end = 0.dp),
+        horizontalArrangement = Arrangement.spacedBy(0.dp)
+    ) {
+        items(allDays.size) { pageIndex ->
+            val currentDay = allDays[pageIndex]
+            val isToday = currentDay == today
+            val wf = forecasts[currentDay]
+
+            Column(modifier = Modifier
+                .fillMaxWidth()
+                .width(400.dp) // Fixed day width
+                .height(hourCount.dp * 60 + 120.dp)
+            ) {
+                // Day header - day name + date + weather
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    // Day name and date on same line
-                    Row(
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
+                    Text(
+                        currentDay.dayOfWeek.getDisplayName(JTextStyle.SHORT, Locale.getDefault()).uppercase(),
+                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 20.sp),
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(if (isToday) MaterialTheme.colorScheme.primary else Color.Transparent)
+                            .clickable { onDayClick(currentDay) }
                     ) {
                         Text(
-                            day.dayOfWeek.getDisplayName(JTextStyle.SHORT, Locale.getDefault()).uppercase(),
-                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 18.sp),
+                            currentDay.dayOfMonth.toString(),
+                            style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface  // BOLD BLACK for all
+                            color = if (isToday) Color.White else MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(Modifier.width(6.dp))
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(if (isToday) SkylightOrange else Color.Transparent)
-                                .clickable { onDayClick(day) }
-                        ) {
-                            Text(
-                                day.dayOfMonth.toString(),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isToday) Color.White else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
                     }
                     if (wf != null) {
-                        Text("${wf.iconChar}${wf.tempHigh.toInt()}°",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(10.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(wf.iconChar, fontSize = 20.sp)
+                            Text("${wf.tempHigh.toInt()}°",
+                                style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp),
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface)
+                        }
                     }
                 }
-            }
-        }
-        HorizontalDivider()
+                HorizontalDivider()
 
-        // All-day events strip
-        val zone = ZoneId.systemDefault()
-        val allDayByDay = remember(events, currentDay) {
-            val result = mutableMapOf<LocalDate, MutableList<CalendarEvent>>()
-            events.filter { it.isAllDay }.forEach { event ->
-                val startDate = Instant.ofEpochMilli(event.startMs).atZone(zone).toLocalDate()
-                val endDate   = Instant.ofEpochMilli(event.endMs).atZone(zone).toLocalDate()
-                for (day in weekDays) {
-                    if (!day.isBefore(startDate) && day.isBefore(endDate)) {
-                        result.getOrPut(day) { mutableListOf() }.add(event)
-                    }
+                // All-day events
+                val zone = ZoneId.systemDefault()
+                val allDayEvents = events.filter { it.isAllDay }.filter { event ->
+                    val startDate = Instant.ofEpochMilli(event.startMs).atZone(zone).toLocalDate()
+                    val endDate = Instant.ofEpochMilli(event.endMs).atZone(zone).toLocalDate()
+                    !currentDay.isBefore(startDate) && currentDay.isBefore(endDate)
                 }
-            }
-            result
-        }
-        if (allDayByDay.isNotEmpty()) {
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                Spacer(Modifier.width(48.dp))
-                weekDays.forEach { day ->
-                    Column(modifier = Modifier.weight(1f)) {
-                        val dayAllDay = allDayByDay[day].orEmpty()
-                        dayAllDay.take(2).forEach { event ->
+                if (allDayEvents.isNotEmpty()) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        allDayEvents.take(2).forEach { event ->
                             val (bgColor, textColor) = eventPastelColors(event, people)
                             Text(event.title,
-                                fontSize = 10.sp, color = textColor, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                fontSize = 11.sp, color = textColor, maxLines = 1, overflow = TextOverflow.Visible,
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 2.dp, vertical = 2.dp)
-                                    .clip(RoundedCornerShape(4.dp))
+                                    .weight(1f)
+                                    .padding(horizontal = 4.dp, vertical = 4.dp)
+                                    .clip(RoundedCornerShape(6.dp))
                                     .background(bgColor)
                                     .clickable { onEventClick(event) }
-                                    .padding(horizontal = 4.dp, vertical = 2.dp))
-                        }
-                        if (dayAllDay.size > 2) Text("+${dayAllDay.size - 2}", fontSize = 9.sp, color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(start = 4.dp))
-                    }
-                }
-            }
-            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
-        }
-
-        // Scrollable hour grid
-        val scrollState = rememberScrollState()
-        Row(modifier = Modifier.weight(1f).verticalScroll(scrollState)) {
-            // Hour labels + orange time dot
-            Box(modifier = Modifier.width(48.dp).height(hourCount.dp * 60)) {
-                Column {
-                    for (hour in hourRange) {
-                        Box(modifier = Modifier.height(60.dp), contentAlignment = Alignment.TopEnd) {
-                            Text(if (hour == 0) "" else "%02d:00".format(hour),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(end = 8.dp, top = 2.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp))
                         }
                     }
+                    HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 }
-                if (now.hour in hourRange) {
-                    OrangeTimeLine(now = now, fullWidth = false)
-                }
-            }
-            // Day columns (5 days)
-            weekDays.forEach { day ->
-                val dayEvents = events.filter { event ->
-                    val d = Instant.ofEpochMilli(event.startMs).atZone(ZoneId.systemDefault()).toLocalDate()
-                    d == day && !event.isAllDay
-                }
-                Box(modifier = Modifier.weight(1f).height(hourCount.dp * 60)) {
-                    // Hour lines
-                    Column {
-                        for (hour in hourRange) {
-                            HorizontalDivider(modifier = Modifier.padding(top = 60.dp),
-                                thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                        }
-                    }
-                    // Events (pastel bg, person badge, time range)
-                    dayEvents.forEach { event ->
-                        val startZdt = Instant.ofEpochMilli(event.startMs).atZone(ZoneId.systemDefault())
-                        val startHour = startZdt.hour
-                        val startMin  = startZdt.minute
-                        val durationMin = ((event.endMs - event.startMs) / 60_000).coerceAtLeast(30L)
-                        val topOffset   = (startHour * 60 + startMin).dp
-                        val heightDp    = (durationMin.toInt()).coerceAtMost(120).dp.coerceAtLeast(28.dp)
 
-                        val (bgColor, textColor) = eventPastelColors(event, people)
-                        val badgeColor = textColor
-
-                        val timeStr = startZdt.toLocalTime().format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
-                        val endTime = Instant.ofEpochMilli(event.endMs).atZone(ZoneId.systemDefault()).toLocalTime()
-                            .format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
-                        val timeRange = "$timeStr - $endTime"
-
-                        // Person initial for badge
-                        val personInitial = event.personIds.split(",").firstOrNull()?.toLongOrNull()
-                            ?.let { id -> people.find { it.id == id }?.initial ?: event.title.first().toString() }
-
-                        Box(
-                            modifier = Modifier
-                                .offset(y = topOffset)
-                                .height(heightDp)
-                                .fillMaxWidth()
-                                .padding(horizontal = 1.dp, vertical = 1.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(bgColor)
-                                .clickable { onEventClick(event) }
-                                .semantics {
-                                    this[SemanticsProperties.Role] = Role.Button
-                                    contentDescription = "Event: ${event.title}, $timeRange"
+                // Hour grid with 12hr labels and half-hour lines
+                val hourScrollState = rememberScrollState()
+                Row(modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(hourScrollState)
+                    .padding(bottom = 80.dp)
+                ) {
+                    // Hour labels column - moved away from left edge
+                    Box(modifier = Modifier.width(64.dp).height(hourCount.dp * 60)) {
+                        Column {
+                            for (hour in hourRange) {
+                                // Hour line
+                                Box(modifier = Modifier.height(60.dp)) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.fillMaxWidth().padding(top = 30.dp),
+                                        thickness = 1.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                                    )
                                 }
-                                .padding(8.dp)
-                        ) {
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                // Person badge top-right
-                                if (personInitial != null) {
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                        Box(
-                                            modifier = Modifier.size(16.dp).clip(RoundedCornerShape(4.dp)).background(badgeColor),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(personInitial.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                        }
-                                    }
+                                // 12hr time label
+                                if (hour != 0) {
+                                    val displayHour = if (hour > 12) hour - 12 else hour
+                                    val amPm = if (hour >= 12) "PM" else "AM"
+                                    Text("$displayHour $amPm",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(end = 12.dp, top = 2.dp)
+                                            .wrapContentSize(Alignment.CenterEnd))
                                 }
-                                Spacer(Modifier.height(4.dp))
-                                Text(timeRange.lowercase().replace(" ", ""), fontSize = 11.sp, color = textColor.copy(alpha = 0.7f), maxLines = 1)
-                                Text(event.title,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = textColor,
-                                    maxLines = 3,  // Allow more lines so name never cut off
-                                    overflow = TextOverflow.Visible)
                             }
                         }
+                        // Black current time line
+                        if (now.hour in hourRange) {
+                            BlackTimeLine(now = now, fullWidth = false)
+                        }
                     }
-                    // Orange time line
-                    if (now.hour in hourRange) {
-                        OrangeTimeLine(now = now, fullWidth = true)
+
+                    // Single day column (each item = 1 day)
+                    val dayEvents = events.filter { event ->
+                        val d = Instant.ofEpochMilli(event.startMs).atZone(zone).toLocalDate()
+                        d == currentDay && !event.isAllDay
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth().height(hourCount.dp * 60)) {
+                        // Hour grid lines
+                        Column {
+                            for (hour in hourRange) {
+                                Box(modifier = Modifier.height(60.dp)) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.fillMaxWidth().padding(top = 30.dp),
+                                        thickness = 1.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                                    )
+                                    // Half-hour line
+                                    HorizontalDivider(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        thickness = 0.5.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.1f)
+                                    )
+                                }
+                            }
+                        }
+                        // Events
+                        dayEvents.forEach { event ->
+                            val startZdt = Instant.ofEpochMilli(event.startMs).atZone(zone)
+                            val startHour = startZdt.hour
+                            val startMin = startZdt.minute
+                            val durationMin = ((event.endMs - event.startMs) / 60_000L).coerceAtLeast(30L)
+                            val topOffset = (startHour * 60 + startMin).dp
+                            val heightDp = (durationMin.toInt()).coerceAtMost(120).dp.coerceAtLeast(28.dp)
+
+                            val (bgColor, textColor) = eventPastelColors(event, people)
+                            val badgeColor = textColor
+
+                            val timeStr = startZdt.toLocalTime().format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
+                            val endTime = Instant.ofEpochMilli(event.endMs).atZone(zone).toLocalTime()
+                                .format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
+                            val timeRange = "$timeStr - $endTime"
+
+                            val personInitial = event.personIds.split(",").firstOrNull()?.toLongOrNull()
+                                ?.let { id -> people.find { it.id == id }?.initial ?: event.title.first().toString() }
+
+                            Box(
+                                modifier = Modifier
+                                    .offset(y = topOffset)
+                                    .height(heightDp)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 2.dp, vertical = 1.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(bgColor)
+                                    .clickable { onEventClick(event) }
+                                    .semantics {
+                                        this[SemanticsProperties.Role] = Role.Button
+                                        contentDescription = "Event: ${event.title}, $timeRange"
+                                    }
+                                    .padding(8.dp)
+                            ) {
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    if (personInitial != null) {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                            Box(
+                                                modifier = Modifier.size(16.dp).clip(RoundedCornerShape(4.dp)).background(badgeColor),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(personInitial.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                            }
+                                        }
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(timeRange.replace(" ", ""), fontSize = 11.sp, color = textColor.copy(alpha = 0.7f), maxLines = 1)
+                                    Text(event.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textColor, maxLines = 3, overflow = TextOverflow.Visible)
+                                }
+                            }
+                        }
+                        // Black current time line
+                        if (now.hour in hourRange) {
+                            BlackTimeLine(now = now, fullWidth = true)
+                        }
                     }
                 }
             }
@@ -1052,28 +1121,54 @@ private fun SkylightDayView(
 
         val scrollState = rememberScrollState()
         Row(modifier = Modifier.weight(1f).verticalScroll(scrollState)) {
-            // Hour labels
-            Box(modifier = Modifier.width(48.dp).height(hourCount.dp * 60)) {
+            // Hour labels - 12hr format with half-hour grid lines
+            Box(modifier = Modifier.width(64.dp).height(hourCount.dp * 60)) {
                 Column {
                     for (hour in hourRange) {
-                        Box(modifier = Modifier.height(60.dp), contentAlignment = Alignment.TopEnd) {
-                            Text(if (hour == 0) "" else "%02d:00".format(hour),
+                        // Hour line
+                        Box(modifier = Modifier.height(60.dp)) {
+                            HorizontalDivider(
+                                modifier = Modifier.fillMaxWidth().padding(top = 30.dp),
+                                thickness = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                            )
+                        }
+                        // 12hr time label
+                        if (hour != 0) {
+                            val displayHour = if (hour > 12) hour - 12 else hour
+                            val amPm = if (hour >= 12) "PM" else "AM"
+                            Text("$displayHour $amPm",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(end = 8.dp, top = 2.dp))
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(end = 12.dp, top = 2.dp)
+                                    .wrapContentSize(Alignment.CenterEnd))
                         }
                     }
                 }
                 if (now.hour in hourRange) {
-                    OrangeTimeLine(now = now, fullWidth = false)
+                    BlackTimeLine(now = now, fullWidth = false)
                 }
             }
 
-            Box(modifier = Modifier.weight(1f).height(hourCount.dp * 60)) {
+            Box(modifier = Modifier.fillMaxWidth().height(hourCount.dp * 60)) {
+                // Hour grid lines with half-hour markers
                 Column {
                     for (hour in hourRange) {
-                        HorizontalDivider(modifier = Modifier.padding(top = 60.dp),
-                            thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                        Box(modifier = Modifier.height(60.dp)) {
+                            HorizontalDivider(
+                                modifier = Modifier.fillMaxWidth().padding(top = 30.dp),
+                                thickness = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                            )
+                            // Half-hour line
+                            HorizontalDivider(
+                                modifier = Modifier.fillMaxWidth(),
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.1f)
+                            )
+                        }
                     }
                 }
                 timed.forEach { event ->
@@ -1119,7 +1214,7 @@ private fun SkylightDayView(
                                 }
                             }
                             Spacer(Modifier.height(4.dp))
-                            Text(timeRange.lowercase().replace(" ", ""), fontSize = 11.sp, color = textColor.copy(alpha = 0.7f), maxLines = 1)
+                            Text(timeRange.replace(" ", ""), fontSize = 11.sp, color = textColor.copy(alpha = 0.7f), maxLines = 1)
                             Text(event.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textColor, maxLines = 3, overflow = TextOverflow.Visible)
                             if (event.location.isNotBlank()) {
                                 Text(event.location, style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f), maxLines = 1)
@@ -1128,7 +1223,7 @@ private fun SkylightDayView(
                     }
                 }
                 if (now.hour in hourRange) {
-                    OrangeTimeLine(now = now, fullWidth = true)
+                    BlackTimeLine(now = now, fullWidth = true)
                 }
             }
         }
@@ -1136,17 +1231,17 @@ private fun SkylightDayView(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Orange Time Line (current time indicator)
+// Black Time Line (current time indicator) — replaces OrangeTimeLine
 // ─────────────────────────────────────────────────────────────
 @Composable
-private fun OrangeTimeLine(now: LocalTime, fullWidth: Boolean) {
+private fun BlackTimeLine(now: LocalTime, fullWidth: Boolean) {
     val offset = (now.hour * 60 + now.minute).dp
     Box(
         modifier = Modifier
             .offset(y = offset)
-            .width(if (fullWidth) 9999.dp else 48.dp)
+            .width(if (fullWidth) 9999.dp else 64.dp)
             .height(2.dp)
-            .background(SkylightOrange)
+            .background(MaterialTheme.colorScheme.onSurface)  // BLACK
     )
 }
 

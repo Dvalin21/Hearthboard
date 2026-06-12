@@ -44,7 +44,6 @@ fun SettingsScreen(
     val fontSize     by viewModel.fontSize.collectAsState()
     val firstDayMon  by viewModel.firstDayMon.collectAsState()
     val use24Hr      by viewModel.use24Hr.collectAsState()
-    val kioskMode    by viewModel.kioskMode.collectAsState()
     val syncWifiOnly by viewModel.syncWifiOnly.collectAsState()
     val showWeekends by viewModel.showWeekends.collectAsState()
     val wallMode     by viewModel.wallMode.collectAsState()
@@ -56,7 +55,6 @@ fun SettingsScreen(
 
     var showAddAccount by remember { mutableStateOf(false) }
     var editAccount    by remember { mutableStateOf<CalendarAccount?>(null) }
-    var showPinDialog  by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -504,21 +502,6 @@ fun SettingsScreen(
         // ── ADVANCED / KIOSK ─────────────────────────────────
         SettingsSectionHeader("Advanced", Icons.Filled.Tune)
 
-        SettingsToggleRow(
-            icon     = Icons.Filled.LockPerson,
-            title    = "Kiosk / Launcher Mode",
-            subtitle = "Lock device as home screen",
-            checked  = kioskMode,
-            onToggle = { viewModel.setKioskMode(it) }
-        )
-
-        SettingsClickRow(
-            icon     = Icons.Filled.Pin,
-            title    = "Parental Lock PIN",
-            subtitle = "Restrict access to settings",
-            onClick  = { showPinDialog = true }
-        )
-
         // ── Auto-archive ─────────────────────────────────────
         val archiveMonths by viewModel.autoArchiveMonths.collectAsState()
         Row(
@@ -681,13 +664,6 @@ fun SettingsScreen(
             },
             onDismiss = { editAccount = null },
             encodePassword = viewModel::encodePassword
-        )
-    }
-
-    if (showPinDialog) {
-        PinDialog(
-            onSave    = { pin -> viewModel.setParentalPin(pin); showPinDialog = false },
-            onDismiss = { showPinDialog = false }
         )
     }
 }
@@ -1028,52 +1004,6 @@ fun AccountEditDialog(
             }
         }
     }
-}
-
-// ─────────────────────────────────────────────────────────────
-// PIN dialog
-// ─────────────────────────────────────────────────────────────
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PinDialog(
-    onSave: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var pin    by remember { mutableStateOf("") }
-    var pinErr by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Set Parental Lock PIN") },
-        text  = {
-            Column {
-                Text("Enter a 4-digit PIN to protect Settings.",
-                    style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value         = pin,
-                    onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) pin = it; pinErr = false },
-                    label         = { Text("4-digit PIN") },
-                    isError       = pinErr,
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier      = Modifier.fillMaxWidth(),
-                    singleLine    = true
-                )
-                if (pinErr) Text("PIN must be 4 digits",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.labelSmall)
-                Spacer(Modifier.height(8.dp))
-                TextButton(onClick = { onSave("") }) { Text("Remove PIN") }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                if (pin.length == 4) onSave(pin)
-                else pinErr = true
-            }) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
 }
 
 // Reuse ColorPickerGrid here from components

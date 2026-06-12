@@ -463,19 +463,19 @@ fun HearthboardNavHost(app: HearthboardApp) {
                     // Primary items: Calendar, Lists, Tasks, Chores, Rewards, Meals, Recipes, Photos, Sleep
                     Screen.primary.forEachIndexed { index, screen ->
                         SkylightNavItem(screen)
-                        // 4dp spacing between items (tightest)
+                        // 2dp spacing between items (tightest - all fit)
                         if (index != Screen.primary.lastIndex) {
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(2.dp))
                         }
                     }
 
                     // Divider before Settings - smaller gap
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(8.dp))
                     HorizontalDivider(
                         color = RailDividerColor,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(8.dp))
 
                     // Settings at bottom (only item below divider)
                     Screen.secondary.forEach { screen ->
