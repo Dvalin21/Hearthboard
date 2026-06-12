@@ -200,11 +200,12 @@ fun HearthboardNavHost(app: HearthboardApp) {
             }
             composable(Screen.Calendar.route) {
                 CalendarScreen(
-                    viewModel  = calVm,
-                    people     = people,
-                    onAddEvent = { calVm.showAddEvent() },
-                    familyName = displayFamilyName,
-                    tempUnit   = tempUnit
+                    viewModel     = calVm,
+                    people        = people,
+                    onAddEvent    = { calVm.showAddEvent() },
+                    familyName    = displayFamilyName,
+                    tempUnit      = tempUnit,
+                    adminInitial  = adminInitial
                 )
             }
             composable(Screen.Tasks.route) {
@@ -279,15 +280,12 @@ fun HearthboardNavHost(app: HearthboardApp) {
     // Vertical stack: Icon ABOVE Label, single-word labels
     // Active: White rounded pill full width; Inactive: Transparent
     @Composable
-    fun SkylightNavItem(screen: Screen, adminInitial: String? = null) {
+    fun SkylightNavItem(screen: Screen) {
         val selected = currentDest?.hierarchy?.any { it.route == screen.route } == true
 
         val bgColor    = if (selected) SelectedPillColor else Color.Transparent
         val tint       = if (selected) SelectedLabel else UnselectedTint
         val labelColor = if (selected) SelectedLabel else UnselectedLabel
-
-        // Check if this is Calendar (for initial badge)
-        val isCalendar = screen == Screen.Calendar
 
         Box(
             modifier = Modifier
@@ -305,19 +303,6 @@ fun HearthboardNavHost(app: HearthboardApp) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // Calendar initial badge (above icon)
-                if (isCalendar && adminInitial != null) {
-                    Text(
-                        text       = adminInitial,
-                        fontFamily = FontFamily.Serif,
-                        fontSize   = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color      = if (selected) SelectedLabel else UnselectedTint,
-                        letterSpacing = 2.sp
-                    )
-                    Spacer(Modifier.height(4.dp))
-                }
-
                 // Icon (28dp)
                 Icon(
                     imageVector = if (selected) screen.selectedIcon else screen.unselectedIcon,
@@ -451,7 +436,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
 
                     // Primary items: Calendar, Lists, Tasks, Chores, Rewards, Meals, Recipes, Photos, Sleep
                     Screen.primary.forEachIndexed { index, screen ->
-                        SkylightNavItem(screen, adminInitial = adminInitial)
+                        SkylightNavItem(screen)
                         // 16dp spacing between items
                         if (index != Screen.primary.lastIndex) {
                             Spacer(Modifier.height(16.dp))
