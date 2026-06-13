@@ -182,27 +182,31 @@ fun CalendarScreen(
                         Text("Filter by Person", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(16.dp))
                         SkylightPersonFilterRow(
-                            people       = people,
-                            selectedId   = personFilterId,
-                            onSelect     = { id ->
+                            people             = people,
+                            selectedId         = personFilterId,
+                            onSelect           = { id ->
                                 viewModel.setPersonFilter(id)
                                 showFilterSheet = false
                             },
-                            taskChoreCounts = viewModel.taskChoreCounts.value,
-                            vacationCountdown = viewModel.nextVacationCountdown.value
+                            taskChoreCounts    = viewModel.taskChoreCounts.value,
+                            vacationCountdown  = viewModel.nextVacationCountdown.value,
+                            events             = events,
+                            forecasts          = forecasts
                         )
                     }
                 }
             }
 
-            // ── Person filter row: horizontal scrollable chips ──
+            // ── Person filter row: horizontal scrollable bars ──
             if (people.size > 1) {
                 SkylightPersonFilterRow(
-                    people       = people,
-                    selectedId   = personFilterId,
-                    onSelect     = viewModel::setPersonFilter,
-                    taskChoreCounts = viewModel.taskChoreCounts.value,
-                    vacationCountdown = viewModel.nextVacationCountdown.value
+                    people             = people,
+                    selectedId         = personFilterId,
+                    onSelect           = viewModel::setPersonFilter,
+                    taskChoreCounts    = viewModel.taskChoreCounts.value,
+                    vacationCountdown  = viewModel.nextVacationCountdown.value,
+                    events             = events,
+                    forecasts          = forecasts
                 )
             }
 
@@ -329,14 +333,15 @@ private fun SkylightHeader(
                 fontWeight = FontWeight.Bold,
                 color      = MaterialTheme.colorScheme.onSurface
             )
-            // Time + Weather on same line - BOLD BLACK, LARGER
+            // Time + Weather on same line - SERIF FONT, BOLD, 2 SIZES BIGGER
             if (forecast != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text     = time,
-                        fontSize = 18.sp,
+                        text       = time,
+                        fontFamily = FontFamily.Serif,
+                        fontSize   = 26.sp,
                         fontWeight = FontWeight.Bold,
-                        color    = MaterialTheme.colorScheme.onSurface
+                        color      = MaterialTheme.colorScheme.onSurface
                     )
                     Icon(
                         imageVector = weatherIcon,
@@ -345,77 +350,79 @@ private fun SkylightHeader(
                         modifier = Modifier.size(24.dp)
                     )
                     Text(
-                        text     = tempStr,
-                        fontSize = 18.sp,
+                        text       = tempStr,
+                        fontFamily = FontFamily.Serif,
+                        fontSize   = 26.sp,
                         fontWeight = FontWeight.Bold,
-                        color    = MaterialTheme.colorScheme.onSurface
+                        color      = MaterialTheme.colorScheme.onSurface
                     )
                 }
             } else {
                 Text(
-                    text     = time,
-                    fontSize = 18.sp,
+                    text       = time,
+                    fontFamily = FontFamily.Serif,
+                    fontSize   = 26.sp,
                     fontWeight = FontWeight.Bold,
-                    color    = MaterialTheme.colorScheme.onSurface
+                    color      = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
 
-        // Right: Schedule + Filter + nav controls - ALL IN ROUNDED RECTANGULAR BOXES (with breathing room)
+        // Right: Schedule + Filter + nav controls - WHITE ROUNDED BOXES, NORMAL FONT, LONGER
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            // Schedule button in rounded box
+            // Schedule button in white rounded box
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 24.dp, vertical = 10.dp)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(24.dp))
+                    .padding(horizontal = 32.dp, vertical = 10.dp)
+                    .background(Color.White, RoundedCornerShape(24.dp))
                     .clickable { onScheduleClick() }
             ) {
                 Text(
                     text     = "Schedule",
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color    = MaterialTheme.colorScheme.onPrimary
+                    fontWeight = FontWeight.Normal,
+                    color    = MaterialTheme.colorScheme.primary
                 )
             }
-            // Filter button in rounded box
+            // Filter button in white rounded box
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 24.dp, vertical = 10.dp)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(24.dp))
+                    .padding(horizontal = 32.dp, vertical = 10.dp)
+                    .background(Color.White, RoundedCornerShape(24.dp))
                     .clickable { onFilterClick() }
             ) {
                 Text(
                     text     = "Filter",
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color    = MaterialTheme.colorScheme.onPrimary
+                    fontWeight = FontWeight.Normal,
+                    color    = MaterialTheme.colorScheme.primary
                 )
             }
-            // Nav controls: Prev / Today / Next - each in rounded boxes
+            // Nav controls: Prev / Today / Next - each in white rounded boxes
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = 18.dp, vertical = 10.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(24.dp))
+                        .padding(horizontal = 24.dp, vertical = 10.dp)
+                        .background(Color.White, RoundedCornerShape(24.dp))
                         .clickable { onPrevClick() }
                 ) {
-                    Icon(Icons.Default.ChevronLeft, "Previous", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.Default.ChevronLeft, "Previous", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                }
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 32.dp, vertical = 10.dp)
+                        .background(Color.White, RoundedCornerShape(24.dp))
+                        .clickable { onTodayClick() }
+                ) {
+                    Text("Today", fontSize = 14.sp, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.primary)
                 }
                 Box(
                     modifier = Modifier
                         .padding(horizontal = 24.dp, vertical = 10.dp)
-                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(24.dp))
-                        .clickable { onTodayClick() }
-                ) {
-                    Text("Today", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
-                }
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 18.dp, vertical = 10.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(24.dp))
+                        .background(Color.White, RoundedCornerShape(24.dp))
                         .clickable { onNextClick() }
                 ) {
-                    Icon(Icons.Default.ChevronRight, "Next", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.Default.ChevronRight, "Next", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -465,68 +472,124 @@ private fun CalendarControls(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Skylight Person Filter Row — horizontal scrollable chips
-// Chip: 32dp tall, 12dp horizontal padding, colored dot + name + count (only if > 0)
+// Skylight Person Filter Row — slideable colored bars (~3in)
+// Only shows people with tasks/events for current day or next day, or vacation countdown
 // ─────────────────────────────────────────────────────────────
 @Composable
 private fun SkylightPersonFilterRow(
     people: List<Person>,
     selectedId: Long,
     onSelect: (Long) -> Unit,
-    taskChoreCounts: Map<Long, Int> = emptyMap(), // personId -> active count
+    taskChoreCounts: Map<Long, Int> = emptyMap(),
     vacationCountdown: String? = null,
+    events: List<CalendarEvent> = emptyList(),
+    forecasts: Map<LocalDate, DailyForecast> = emptyMap(),
 ) {
-    val filterItems = remember(people, taskChoreCounts, vacationCountdown) {
+    val today = LocalDate.now()
+    val tomorrow = today.plusDays(1)
+    val zone = ZoneId.systemDefault()
+
+    // Check if person has events for today or tomorrow
+    val personHasEventTodayOrTomorrow = people.associateWith { person ->
+        events.any { event ->
+            val eventDate = Instant.ofEpochMilli(event.startMs).atZone(zone).toLocalDate()
+            event.personIds.split(",").any { it.trim().toLongOrNull() == person.id } &&
+            (eventDate == today || eventDate == tomorrow)
+        }
+    }
+
+    // Check if person has tasks for today or tomorrow (using taskChoreCounts as proxy for active tasks)
+    val personHasActiveTasks = taskChoreCounts.entries.associate { (personId, _) ->
+        personId to people.any { it.id == personId }
+    }
+
+    val filterItems = remember(people, taskChoreCounts, vacationCountdown, personHasEventTodayOrTomorrow, personHasActiveTasks) {
         buildList<FilterItem> {
+            // Vacation countdown (always show if exists)
             if (vacationCountdown != null) {
                 add(FilterItem(id = -1L, label = vacationCountdown, dotColor = null, isVacation = true))
             }
-            add(FilterItem(id = 0L, label = "All", dotColor = null, isVacation = true))
+
+            // Only show people who have events today/tomorrow OR active tasks
             people.filter { !it.isDefault }.forEach { person ->
-                val total = taskChoreCounts[person.id] ?: 0
-                // Only show count if > 0, otherwise just show name
-                val label = if (total > 0) "${person.name} $total" else person.name
-                val color = runCatching { Color(android.graphics.Color.parseColor(person.colorHex)) }
-                    .getOrElse { Color.Gray }
-                add(FilterItem(id = person.id, label = label, dotColor = color))
+                val hasEvent = personHasEventTodayOrTomorrow[person] == true
+                val hasTask = personHasActiveTasks[person.id] == true
+
+                if (hasEvent || hasTask) {
+                    val color = runCatching { Color(android.graphics.Color.parseColor(person.colorHex)) }
+                        .getOrElse { Color.Gray }
+                    // Just show name with color bar - no count
+                    add(FilterItem(id = person.id, label = person.name, dotColor = color))
+                }
             }
         }
     }
 
+    // Horizontal scrollable bar row - each bar ~3 inches (288dp)
+    val barWidth = 288.dp
+
     LazyRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(vertical = 8.dp)
     ) {
         items(filterItems) { item: FilterItem ->
             val selected = selectedId == item.id
-            val bgColor  = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest
-            val textColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+            val isVacation = item.isVacation
 
-            Row(
-                modifier = Modifier
-                    .height(32.dp)
-                    .padding(horizontal = 12.dp)
-                    .background(bgColor, RoundedCornerShape(16.dp))
-                    .clickable { onSelect(item.id) },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                // Colored dot (8dp) for non-vacation items
-                if (item.dotColor != null) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(item.dotColor!!)
+            if (isVacation) {
+                // Vacation countdown - full width indicator
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .padding(horizontal = 16.dp)
+                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .clickable { onSelect(item.id) }
+                ) {
+                    Text(
+                        text       = item.label,
+                        fontSize   = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color      = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
-                Text(
-                    text       = item.label,
-                    fontSize   = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color      = textColor
-                )
+            } else {
+                // Person color bar - ~3 inches wide
+                val bgColor = if (selected) item.dotColor!!.copy(alpha = 0.3f) else item.dotColor!!.copy(alpha = 0.15f)
+                val textColor = if (selected) item.dotColor!! else MaterialTheme.colorScheme.onSurfaceVariant
+
+                Box(
+                    modifier = Modifier
+                        .width(barWidth)
+                        .height(48.dp)
+                        .background(bgColor, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 16.dp)
+                        .clickable { onSelect(item.id) },
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Color indicator
+                        Box(
+                            modifier = Modifier
+                                .width(8.dp)
+                                .height(8.dp)
+                                .clip(CircleShape)
+                                .background(item.dotColor!!)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text       = item.label,
+                            fontSize   = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color      = textColor
+                        )
+                    }
+                }
             }
         }
     }

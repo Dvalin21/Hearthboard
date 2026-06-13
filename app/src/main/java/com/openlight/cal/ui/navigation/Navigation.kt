@@ -139,11 +139,13 @@ fun HearthboardNavHost(app: HearthboardApp) {
     val accounts by settingsVm.accounts.collectAsState()
     val familyName by app.preferences.familyName.collectAsStateWithLifecycle(initialValue = "Family")
     val tempUnit by app.preferences.tempUnit.collectAsStateWithLifecycle(initialValue = "F")
+    val wallMode by settingsVm.wallMode.collectAsState()
     val showAddEvent by calVm.showAddEvent.collectAsState()
     val editEvent    by calVm.editEvent.collectAsState()
     val selectedDate by calVm.selectedDate.collectAsState()
 
-    // Admin person for initial (first non-default person, or first person)
+    val winUnlocked by remember { mutableStateOf(false) }
+    // ── Admin person for initial (first non-default person, or first person)
     // Also used for "The [LastName] Family" format
     val adminPerson = remember(people) {
         people.firstOrNull { !it.isDefault } ?: people.firstOrNull()
@@ -175,6 +177,13 @@ fun HearthboardNavHost(app: HearthboardApp) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             launchSingleTop = true
             restoreState    = true
+        }
+    }
+
+    // ── Auto-navigate to Calendar when Wall Mode is enabled ────────
+    LaunchedEffect(wallMode) {
+        if (wallMode) {
+            navigateTo(Screen.Calendar)
         }
     }
 
