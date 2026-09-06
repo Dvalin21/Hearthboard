@@ -21,3 +21,4 @@ app/build/
 # APK outputs
 *.apk
 *.aab
+/HANDOFF.md
