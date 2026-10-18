@@ -226,3 +226,32 @@ CALDAV-ROUNDTRIP-TESTS
 ───────────────────────────────────────────────────────────────────────────────
 HELPER CALDAVSYNCWORKER AUDIT
 ───────────────────────────────────────────────────────────────────────────────
+───────────────────────────────────────────────────────────────────────────────
+PRODUCTION POLISH PASS (Oct 18 2026)
+───────────────────────────────────────────────────────────────────────────────
+[x] REMINDER-FIX          NotificationHelper query window widened to 24h; reminders fire.
+[x] CALDAV-DELETE-GUARD   Deletion pass skipped on empty server response.
+[x] DEVICE-TRANSFER       DB excluded from device transfer (Keystore-bound passwords).
+[x] BACKUP-LABELS         Labels + person_labels now exported/imported.
+[x] CALDAV-CACHE-EVICT    Client cache evicted on password change.
+[x] WEATHER-CLOSE         OkHttp response closed via use {}.
+[x] LARGEHEAP-REMOVED     largeHeap="true" removed.
+[x] ALLOWBACKUP-FALSE     android:allowBackup="false".
+[x] MINSDK-README         README now says Android 12+ (minSdk 31).
+[x] VERSIONCODE           33 -> 35.
+[x] PIN-UPGRADE           Legacy plaintext PINs auto-upgraded to v1: on startup.
+[x] AUTOARCHIVE-COUNTDOWN Countdown events excluded from auto-archive.
+[x] SYNC-POLICY           KEEP -> UPDATE (interval changes take effect).
+[x] CALDAV-DEPTH-CAP      scanForCalendars capped at depth 4.
+[x] FETCHICS-CATCH        fetchIcs catches Exception, not just IOException.
+[x] WIDGET-IO             CalendarWidget DB read on Dispatchers.IO via goAsync.
+[x] NOTIFICATION-SUSPEND  fireDueReminders now suspend.
+[x] CALENDARSCREEN-LINT   StateFlow.value in composition fixed.
+[x] UID-BRAND             openlight -> hearthboard in generateUid.
+[x] ISCHORE-KDOC          KDoc references MIGRATION_4_5.
+[x] ACCEPTINVITATION      Target selection simplified.
+[x] ENCRYPTEDPASSWORD-LOG Decrypt fallback logs a warning.
+[x] ENDPOINT-VALIDATION   HTTPS-only or LAN for Mealie/Weather.
+[x] PROGUARD-LOGSTRIP     v()/d() stripped in release.
+[x] RFC7986-COLOR         COLOR emitted alongside X-APPLE-COLOR.
+[x] GITHUB-TOPICS         12 topics added for search discoverability.

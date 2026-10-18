@@ -37,6 +37,8 @@ Hearthboard is designed for users who care about who has access to their family'
 | **Password storage** | AES-256/GCM encryption backed by Android Keystore (hardware-backed on supported devices). Existing base64-stored passwords are transparently upgraded on first access. |
 | **Permissions** | Every permission has a documented purpose. No `REQUEST_INSTALL_PACKAGES` or other unnecessary permissions. |
 | **F-Droid compatible** | Single universal APK (no ABI split). No proprietary dependencies. GPL-3.0. |
+| **Endpoint validation** | CalDAV/Mealie/Weather endpoints must use HTTPS unless targeting a loopback or RFC1918 LAN host. Prevents accidental cleartext to remote servers. |
+| **Log stripping** | Release builds strip verbose/debug Android logs via ProGuard; warn/error retained for diagnostics. |
 
 ---
 
@@ -168,6 +170,15 @@ Hearthboard uses Android `WorkManager` for periodic CalDAV sync:
 - **Manual**: "Sync now" button in Settings triggers immediate one-shot sync
 
 ---
+
+## Hardening notes
+
+- **Encrypted credentials**: CalDAV passwords are AES-256/GCM under Android Keystore. Legacy base64-obfuscated and plaintext PINs are auto-upgraded to the versioned `v1:` format on first launch.
+- **No cloud backup**: `android:allowBackup="false"`; auto-backup excluded. Use the in-app Backup/Restore (JSON) for portability — passwords are stripped on export and must be re-entered.
+- **Device transfer**: the Room database is excluded from device transfer because encrypted passwords are bound to the source device's Keystore. Accounts must be re-entered on the new device.
+- **Endpoint validation**: only HTTPS (or HTTP to loopback/LAN) endpoints are accepted for CalDAV, Mealie, and weather. Cleartext to remote hosts is refused.
+- **Sync safety**: a transient empty CalDAV response no longer wipes the local cache; deletion runs only when the server returns data.
+- **Reminders**: notification permission is checked before firing; the reminder query window covers the full 24h lookahead so 15-minute (and longer) lead times fire correctly.
 
 ## License
 
