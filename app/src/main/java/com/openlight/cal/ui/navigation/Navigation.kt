@@ -1,6 +1,7 @@
 package com.openlight.cal.ui.navigation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -112,12 +113,19 @@ private val RailWidthCompact   = 56.dp
 private val RailWidthExpanded  = 100.dp  // Wider to fit all names
 
 // Colors — 2-3 shades darker gray, rounded rail
-private val RailBgColor        = Color(0xFFE0E0E0)  // Darker grayish rail bg
-private val SelectedPillColor  = Color.White        // White pill for active
-private val UnselectedTint     = Color(0xFF616161)  // Darker gray for inactive
-private val UnselectedLabel    = Color(0xFF616161)
-private val SelectedLabel      = Color(0xFF1F1F1F)  // Dark for active
-private val RailDividerColor   = Color(0xFFDDDDDD)  // Right edge divider
+// Theme-aware rail colors: light gray rail in light mode, dark surface in dark mode.
+@Composable
+private fun railBgColor() = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surfaceContainer else Color(0xFFE0E0E0)
+@Composable
+private fun selectedPillColor() = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surfaceContainerHigh else Color.White
+@Composable
+private fun unselectedTint() = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF616161)
+@Composable
+private fun unselectedLabel() = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF616161)
+@Composable
+private fun selectedLabel() = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.onSurface else Color(0xFF1F1F1F)
+@Composable
+private fun railDividerColor() = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.outlineVariant else Color(0xFFDDDDDD)
 
 // ─────────────────────────────────────────────────────────────
 // Main Navigation Host
@@ -290,9 +298,9 @@ fun HearthboardNavHost(app: HearthboardApp) {
     fun SkylightNavItem(screen: Screen, adminInitial: String? = null, showInitial: Boolean = false) {
         val selected = currentDest?.hierarchy?.any { it.route == screen.route } == true
 
-        val bgColor    = if (selected) SelectedPillColor else Color.Transparent
-        val tint       = if (selected) SelectedLabel else UnselectedTint
-        val labelColor = if (selected) SelectedLabel else UnselectedLabel
+        val bgColor    = if (selected) selectedPillColor() else Color.Transparent
+        val tint       = if (selected) selectedLabel() else unselectedTint()
+        val labelColor = if (selected) selectedLabel() else unselectedLabel()
 
         Box(
             modifier = Modifier
@@ -300,7 +308,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                 .clickable { navigateTo(screen) }
                 .padding(horizontal = 12.dp, vertical = 4.dp)
                 .background(
-                    if (selected) SelectedPillColor else Color.Transparent,
+                    if (selected) selectedPillColor() else Color.Transparent,
                     RoundedCornerShape(12.dp)
                 )
                 .padding(horizontal = 8.dp, vertical = 8.dp),
@@ -317,7 +325,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                         fontFamily = FontFamily.Serif,
                         fontSize   = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        color      = if (selected) SelectedLabel else UnselectedTint,
+                        color      = if (selected) selectedLabel() else unselectedTint(),
                         letterSpacing = 2.sp
                     )
                     Spacer(Modifier.height(2.dp))
@@ -357,7 +365,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
             topBar = { /* content uses its own headers */ },
             bottomBar = {
                 NavigationBar(
-                    containerColor = RailBgColor,  // Use darker gray
+                    containerColor = railBgColor(),  // Use darker gray
                     modifier = Modifier.padding(bottom = 0.dp)
                 ) {
                     Screen.bottomTabs.forEach { screen ->
@@ -370,7 +378,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                                     if (selected) screen.selectedIcon else screen.unselectedIcon,
                                     contentDescription = screen.label,
                                     modifier = Modifier.size(24.dp),
-                                    tint = if (selected) Color.White else UnselectedTint
+                                    tint = if (selected) selectedLabel() else unselectedTint()
                                 )
                             },
                             label = {
@@ -379,15 +387,15 @@ fun HearthboardNavHost(app: HearthboardApp) {
                                     style    = MaterialTheme.typography.labelSmall,
                                     maxLines = 1,
                                     fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-                                    color = if (selected) Color.White else UnselectedLabel
+                                    color = if (selected) selectedLabel() else unselectedLabel()
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.White,
-                                selectedTextColor = Color.White,
-                                unselectedIconColor = UnselectedTint,
-                                unselectedTextColor = UnselectedLabel,
-                                indicatorColor    = Color.White  // White pill indicator
+                                selectedIconColor = selectedLabel(),
+                                selectedTextColor = selectedLabel(),
+                                unselectedIconColor = unselectedTint(),
+                                unselectedTextColor = unselectedLabel(),
+                                indicatorColor    = selectedPillColor()
                             )
                         )
                     }
@@ -401,22 +409,22 @@ fun HearthboardNavHost(app: HearthboardApp) {
                                 Icons.Filled.MoreHoriz,
                                 "More",
                                 modifier = Modifier.size(24.dp),
-                                tint = if (showMore) Color.White else UnselectedTint
+                                tint = if (showMore) selectedLabel() else unselectedTint()
                             )
                         },
                         label = {
                             Text(
                                 "More",
-                                color = if (showMore) Color.White else UnselectedLabel,
+                                color = if (showMore) selectedLabel() else unselectedLabel(),
                                 fontWeight = if (showMore) FontWeight.Medium else FontWeight.Normal
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color.White,
-                            selectedTextColor = Color.White,
-                            unselectedIconColor = UnselectedTint,
-                            unselectedTextColor = UnselectedLabel,
-                            indicatorColor    = Color.White
+                            selectedIconColor = selectedLabel(),
+                            selectedTextColor = selectedLabel(),
+                            unselectedIconColor = unselectedTint(),
+                            unselectedTextColor = unselectedLabel(),
+                            indicatorColor    = selectedPillColor()
                         )
                     )
                 }
@@ -440,11 +448,11 @@ fun HearthboardNavHost(app: HearthboardApp) {
         ) {
             // Rail: 100dp wide, darker gray background, rounded corners
             NavigationRail(
-                containerColor = RailBgColor,
+                containerColor = railBgColor(),
                 modifier       = Modifier
                     .width(RailWidthExpanded)
                     .clip(RoundedCornerShape(16.dp))
-                    .border(width = 1.dp, color = RailDividerColor, shape = RoundedCornerShape(16.dp))
+                    .border(width = 1.dp, color = railDividerColor(), shape = RoundedCornerShape(16.dp))
             ) {
                 Column(
                     modifier = Modifier
@@ -459,7 +467,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                             fontFamily = FontFamily.Serif,
                             fontSize   = 28.sp,
                             fontWeight = FontWeight.Bold,
-                            color      = UnselectedTint,
+                            color      = unselectedTint(),
                             letterSpacing = 2.sp,
                             modifier   = Modifier
                                 .fillMaxWidth()
@@ -481,7 +489,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                     // Divider before Settings - smaller gap
                     Spacer(Modifier.height(8.dp))
                     HorizontalDivider(
-                        color = RailDividerColor,
+                        color = railDividerColor(),
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
                     Spacer(Modifier.height(8.dp))
