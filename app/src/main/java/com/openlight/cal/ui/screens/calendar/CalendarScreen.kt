@@ -1365,11 +1365,14 @@ private fun eventPastelColors(event: CalendarEvent, people: List<Person>): Pair<
         }
     }
 
-    // Fallback: event's own color
+    // Fallback: event's own color. Use a contrasting text color so the
+    // title is readable on the (possibly dark/saturated) account color.
     if (event.colorHex.isNotBlank()) {
         val eventColor = runCatching { Color(android.graphics.Color.parseColor(event.colorHex)) }.getOrNull()
         if (eventColor != null) {
-            return eventColor to eventColor.copy(alpha = 0.9f)
+            val luminance = (0.299 * eventColor.red + 0.587 * eventColor.green + 0.114 * eventColor.blue)
+            val textColor = if (luminance > 0.5f) Color(0xFF1F2937) else Color.White
+            return eventColor to textColor
         }
     }
 
