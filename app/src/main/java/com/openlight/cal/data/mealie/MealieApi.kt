@@ -16,6 +16,16 @@ import java.util.concurrent.TimeUnit
  * Mealie API docs: https://mealie.dev/docs/api/
  * No tracking, no analytics, no third-party SDKs.
  */
+private fun isAllowedEndpoint(url: String): Boolean {
+    val trimmed = url.trim()
+    if (trimmed.startsWith("https://", ignoreCase = true)) return true
+    if (!trimmed.startsWith("http://", ignoreCase = true)) return false
+    val host = runCatching { java.net.URI(trimmed).host ?: "" }.getOrDefault("")
+    return host == "localhost" || host == "127.0.0.1" ||
+        host.startsWith("10.") || host.startsWith("192.168.") ||
+        host.startsWith("172.")
+}
+
 class MealieApi(
     private val serverUrl: String,
     private val apiToken: String
@@ -56,6 +66,7 @@ class MealieApi(
 
     /** Fetch all recipes from Mealie. */
     fun getRecipes(): List<MealieRecipe> {
+        if (!isAllowedEndpoint(serverUrl)) return emptyList()
         return try {
             val url = "${serverUrl.trimEnd('/')}/api/recipes"
             val req = Request.Builder().url(url).get().build()
@@ -85,6 +96,7 @@ class MealieApi(
 
     /** Fetch recipe details including ingredients and instructions. */
     fun getRecipeDetail(slug: String): MealieRecipeDetail? {
+        if (!isAllowedEndpoint(serverUrl)) return null
         return try {
             val url = "${serverUrl.trimEnd('/')}/api/recipes/$slug"
             val req = Request.Builder().url(url).get().build()
@@ -129,6 +141,7 @@ class MealieApi(
         recipeYield: String,
         totalTime: String
     ): String? {
+        if (!isAllowedEndpoint(serverUrl)) return null
         return try {
             val body = JSONObject().apply {
                 put("name", name)
@@ -160,6 +173,7 @@ class MealieApi(
 
     /** Simple health check — verifies the server is reachable and token works. */
     fun checkConnection(): Boolean {
+        if (!isAllowedEndpoint(serverUrl)) return false
         return try {
             val url = "${serverUrl.trimEnd('/')}/api/recipes?perPage=1"
             val req = Request.Builder().url(url).get().build()

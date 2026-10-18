@@ -52,6 +52,19 @@ data class DailyForecast(
  * Minimal Open-Meteo weather client.
  * Free API: https://open-meteo.com/ (no API key required).
  */
+/** Allow only HTTPS endpoints, or HTTP to loopback/private LAN hosts. */
+private fun isAllowedEndpoint(url: String): Boolean {
+    val trimmed = url.trim()
+    if (trimmed.startsWith("https://", ignoreCase = true)) return true
+    if (!trimmed.startsWith("http://", ignoreCase = true)) return false
+    val host = runCatching { java.net.URI(trimmed).host ?: "" }.getOrDefault("")
+    return host == "localhost" || host == "127.0.0.1" ||
+        host.startsWith("10.") || host.startsWith("192.168.") ||
+        host.startsWith("172.16.") || host.startsWith("172.17.") ||
+        host.startsWith("172.18.") || host.startsWith("172.19.") ||
+        host.startsWith("172.2") || host.startsWith("172.30.") || host.startsWith("172.31.")
+}
+
 class WeatherApi {
 
     private val client = OkHttpClient.Builder()
@@ -68,6 +81,7 @@ class WeatherApi {
         lon: Double,
         endpoint: String = "https://api.open-meteo.com/v1/forecast"
     ): List<DailyForecast> = withContext(Dispatchers.IO) {
+        if (!isAllowedEndpoint(endpoint)) return@withContext emptyList()
         val url = buildString {
             append(endpoint.trimEnd('/'))
             append("?latitude=$lat&longitude=$lon")

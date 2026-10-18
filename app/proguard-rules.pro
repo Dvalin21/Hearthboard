@@ -51,3 +51,10 @@
 -keep class * extends androidx.lifecycle.AndroidViewModel
 
 # ── No analytics / tracking SDKs to worry about — there are none.
+
+# ── Strip verbose/debug logging in release ───────────────────
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int d(...);
+}
