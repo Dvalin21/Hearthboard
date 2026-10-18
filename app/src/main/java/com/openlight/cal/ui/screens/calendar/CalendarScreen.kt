@@ -220,6 +220,7 @@ fun CalendarScreen(
                         events       = events,
                         forecasts    = forecasts,
                         people       = people,
+                        tempUnit     = tempUnit,
                         onDayClick   = viewModel::setSelectedDate,
                         onEventClick = viewModel::editEvent,
                         wall         = wall
@@ -237,6 +238,7 @@ fun CalendarScreen(
                         date         = selectedDate,
                         events       = events,
                         people       = people,
+                        tempUnit     = tempUnit,
                         onEventClick = viewModel::editEvent,
                         wall         = wall
                     )
@@ -246,6 +248,7 @@ fun CalendarScreen(
                         events       = events,
                         forecasts    = forecasts,
                         people       = people,
+                        tempUnit     = tempUnit,
                         onDayClick   = viewModel::setSelectedDate,
                         onEventClick = viewModel::editEvent,
                         wall         = wall
@@ -289,9 +292,9 @@ private fun SkylightHeader(
     // Convert temperature based on unit
     val (tempStr, weatherIcon) = remember(forecast, tempUnit) {
         if (forecast != null) {
-            val tempHigh = if (tempUnit == "C") {
-                // Convert F to C: (F - 32) * 5/9
-                ((forecast.tempHigh - 32) * 5 / 9).toInt()
+            // Open-Meteo returns Celsius. Convert to the user's preferred unit.
+            val tempHigh = if (tempUnit == "F") {
+                (forecast.tempHigh * 9.0 / 5.0 + 32).toInt()
             } else {
                 forecast.tempHigh.toInt()
             }
@@ -580,6 +583,7 @@ private fun SkylightMonthView(
     events: List<CalendarEvent>,
     forecasts: Map<LocalDate, DailyForecast>,
     people: List<Person>,
+    tempUnit: String = "C",
     onDayClick: (LocalDate) -> Unit,
     onEventClick: (CalendarEvent) -> Unit,
     wall: WallModeState
@@ -653,6 +657,7 @@ private fun SkylightMonthView(
                     multiDaySpans  = cellMultiDay,
                     forecasts      = forecasts,
                     people         = people,
+                    tempUnit       = tempUnit,
                     wall           = wall,
                     onClick        = { onDayClick(day) },
                     onEventClick   = onEventClick
@@ -676,6 +681,7 @@ private fun SkylightDayCell(
     multiDaySpans: List<MultiDaySpan>,
     forecasts: Map<LocalDate, DailyForecast>,
     people: List<Person>,
+    tempUnit: String = "C",
     wall: WallModeState,
     onClick: () -> Unit,
     onEventClick: (CalendarEvent) -> Unit,
@@ -750,7 +756,7 @@ private fun SkylightDayCell(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(wf.iconChar, fontSize = 10.sp)
-                Text("${wf.tempHigh.toInt()}°",
+                Text("${if (tempUnit == "F") (wf.tempHigh * 9.0 / 5.0 + 32).toInt() else wf.tempHigh.toInt()}°",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -884,7 +890,8 @@ private fun SkylightWeekView(
     people: List<Person>,
     onDayClick: (LocalDate) -> Unit,
     onEventClick: (CalendarEvent) -> Unit,
-    wall: WallModeState
+    wall: WallModeState,
+    tempUnit: String = "C"
 ) {
     val today = LocalDate.now()
     // Generate 14 days: 7 before + today + 6 after (allows swipe both directions)
@@ -959,7 +966,7 @@ private fun SkylightWeekView(
                         Spacer(Modifier.width(10.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(wf.iconChar, fontSize = 20.sp)
-                            Text("${wf.tempHigh.toInt()}°",
+                            Text("${if (tempUnit == "F") (wf.tempHigh * 9.0 / 5.0 + 32).toInt() else wf.tempHigh.toInt()}°",
                                 style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp),
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface)
@@ -1128,6 +1135,7 @@ private fun SkylightDayView(
     date: LocalDate,
     events: List<CalendarEvent>,
     people: List<Person>,
+    tempUnit: String = "C",
     onEventClick: (CalendarEvent) -> Unit,
     wall: WallModeState
 ) {
