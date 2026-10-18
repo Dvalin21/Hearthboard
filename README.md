@@ -1,6 +1,6 @@
 # HearthBoard
 
-**A privacy-first, open-source family calendar and task manager for Android 8+.**
+**A privacy-first, open-source family calendar and task manager for Android 12+.**
 
 CalDAV/VTODO sync. Material 3 adaptive design. Zero telemetry. GPL-3.0.
 

@@ -1,6 +1,7 @@
 package com.openlight.cal.data.preferences
 
 import android.content.Context
+import android.util.Log
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -96,6 +97,7 @@ class EncryptedPassword(context: Context) {
             try {
                 String(Base64.decode(encoded, Base64.DEFAULT))
             } catch (_: Exception) {
+                Log.w("EncryptedPassword", "Returning raw stored value (not decryptable); may be plaintext legacy")
                 encoded // plaintext fallthrough
             }
         }

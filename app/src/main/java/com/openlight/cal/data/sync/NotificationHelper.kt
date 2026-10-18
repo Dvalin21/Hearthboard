@@ -79,16 +79,19 @@ object NotificationHelper {
      * Check if any events are due for a reminder right now and fire notifications.
      * Called periodically from the reminder worker.
      */
-    fun fireDueReminders(context: Context) {
+    suspend fun fireDueReminders(context: Context) {
         val db = AppDatabase.getInstance(context)
         val now = System.currentTimeMillis()
-        val fiveMinAgo = now - 300_000L
-        val fiveMinFromNow = now + 300_000L
+        // Query a wide window: events that could become due within the next
+        // 24h (covers any reasonable reminder lead time) plus a small past
+        // buffer for events that just started.
+        val queryStart = now - 300_000L
+        val queryEnd   = now + 24L * 60L * 60L * 1000L
 
-        // Grab events starting within the next 5 minutes
-        val upcoming = kotlinx.coroutines.runBlocking {
-            db.calendarEventDao().getInRange(fiveMinAgo, fiveMinFromNow)
-        }
+        val upcoming = db.calendarEventDao().getInRange(queryStart, queryEnd)
+        // Polling interval of the ReminderWorker is 15 min, so a reminder is
+        // "due" if its trigger time fell within the last polling window.
+        val pollingMs = 15L * 60L * 1000L
         for (event in upcoming) {
             if (event.isCancelled) continue
             val reminderMs = when {
@@ -96,8 +99,8 @@ object NotificationHelper {
                 else -> 15 * 60_000L  // default 15 minutes
             }
             val reminderTime = event.startMs - reminderMs
-            // Fire if the reminder window is active (within 5 min of the reminder time)
-            if (reminderTime in (now - 600_000L)..now) {
+            // Fire once: trigger time is in [now - pollingMs, now].
+            if (reminderTime in (now - pollingMs)..now) {
                 showEventReminder(context, event)
             }
         }

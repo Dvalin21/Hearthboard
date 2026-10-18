@@ -29,12 +29,13 @@ object CalDAVClientFactory {
     fun create(serverUrl: String, username: String, password: String): CalDAVClient {
         val key = cacheKey(serverUrl, username)
         val cached = clientCache[key]
-        if (cached != null) {
-            // Password could have changed; if so, the old client will fail
-            // with 401 and we'll fall through to create a new one.
-            // For simplicity we don't auto-evict on 401 here — caller can
-            // call evict() if needed. In practice passwords rarely change.
+        if (cached != null && cached.password == password) {
             return cached
+        }
+        if (cached != null) {
+            // Password changed since this client was cached — drop the stale
+            // entry so we don't keep sending the old credentials.
+            clientCache.remove(key)
         }
         val client = CalDAVClient(serverUrl, username, password, okHttpClient)
         clientCache[key] = client
@@ -108,7 +109,7 @@ class CalDAVClient internal constructor(
 
         // Step 3: List calendars under home set (recursively scan sub-collections)
         val homeSetUrl = buildUrl(homeSet)
-        scanForCalendars(homeSetUrl, calendars)
+        scanForCalendars(homeSetUrl, calendars, mutableSetOf(), 0)
         Log.i(TAG, "Discovered ${calendars.size} calendar(s)")
         return calendars
     }
@@ -123,8 +124,10 @@ class CalDAVClient internal constructor(
     private suspend fun scanForCalendars(
         url: String,
         result: MutableList<CalendarInfo>,
-        visited: MutableSet<String> = mutableSetOf()
+        visited: MutableSet<String> = mutableSetOf(),
+        depth: Int = 0
     ) {
+        if (depth > 4) return
         val normalised = url.trimEnd('/')
         if (normalised in visited) return
         visited.add(normalised)
@@ -175,7 +178,7 @@ class CalDAVClient internal constructor(
                 result.add(CalendarInfo(path = href, displayName = name, ctag = ctag, supportsVTODO = false))
             } else if (isCollection) {
                 // Plain collection — recurse (catches shared/ tasks/ etc.)
-                scanForCalendars(subUrl, result, visited)
+                scanForCalendars(subUrl, result, visited, depth + 1)
             }
         }
     }
@@ -394,7 +397,7 @@ class CalDAVClient internal constructor(
                     IcsResource(href, etag, body)
                 } else null
             }
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             Log.e(TAG, "fetchIcs failed for $href: ${e.message}")
             null
         }

@@ -103,7 +103,7 @@ interface CalendarEventDao {
 
     /** Used by HearthboardApp's auto-archive on startup: deletes
      *  events whose start time is older than the configured cutoff. */
-    @Query("DELETE FROM calendar_events WHERE startMs < :cutoffMs")
+    @Query("DELETE FROM calendar_events WHERE startMs < :cutoffMs AND isCountdown = 0")
     suspend fun deleteBefore(cutoffMs: Long): Int
 
     /** Used by BackupManager export to enumerate every event. */
@@ -375,6 +375,10 @@ interface LabelDao {
 
     @Query("SELECT * FROM labels ORDER BY sortOrder, name COLLATE NOCASE")
     suspend fun getAll(): List<Label>
+
+    /** Used by BackupManager export to enumerate every person-label assignment. */
+    @Query("SELECT * FROM person_labels")
+    suspend fun getAllPersonLabels(): List<PersonLabel>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(label: Label): Long

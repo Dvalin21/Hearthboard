@@ -182,7 +182,7 @@ class ICalParserTest {
         val uid2 = ICalParser.generateUid()
         assertNotEquals("UIDS should be unique", uid1, uid2)
         assertTrue("UID should contain @", uid1.contains("@"))
-        assertTrue("UID should contain openlight", uid1.contains("openlight"))
+        assertTrue("UID should contain hearthboard", uid1.contains("hearthboard"))
     }
 
     // ── helpers ──────────────────────────────────────────────

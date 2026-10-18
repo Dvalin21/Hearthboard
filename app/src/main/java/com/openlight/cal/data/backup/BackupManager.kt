@@ -54,7 +54,7 @@ object BackupManager {
             val db = AppDatabase.getInstance(context)
             val json = JSONObject().apply {
                 put("version", BACKUP_VERSION)
-                put("appVersion", "1.0.0-alpha.16")
+                put("appVersion", "1.0.0-alpha.35")
                 put("exportedAt", System.currentTimeMillis())
 
                 // People
@@ -100,6 +100,13 @@ object BackupManager {
                 ))
                 put("redeemedRewards", JSONArray(
                     db.redeemedRewardDao().getAll().map { it.toJson() }
+                ))
+
+                put("labels", JSONArray(
+                    db.labelDao().getAll().map { it.toJson() }
+                ))
+                put("personLabels", JSONArray(
+                    db.labelDao().getAllPersonLabels().map { it.toJson() }
                 ))
             }
 
@@ -198,6 +205,17 @@ object BackupManager {
                 db.redeemedRewardDao().insert(redeemedFromJson(redeemedArr.getJSONObject(i)))
             }
 
+            val labelsArr = json.optJSONArray("labels") ?: JSONArray()
+            for (i in 0 until labelsArr.length()) {
+                db.labelDao().upsert(labelFromJson(labelsArr.getJSONObject(i)))
+            }
+
+            val personLabelsArr = json.optJSONArray("personLabels") ?: JSONArray()
+            for (i in 0 until personLabelsArr.length()) {
+                val pl = personLabelFromJson(personLabelsArr.getJSONObject(i))
+                db.labelDao().assignLabel(pl)
+            }
+
             BackupResult(true, "Restore complete — ${eventsArr.length()} events, ${tasksArr.length()} tasks restored",
                 eventCount = eventsArr.length(), taskCount = tasksArr.length())
         } catch (e: Exception) {
@@ -280,6 +298,12 @@ object BackupManager {
         put("rewardEmoji", rewardEmoji); put("personId", personId)
         put("cost", cost); put("redeemedAtMs", redeemedAtMs); put("note", note)
     }
+    private fun Label.toJson() = JSONObject().apply {
+        put("id", id); put("name", name); put("colorHex", colorHex); put("sortOrder", sortOrder)
+    }
+    private fun PersonLabel.toJson() = JSONObject().apply {
+        put("id", id); put("personId", personId); put("labelId", labelId)
+    }
 
     // ── JSON deserialization ──────────────────────────────────
     private fun personFromJson(j: JSONObject) = Person(
@@ -351,6 +375,15 @@ object BackupManager {
         personId = j.optLong("personId"), cost = j.optInt("cost"),
         redeemedAtMs = j.optLong("redeemedAtMs"),
         note = j.optString("note")
+    )
+    private fun labelFromJson(j: JSONObject) = com.openlight.cal.data.model.Label(
+        id = j.optLong("id"), name = j.optString("name"),
+        colorHex = j.optString("colorHex", "#4CAF50"),
+        sortOrder = j.optInt("sortOrder")
+    )
+    private fun personLabelFromJson(j: JSONObject) = com.openlight.cal.data.model.PersonLabel(
+        id = j.optLong("id"), personId = j.optLong("personId"),
+        labelId = j.optLong("labelId")
     )
     private fun optLongOrNull(j: JSONObject, key: String): Long? =
         if (j.isNull(key)) null else j.optLong(key)

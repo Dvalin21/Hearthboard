@@ -304,5 +304,5 @@ object ICalParser {
         input.replace("\n", "\\n").replace("\r", "")
 
     fun generateUid(): String =
-        "${System.currentTimeMillis()}-${(Math.random() * 1_000_000).toLong()}@openlight"
+        "${System.currentTimeMillis()}-${(Math.random() * 1_000_000).toLong()}@hearthboard"
 }

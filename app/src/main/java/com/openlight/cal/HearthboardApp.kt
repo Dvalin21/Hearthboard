@@ -64,5 +64,13 @@ class HearthboardApp : Application() {
                 database.calendarEventDao().deleteBefore(cutoff)
             }
         }
+
+        // Upgrade legacy plaintext PINs to the encrypted v1: format.
+        CoroutineScope(Dispatchers.IO).launch {
+            val stored = preferences.parentalPin.first()
+            if (stored.isNotBlank() && !stored.startsWith("v1:")) {
+                preferences.set(AppPreferences.KEY_PARENTAL_PIN, encryptor.encryptPin(stored))
+            }
+        }
     }
 }

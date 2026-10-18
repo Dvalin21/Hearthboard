@@ -101,6 +101,8 @@ fun CalendarScreen(
     val events         by viewModel.filteredEvents.collectAsState()
     val forecasts      by viewModel.forecasts.collectAsState()
     val personFilterId by viewModel.personFilter.collectAsState()
+    val taskChoreCounts by viewModel.taskChoreCounts.collectAsState()
+    val nextVacationCountdown by viewModel.nextVacationCountdown.collectAsState()
     val wall           = LocalWallMode.current
 
     // Today's forecast
@@ -188,8 +190,8 @@ fun CalendarScreen(
                                 viewModel.setPersonFilter(id)
                                 showFilterSheet = false
                             },
-                            taskChoreCounts    = viewModel.taskChoreCounts.value,
-                            vacationCountdown  = viewModel.nextVacationCountdown.value,
+                            taskChoreCounts    = taskChoreCounts,
+                            vacationCountdown  = nextVacationCountdown,
                             events             = events,
                             forecasts          = forecasts
                         )
@@ -203,8 +205,8 @@ fun CalendarScreen(
                     people             = people,
                     selectedId         = personFilterId,
                     onSelect           = viewModel::setPersonFilter,
-                    taskChoreCounts    = viewModel.taskChoreCounts.value,
-                    vacationCountdown  = viewModel.nextVacationCountdown.value,
+                    taskChoreCounts    = taskChoreCounts,
+                    vacationCountdown  = nextVacationCountdown,
                     events             = events,
                     forecasts          = forecasts
                 )
@@ -530,8 +532,9 @@ private fun SkylightPersonFilterRow(
                 }
             } else {
                 // Person color bar - ~3 inches wide
-                val bgColor = if (selected) item.dotColor!!.copy(alpha = 0.3f) else item.dotColor!!.copy(alpha = 0.15f)
-                val textColor = if (selected) item.dotColor!! else MaterialTheme.colorScheme.onSurfaceVariant
+                val dc = item.dotColor ?: Color(0xFF7C4DFF)
+                val bgColor = if (selected) dc.copy(alpha = 0.3f) else dc.copy(alpha = 0.15f)
+                val textColor = if (selected) dc else MaterialTheme.colorScheme.onSurfaceVariant
 
                 Box(
                     modifier = Modifier
@@ -552,7 +555,7 @@ private fun SkylightPersonFilterRow(
                                 .width(8.dp)
                                 .height(8.dp)
                                 .clip(CircleShape)
-                                .background(item.dotColor!!)
+                                .background(dc)
                         )
                         Spacer(Modifier.width(12.dp))
                         Text(

@@ -28,7 +28,7 @@
 
     <application
         android:name=".HearthboardApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
@@ -36,8 +36,7 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Hearthboard"
-        android:largeHeap="true">
+        android:theme="@style/Theme.Hearthboard">
 
         <!-- Main Activity - also registered as HOME launcher -->
         <activity

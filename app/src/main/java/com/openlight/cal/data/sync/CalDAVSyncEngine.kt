@@ -132,19 +132,23 @@ class CalDAVSyncEngine(
                     }
                 }
 
-                // Deletion pass: drop local rows absent from every server calendar
-                for (event in localEvents) {
-                    if (event.calendarPath.isNotBlank()
-                        && event.calendarPath !in masterServerHrefs
-                    ) {
-                        db.calendarEventDao().delete(event)
+                // Deletion pass: drop local rows absent from every server calendar.
+                // Only run when the server actually returned data — a transient
+                // empty response (network blip / 5xx) must not wipe the cache.
+                if (masterServerHrefs.isNotEmpty()) {
+                    for (event in localEvents) {
+                        if (event.calendarPath.isNotBlank()
+                            && event.calendarPath !in masterServerHrefs
+                        ) {
+                            db.calendarEventDao().delete(event)
+                        }
                     }
-                }
-                for (task in localTasks) {
-                    if (task.calendarPath.isNotBlank()
-                        && task.calendarPath !in masterServerHrefs
-                    ) {
-                        db.taskDao().delete(task)
+                    for (task in localTasks) {
+                        if (task.calendarPath.isNotBlank()
+                            && task.calendarPath !in masterServerHrefs
+                        ) {
+                            db.taskDao().delete(task)
+                        }
                     }
                 }
 

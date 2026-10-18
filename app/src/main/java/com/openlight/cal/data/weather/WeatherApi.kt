@@ -76,8 +76,10 @@ class WeatherApi {
         }
 
         val request = Request.Builder().url(url).build()
-        val response = client.newCall(request).execute()
-        val body = response.body?.string() ?: return@withContext emptyList()
+        val body = client.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) return@withContext emptyList()
+            resp.body?.string()
+        } ?: return@withContext emptyList()
 
         parseForecastResponse(body)
     }

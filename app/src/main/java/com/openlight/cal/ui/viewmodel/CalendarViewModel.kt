@@ -133,9 +133,9 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
     fun acceptInvitation(event: CalendarEvent) {
         viewModelScope.launch {
             val accounts = (getApplication<HearthboardApp>()).accountRepository.getAllFlow().first()
-            val target = accounts.firstOrNull { a ->
-                !event.calendarPath.contains("inbox", ignoreCase = true) || a.id != event.accountId
-            } ?: accounts.firstOrNull() ?: return@launch
+            // Target: an account that is NOT the inbox source of this invite.
+            val target = accounts.firstOrNull { a -> a.id != event.accountId }
+                ?: accounts.firstOrNull() ?: return@launch
 
             val copy = event.copy(
                 id           = 0L,

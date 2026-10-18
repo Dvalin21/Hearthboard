@@ -23,8 +23,13 @@ class CalendarWidget : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        for (appWidgetId in appWidgetIds) {
-            updateAppWidget(context, appWidgetManager, appWidgetId)
+        val pendingResult = goAsync()
+        try {
+            for (appWidgetId in appWidgetIds) {
+                updateAppWidget(context, appWidgetManager, appWidgetId)
+            }
+        } finally {
+            pendingResult.finish()
         }
     }
 
@@ -50,7 +55,7 @@ class CalendarWidget : AppWidgetProvider() {
             val endOfDay = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
             val events = try {
-                kotlinx.coroutines.runBlocking {
+                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
                     db.calendarEventDao().getInRange(now, endOfDay).take(3)
                 }
             } catch (_: Exception) { emptyList() }
