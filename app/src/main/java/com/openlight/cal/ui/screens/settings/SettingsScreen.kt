@@ -333,6 +333,8 @@ fun SettingsScreen(
         val weatherLat by viewModel.weatherLat.collectAsState()
         val weatherLon by viewModel.weatherLon.collectAsState()
         val weatherEndpoint by viewModel.weatherEndpoint.collectAsState()
+        val weatherProvider by viewModel.weatherProvider.collectAsState()
+        val weatherApiKey by viewModel.weatherApiKey.collectAsState()
 
         var editWeatherLat by remember { mutableStateOf(false) }
         var editWeatherLon by remember { mutableStateOf(false) }
@@ -340,6 +342,9 @@ fun SettingsScreen(
         var wxLatInput by remember { mutableStateOf(weatherLat) }
         var wxLonInput by remember { mutableStateOf(weatherLon) }
         var wxEndpointInput by remember { mutableStateOf(weatherEndpoint) }
+        var wxProviderInput by remember { mutableStateOf(weatherProvider) }
+        var wxApiKeyInput by remember { mutableStateOf(weatherApiKey) }
+        var editWxApiKey by remember { mutableStateOf(false) }
 
         // Latitude
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
@@ -407,6 +412,54 @@ fun SettingsScreen(
                     Icon(Icons.Filled.Edit, "Edit", Modifier.size(20.dp))
                 }
             }
+        }
+
+        // Weather provider selector
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("Weather Provider", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = weatherProvider == "OPEN_METEO",
+                    onClick = { viewModel.setWeatherProvider("OPEN_METEO") },
+                    label = { Text("Open-Meteo") }
+                )
+                FilterChip(
+                    selected = weatherProvider == "TWC",
+                    onClick = { viewModel.setWeatherProvider("TWC") },
+                    label = { Text("Weather Channel") }
+                )
+            }
+        }
+
+        // TWC API key (only relevant when TWC selected)
+        if (weatherProvider == "TWC") {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("TWC API Key", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                if (editWxApiKey) {
+                    OutlinedTextField(value = wxApiKeyInput, onValueChange = { wxApiKeyInput = it },
+                        modifier = Modifier.width(220.dp), singleLine = true)
+                    IconButton(onClick = {
+                        viewModel.setWeatherApiKey(wxApiKeyInput.trim())
+                        editWxApiKey = false
+                    }) { Icon(Icons.Filled.Check, "Save") }
+                } else {
+                    Text(weatherApiKey.ifBlank { "not set" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1)
+                    IconButton(onClick = { wxApiKeyInput = weatherApiKey; editWxApiKey = true }) {
+                        Icon(Icons.Filled.Edit, "Edit", Modifier.size(20.dp))
+                    }
+                }
+            }
+            Text(
+                "Get a free API key at weather.com/weather-data/apis",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+            )
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

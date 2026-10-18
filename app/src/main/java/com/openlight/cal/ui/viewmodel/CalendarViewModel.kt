@@ -9,6 +9,7 @@ import com.openlight.cal.data.sync.CalDAVClient
 import com.openlight.cal.data.sync.CalDAVSyncEngine
 import com.openlight.cal.data.sync.ICalParser
 import com.openlight.cal.data.weather.DailyForecast
+import com.openlight.cal.data.weather.WeatherProvider
 import com.openlight.cal.data.weather.WeatherApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -102,9 +103,13 @@ class CalendarViewModel(app: Application) : AndroidViewModel(app) {
         val lonStr = prefs.weatherLon.first()
         val lat = latStr.toDoubleOrNull() ?: return
         val lon = lonStr.toDoubleOrNull() ?: return
-        val endpoint = prefs.weatherEndpoint.first().ifBlank { "https://api.open-meteo.com/v1/forecast" }
+        val providerStr = prefs.weatherProvider.first()
+        val provider = try { WeatherProvider.valueOf(providerStr) } catch (_: Exception) { WeatherProvider.OPEN_METEO }
+        val apiKey = prefs.weatherApiKey.first()
+        val endpoint = prefs.weatherEndpoint.first()
+        val tempUnit = prefs.tempUnit.first()
         try {
-            val result = weatherApi.fetchForecast(lat, lon, endpoint)
+            val result = weatherApi.fetchForecast(lat, lon, provider, apiKey, tempUnit, endpoint)
             _forecasts.value = result.associateBy { it.date }
         } catch (_: Exception) {
             // Silent fail — weather is cosmetic

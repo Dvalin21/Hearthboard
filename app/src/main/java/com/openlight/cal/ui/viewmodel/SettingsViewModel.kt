@@ -37,6 +37,8 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     val weatherLat     = prefs.weatherLat.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val weatherLon     = prefs.weatherLon.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val weatherEndpoint= prefs.weatherEndpoint.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    val weatherProvider = prefs.weatherProvider.stateIn(viewModelScope, SharingStarted.Eagerly, "OPEN_METEO")
+    val weatherApiKey   = prefs.weatherApiKey.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val wallMode       = prefs.wallMode.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val wallKeepOn     = prefs.wallKeepScreenOn.stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val wallIdleTimeoutSeconds = prefs.wallIdleTimeoutSeconds.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
@@ -78,6 +80,8 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setWeatherLat(v: String)       = viewModelScope.launch { prefs.set(AppPreferences.KEY_WEATHER_LAT, v) }
     fun setWeatherLon(v: String)       = viewModelScope.launch { prefs.set(AppPreferences.KEY_WEATHER_LON, v) }
     fun setWeatherEndpoint(v: String)  = viewModelScope.launch { prefs.set(AppPreferences.KEY_WEATHER_ENDPOINT, v) }
+    fun setWeatherProvider(v: String) = viewModelScope.launch { prefs.set(AppPreferences.KEY_WEATHER_PROVIDER, v) }
+    fun setWeatherApiKey(v: String)   = viewModelScope.launch { prefs.set(AppPreferences.KEY_WEATHER_API_KEY, v) }
 
     suspend fun saveAccountSync(account: CalendarAccount) {
         accR.save(account)

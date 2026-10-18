@@ -29,6 +29,8 @@ class AppPreferences(private val context: Context) {
         val KEY_WEATHER_LAT     = stringPreferencesKey("weather_lat")
         val KEY_WEATHER_LON     = stringPreferencesKey("weather_lon")
         val KEY_WEATHER_ENDPOINT= stringPreferencesKey("weather_endpoint")
+        val KEY_WEATHER_PROVIDER = stringPreferencesKey("weather_provider") // OPEN_METEO or TWC
+        val KEY_WEATHER_API_KEY  = stringPreferencesKey("weather_api_key")
         // Auto-archive — referenced by HearthboardApp.onCreate() and the
         // Settings UI. 0 = disabled. Value is months; events older than N
         // months are deleted at app startup.
@@ -63,6 +65,8 @@ class AppPreferences(private val context: Context) {
     val weatherLat: Flow<String>      = context.dataStore.data.map { it[KEY_WEATHER_LAT] ?: "" }
     val weatherLon: Flow<String>      = context.dataStore.data.map { it[KEY_WEATHER_LON] ?: "" }
     val weatherEndpoint: Flow<String> = context.dataStore.data.map { it[KEY_WEATHER_ENDPOINT] ?: "" }
+    val weatherProvider: Flow<String> = context.dataStore.data.map { it[KEY_WEATHER_PROVIDER] ?: "OPEN_METEO" }
+    val weatherApiKey: Flow<String>  = context.dataStore.data.map { it[KEY_WEATHER_API_KEY] ?: "" }
     val autoArchiveMonths: Flow<Int>  = context.dataStore.data.map { it[KEY_AUTO_ARCHIVE_MONTHS] ?: 0 }
     val mealieUrl: Flow<String>       = context.dataStore.data.map { it[KEY_MEALIE_URL] ?: "" }
     val mealieToken: Flow<String>     = context.dataStore.data.map { it[KEY_MEALIE_TOKEN] ?: "" }
