@@ -47,7 +47,14 @@ fun EventEditDialog(
         )
     }
     val organizerEmail = event?.organizerEmail ?: ""
-    var selectedAccountId by remember { mutableStateOf(accounts.firstOrNull()?.id) }
+    var selectedAccountId by remember { mutableStateOf<Long?>(null) }
+    // Accounts may load after the dialog is composed (StateFlow starts
+    // empty). Default to the first account once they arrive.
+    LaunchedEffect(accounts) {
+        if (selectedAccountId == null && accounts.isNotEmpty()) {
+            selectedAccountId = accounts.first().id
+        }
+    }
 
     // Date/time state
     val initStart = event?.let {

@@ -308,6 +308,8 @@ private fun SkylightHeader(
                 "freezing rain" -> Icons.Filled.CloudQueue
                 "snow" -> Icons.Filled.AcUnit
                 "rain showers" -> Icons.Filled.CloudQueue
+                "snow showers" -> Icons.Filled.AcUnit
+                "thunderstorm" -> Icons.Filled.Thunderstorm
                 else -> Icons.Filled.WbSunny
             }
             "${tempHigh}°" to icon
@@ -506,6 +508,8 @@ private fun SkylightPersonFilterRow(
     // Horizontal scrollable bar row - each bar ~3 inches (288dp)
     val barWidth = 288.dp
 
+    if (filterItems.isEmpty()) return
+
     LazyRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -694,7 +698,6 @@ private fun SkylightDayCell(
     val maxVisible = if (wall.active) 5 else 4
 
     val cellBg = when {
-        isTodayColumn && isCurrentMonth -> MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.3f)
         isSelected && !isToday -> MaterialTheme.colorScheme.primaryContainer
         else -> MaterialTheme.colorScheme.surface
     }
@@ -793,7 +796,7 @@ private fun SkylightDayCell(
                         fontWeight = FontWeight.Medium,
                         color      = if (span.color == PastelDeepOrange100) PastelDeepOrange900 else Color.White,
                         maxLines   = 2,  // Allow more lines
-                        overflow   = TextOverflow.Visible,
+                        overflow   = TextOverflow.Ellipsis,
                         modifier   = Modifier.padding(start = 8.dp, end = 8.dp)
                     )
                 }
@@ -842,7 +845,7 @@ private fun SkylightDayCell(
                         fontWeight = FontWeight.Medium,
                         color      = textColor,
                         maxLines   = 3,  // Allow more lines so name never cut off
-                        overflow   = TextOverflow.Visible  // No ellipsis, show full text
+                        overflow   = TextOverflow.Ellipsis  // No ellipsis, show full text
                     )
                 }
                 // Person badge (16dp circle)
@@ -894,9 +897,11 @@ private fun SkylightWeekView(
     tempUnit: String = "C"
 ) {
     val today = LocalDate.now()
-    // Generate 14 days: 7 before + today + 6 after (allows swipe both directions)
+    // Generate 14 days: 7 before + today + 6 after (swipeable; 5 visible at 300dp/day)
     val allDays = remember { (-7..6).map { today.plusDays(it.toLong()) } }
-    val startIndex = allDays.indexOfFirst { it == selectedDate }.coerceAtLeast(0)
+    val startIndex = allDays.indexOfFirst { it == selectedDate }.let { idx ->
+        if (idx >= 0) idx else allDays.indexOfFirst { it == today }.coerceAtLeast(0)
+    }
 
     val hourRange = if (wall.active) 6..23 else 0..23
     val hourCount = hourRange.count()
@@ -929,7 +934,7 @@ private fun SkylightWeekView(
 
             Column(modifier = Modifier
                 .fillMaxWidth()
-                .width(400.dp) // Fixed day width
+                .width(300.dp) // Fixed day width — fits 5 days on a tablet
                 .height(hourCount.dp * 60 + 120.dp)
             ) {
                 // Day header - day name + date + weather
@@ -987,7 +992,7 @@ private fun SkylightWeekView(
                         allDayEvents.take(2).forEach { event ->
                             val (bgColor, textColor) = eventPastelColors(event, people)
                             Text(event.title,
-                                fontSize = 11.sp, color = textColor, maxLines = 1, overflow = TextOverflow.Visible,
+                                fontSize = 11.sp, color = textColor, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
                                     .weight(1f)
                                     .padding(horizontal = 4.dp, vertical = 4.dp)
@@ -1112,7 +1117,7 @@ private fun SkylightWeekView(
                                     }
                                     Spacer(Modifier.height(4.dp))
                                     Text(timeRange.replace(" ", ""), fontSize = 11.sp, color = textColor.copy(alpha = 0.7f), maxLines = 1)
-                                    Text(event.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textColor, maxLines = 3, overflow = TextOverflow.Visible)
+                                    Text(event.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textColor, maxLines = 3, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }
@@ -1262,7 +1267,7 @@ private fun SkylightDayView(
                             }
                             Spacer(Modifier.height(4.dp))
                             Text(timeRange.replace(" ", ""), fontSize = 11.sp, color = textColor.copy(alpha = 0.7f), maxLines = 1)
-                            Text(event.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textColor, maxLines = 3, overflow = TextOverflow.Visible)
+                            Text(event.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textColor, maxLines = 3, overflow = TextOverflow.Ellipsis)
                             if (event.location.isNotBlank()) {
                                 Text(event.location, style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f), maxLines = 1)
                             }
@@ -1286,7 +1291,7 @@ private fun BlackTimeLine(now: LocalTime, fullWidth: Boolean) {
     Box(
         modifier = Modifier
             .offset(y = offset)
-            .width(if (fullWidth) 9999.dp else 64.dp)
+            .then(if (fullWidth) Modifier.fillMaxWidth() else Modifier.width(64.dp))
             .height(2.dp)
             .background(MaterialTheme.colorScheme.onSurface)  // BLACK
     )
