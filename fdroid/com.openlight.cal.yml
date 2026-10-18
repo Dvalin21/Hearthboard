@@ -13,14 +13,14 @@ RepoType: git
 Repo: https://github.com/Dvalin21/Hearthboard.git
 
 Builds:
-  - versionName: 1.0.0-alpha.35
+  - versionName: 1.0.0
     versionCode: 35
-    commit: v1.0.0-alpha.35
+    commit: v1.0.0
     subdir: app
     gradle:
       - yes
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 1.0.0-alpha.35
+CurrentVersion: 1.0.0
 CurrentVersionCode: 35

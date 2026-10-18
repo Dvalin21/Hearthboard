@@ -127,8 +127,11 @@ class TaskRepository(
 ) {
 
     fun getAllTasksFlow(): Flow<List<Task>> = db.taskDao().getAllFlow()
+        .map { tasks -> tasks.filter { !it.title.startsWith("\uD83C\uDF1F") } }
     fun getActiveFlow(): Flow<List<Task>>   = db.taskDao().getActiveFlow()
+        .map { tasks -> tasks.filter { !it.title.startsWith("\uD83C\uDF1F") } }
     fun getByPersonFlow(personId: Long): Flow<List<Task>> = db.taskDao().getByPersonFlow(personId)
+        .map { tasks -> tasks.filter { !it.title.startsWith("\uD83C\uDF1F") } }
 
     suspend fun saveTask(task: Task, accountId: Long? = null): Task {
         return withContext(Dispatchers.IO) {

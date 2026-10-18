@@ -630,7 +630,7 @@ fun SettingsScreen(
         SettingsClickRow(
             icon     = Icons.Filled.AppSettingsAlt,
             title    = "Version",
-            subtitle = "HearthBoard 1.0.0-alpha",
+            subtitle = "HearthBoard 1.0.0",
             onClick  = {}
         )
 

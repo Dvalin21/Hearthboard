@@ -54,7 +54,7 @@ object BackupManager {
             val db = AppDatabase.getInstance(context)
             val json = JSONObject().apply {
                 put("version", BACKUP_VERSION)
-                put("appVersion", "1.0.0-alpha.35")
+                put("appVersion", "1.0.0")
                 put("exportedAt", System.currentTimeMillis())
 
                 // People
