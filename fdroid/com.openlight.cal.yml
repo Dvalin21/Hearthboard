@@ -15,7 +15,7 @@ Repo: https://github.com/Dvalin21/Hearthboard.git
 Builds:
   - versionName: 1.0.0-alpha.35
     versionCode: 35
-    commit: ac9769c
+    commit: v1.0.0-alpha.35
     subdir: app
     gradle:
       - yes
