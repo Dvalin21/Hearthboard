@@ -181,7 +181,10 @@ object ICalParser {
         if (event.description.isNotBlank())    sb.appendLine("DESCRIPTION:${foldLine(event.description)}")
         if (event.location.isNotBlank())       sb.appendLine("LOCATION:${foldLine(event.location)}")
         if (event.recurrenceRule.isNotBlank()) sb.appendLine("RRULE:${event.recurrenceRule}")
-        if (event.colorHex.isNotBlank())        sb.appendLine("X-APPLE-COLOR:${event.colorHex}")
+        if (event.colorHex.isNotBlank()) {
+            sb.appendLine("X-APPLE-COLOR:${event.colorHex}")
+            sb.appendLine("COLOR:${event.colorHex}")
+        }
         val dtstamp = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
             .format(Instant.now().atZone(ZoneOffset.UTC))
         sb.appendLine("DTSTAMP:$dtstamp")
