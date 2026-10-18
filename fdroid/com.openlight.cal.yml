@@ -1,0 +1,26 @@
+Categories:
+  - Time
+  - Productivity
+License: GPL-3.0-only
+AuthorName: Dvalin21
+AuthorEmail: security@dvalin21.dev
+SourceCode: https://github.com/Dvalin21/Hearthboard
+IssueTracker: https://github.com/Dvalin21/Hearthboard/issues
+
+AutoName: HearthBoard
+
+RepoType: git
+Repo: https://github.com/Dvalin21/Hearthboard.git
+
+Builds:
+  - versionName: 1.0.0-alpha.35
+    versionCode: 35
+    commit: ac9769c
+    subdir: app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 1.0.0-alpha.35
+CurrentVersionCode: 35
