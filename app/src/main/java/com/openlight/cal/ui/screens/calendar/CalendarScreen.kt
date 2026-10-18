@@ -693,9 +693,9 @@ private fun SkylightDayCell(
 ) {
     val zone = ZoneId.systemDefault()
     val wf = forecasts[day]
-    val cellHeight = if (wall.active) 120.dp else 100.dp
+    val cellHeight = if (wall.active) 150.dp else 130.dp
     val dateFontSize = if (wall.active) 16.sp else 14.sp
-    val maxVisible = if (wall.active) 5 else 4
+    val maxVisible = if (wall.active) 4 else 3
 
     val cellBg = when {
         isSelected && !isToday -> MaterialTheme.colorScheme.primaryContainer
@@ -737,7 +737,7 @@ private fun SkylightDayCell(
             ) {
                 Text(
                     text       = day.dayOfMonth.toString(),
-                    fontSize   = dateFontSize,
+                    fontSize   = (dateFontSize.value + 2).sp,
                     fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
                     color = when {
                         isSelected      -> MaterialTheme.colorScheme.onPrimary
@@ -778,10 +778,11 @@ private fun SkylightDayCell(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(24.dp)
-                    .padding(horizontal = 4.dp, vertical = 1.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .height(28.dp)
+                    .padding(horizontal = 3.dp, vertical = 2.dp)
+                    .clip(RoundedCornerShape(6.dp))
                     .background(span.color)
+                    .border(0.5.dp, span.color.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
                     .clickable { onEventClick(span.event) }
                     .semantics {
                         this[SemanticsProperties.Role] = Role.Button
@@ -820,22 +821,23 @@ private fun SkylightDayCell(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 1.dp)
-                    .clip(RoundedCornerShape(6.dp))
+                    .padding(horizontal = 3.dp, vertical = 2.dp)
+                    .clip(RoundedCornerShape(8.dp))
                     .background(bgColor)
+                    .border(1.dp, bgColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                     .clickable { onEventClick(event) }
                     .semantics {
                         this[SemanticsProperties.Role] = Role.Button
                         contentDescription = "Event: ${event.title}, $timeStr"
                     }
-                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text       = timeStr,
-                        fontSize   = 10.sp,
+                        fontSize   = 11.sp,
                         color      = textColor.copy(alpha = 0.8f),
                         maxLines   = 1
                     )
@@ -872,7 +874,7 @@ private fun SkylightDayCell(
         if (events.size > maxVisible) {
             Text(
                 text     = "+${events.size - maxVisible} more",
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 color    = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(start = 4.dp, top = 2.dp)
@@ -1244,7 +1246,7 @@ private fun SkylightDayView(
                             .offset(y = topOffset)
                             .height(duration.coerceAtLeast(28.dp))
                             .fillMaxWidth()
-                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(bgColor)
                             .clickable { onEventClick(event) }
