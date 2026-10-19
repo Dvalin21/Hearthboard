@@ -668,6 +668,80 @@ private fun SkylightMonthView(
                 )
             }
         }
+
+        // ── Selected-day agenda strip (brainstorm idea) ─────────────
+        // Keeps the month grid clean (just dots) while showing full
+        // event details for the tapped day in a compact strip below.
+        val selectedDayEvents = events.filter { ev ->
+            Instant.ofEpochMilli(ev.startMs).atZone(zone).toLocalDate() == selectedDate
+        }.sortedBy { it.startMs }
+
+        if (selectedDayEvents.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = selectedDate.format(DateTimeFormatter.ofPattern("EEEE, MMMM d")),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                selectedDayEvents.take(4).forEach { event ->
+                    val (bgColor, textColor) = eventPastelColors(event, people)
+                    val timeStr = if (!event.isAllDay) {
+                        val start = Instant.ofEpochMilli(event.startMs).atZone(zone).toLocalTime()
+                        val end = Instant.ofEpochMilli(event.endMs).atZone(zone).toLocalTime()
+                        "${start.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))} – ${end.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))}"
+                    } else "All day"
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(bgColor.copy(alpha = 0.15f))
+                            .clickable { onEventClick(event) }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(4.dp)
+                                .height(24.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(bgColor)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = event.title,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = timeStr,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+                if (selectedDayEvents.size > 4) {
+                    Text(
+                        text = "+${selectedDayEvents.size - 4} more",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -695,7 +769,6 @@ private fun SkylightDayCell(
     val wf = forecasts[day]
     val cellHeight = if (wall.active) 150.dp else 130.dp
     val dateFontSize = if (wall.active) 16.sp else 14.sp
-    val maxVisible = if (wall.active) 4 else 3
 
     val cellBg = when {
         isSelected && !isToday -> MaterialTheme.colorScheme.primaryContainer
@@ -713,15 +786,43 @@ private fun SkylightDayCell(
                 RoundedCornerShape(16.dp)
             )
             .clickable(onClick = onClick)
-            .padding(top = 4.dp, start = 6.dp, end = 6.dp, bottom = 4.dp)
+            .padding(top = 6.dp, start = 8.dp, end = 8.dp, bottom = 4.dp)
     ) {
-        // Date number + today dot
+        // Top row: event dots (top-left) | date number | weather (far right)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.End
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Spacer(Modifier.weight(1f))
+            // Event color dots — top left, pen-tip size (8dp)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                val dotColors = events.take(4).map { ev ->
+                    eventPastelColors(ev, people).first
+                }
+                dotColors.forEach { color ->
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(color)
+                    )
+                }
+                if (events.size > 4) {
+                    Text(
+                        "+${events.size - 4}",
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 2.dp)
+                    )
+                }
+            }
+
+            // Date number
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -747,134 +848,45 @@ private fun SkylightDayCell(
                     }
                 )
             }
-        }
 
-        Spacer(Modifier.height(4.dp))
-
-        // Weather for this day (month view)
-        if (wf != null && isCurrentMonth) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(wf.iconChar, fontSize = 10.sp)
-                Text("${if (tempUnit == "F") (wf.tempHigh * 9.0 / 5.0 + 32).toInt() else wf.tempHigh.toInt()}°",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // Weather — far right
+            if (wf != null && isCurrentMonth) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(wf.iconChar, fontSize = 12.sp)
+                    Text(
+                        "${if (tempUnit == "F") (wf.tempHigh * 9.0 / 5.0 + 32).toInt() else wf.tempHigh.toInt()}°",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                Spacer(Modifier.width(24.dp))
             }
-            Spacer(Modifier.height(2.dp))
         }
 
-        // Multi-day event bars
+        // Multi-day event bars (thin indicators)
         multiDaySpans.forEach { span ->
-            val barLabel = when {
-                span.isStart && span.isEnd -> span.event.title
-                span.isStart               -> span.event.title + " ›"
-                span.isEnd                 -> "◂ " + span.event.title
-                else                       -> ""
-            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(28.dp)
-                    .padding(horizontal = 3.dp, vertical = 2.dp)
-                    .clip(RoundedCornerShape(6.dp))
+                    .height(4.dp)
+                    .padding(horizontal = 3.dp, vertical = 1.dp)
+                    .clip(RoundedCornerShape(2.dp))
                     .background(span.color)
-                    .border(0.5.dp, span.color.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
                     .clickable { onEventClick(span.event) }
                     .semantics {
                         this[SemanticsProperties.Role] = Role.Button
                         contentDescription = "Multi-day: ${span.event.title}"
-                    },
-                contentAlignment = Alignment.CenterStart
-            ) {
-                if (barLabel.isNotBlank()) {
-                    Text(
-                        text       = barLabel,
-                        fontSize   = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color      = if (span.color == PastelDeepOrange100) PastelDeepOrange900 else Color.White,
-                        maxLines   = 2,  // Allow more lines
-                        overflow   = TextOverflow.Ellipsis,
-                        modifier   = Modifier.padding(start = 8.dp, end = 8.dp)
-                    )
-                }
-            }
+                    }
+            )
         }
 
-        // Single-day event blocks
-        events.take(maxVisible).forEach { event ->
-            val (bgColor, textColor) = eventPastelColors(event, people)
-            val timeStr = if (!event.isAllDay) {
-                val start = Instant.ofEpochMilli(event.startMs).atZone(zone).toLocalTime()
-                val end   = Instant.ofEpochMilli(event.endMs).atZone(zone).toLocalTime()
-                val fmt = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
-                "${start.format(fmt)} - ${end.format(fmt)}"
-            } else "All day"
-
-            // Person badge
-            val personInitial = event.personIds.split(",").firstOrNull()?.toLongOrNull()
-                ?.let { id -> people.find { it.id == id }?.initial ?: event.title.first().toString() }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 3.dp, vertical = 2.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(bgColor)
-                    .border(1.dp, bgColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                    .clickable { onEventClick(event) }
-                    .semantics {
-                        this[SemanticsProperties.Role] = Role.Button
-                        contentDescription = "Event: ${event.title}, $timeStr"
-                    }
-                    .padding(horizontal = 6.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text       = timeStr,
-                        fontSize   = 11.sp,
-                        color      = textColor.copy(alpha = 0.8f),
-                        maxLines   = 1
-                    )
-                    Text(
-                        text       = event.title,
-                        fontSize   = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color      = textColor,
-                        maxLines   = 3,  // Allow more lines so name never cut off
-                        overflow   = TextOverflow.Ellipsis  // No ellipsis, show full text
-                    )
-                }
-                // Person badge (16dp circle)
-                if (personInitial != null) {
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .background(textColor.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text       = personInitial.uppercase(),
-                            fontSize   = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            color      = textColor
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(2.dp))
-        }
-
-        if (events.size > maxVisible) {
+        // "+N more" indicator
+        if (events.size > 4) {
             Text(
-                text     = "+${events.size - maxVisible} more",
-                fontSize = 11.sp,
+                text     = "+${events.size - 4} more",
+                fontSize = 9.sp,
                 fontWeight = FontWeight.Medium,
                 color    = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(start = 4.dp, top = 2.dp)
