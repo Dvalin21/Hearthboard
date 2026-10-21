@@ -71,7 +71,12 @@ fun PhotosScreen(modifier: Modifier = Modifier) {
         if (uris.isNotEmpty()) {
             scope.launch {
                 uris.forEach { uri ->
-                    try { repo.importPhoto(uri) } catch (_: Exception) { }
+                    try {
+                        val photo = repo.importPhoto(uri)
+                        android.util.Log.d("PhotosScreen", "Imported photo: ${photo.id} path=${photo.localPath}")
+                    } catch (e: Exception) {
+                        android.util.Log.e("PhotosScreen", "Failed to import photo: ${e.message}", e)
+                    }
                 }
             }
         }

@@ -1251,20 +1251,23 @@ fun PhotoSyncAccountEditDialog(
                 onClick = {
                     testing = true
                     testResult = null
-                    scope.launch {
+                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                         try {
                             val url = serverUrl.trim().trimEnd('/')
-                            // Simple health check
                             val conn = java.net.URL("$url/healthz").openConnection() as java.net.HttpURLConnection
                             conn.connectTimeout = 5000
                             conn.readTimeout = 5000
                             conn.requestMethod = "GET"
                             val code = conn.responseCode
-                            testResult = if (code == 200) "Connection successful!" else "Server returned HTTP $code"
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                testResult = if (code == 200) "Connection successful!" else "Server returned HTTP $code"
+                            }
                         } catch (e: Exception) {
-                            testResult = "Failed: ${e.message ?: e.toString()}"
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                testResult = "Failed: ${e.message ?: e.toString()}"
+                            }
                         }
-                        testing = false
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { testing = false }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),

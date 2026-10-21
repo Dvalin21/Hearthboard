@@ -28,7 +28,14 @@ class PhotoRepository(private val context: Context) {
         // dedup
         photoDao.getByHash(hash)?.let { return@withContext it }
         val id = UUID.randomUUID().toString()
-        val ext = uri.path?.substringAfterLast('.', "jpg") ?: "jpg"
+        val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+        val ext = when {
+            mimeType.contains("png") -> "png"
+            mimeType.contains("webp") -> "webp"
+            mimeType.contains("gif") -> "gif"
+            mimeType.contains("heic") -> "heic"
+            else -> "jpg"
+        }
         val file = File(photosDir, "$id.$ext")
         FileOutputStream(file).use { it.write(bytes) }
         // decode dimensions
@@ -67,7 +74,7 @@ class PhotoRepository(private val context: Context) {
             height = opts.outHeight,
             importedAtMs = System.currentTimeMillis(),
             sizeBytes = bytes.size.toLong(),
-            mimeType = context.contentResolver.getType(uri) ?: "image/jpeg",
+            mimeType = mimeType,
             syncState = PhotoSyncState.LOCAL_ONLY,
             updatedAtMs = System.currentTimeMillis()
         )
