@@ -204,21 +204,23 @@ fun PhotosScreen(modifier: Modifier = Modifier) {
 
 @Composable
 private fun PhotoThumbnail(photo: Photo, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(photo.localPath) {
-        bitmap = loadThumbnail(photo.localPath, 300)
+    val bitmap = remember(photo.localPath) {
+        try {
+            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = false; inSampleSize = 2 }
+            BitmapFactory.decodeFile(photo.localPath, opts)?.asImageBitmap()
+        } catch (e: Exception) { null }
     }
     Box(
         modifier = modifier.clip(RoundedCornerShape(6.dp))
-            .background(Color(0xFF333333))
+            .background(Color(0xFF00FF00))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         if (bitmap != null) {
-            Image(bitmap = bitmap!!, contentDescription = null,
+            Image(bitmap = bitmap, contentDescription = null,
                 contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         } else {
-            Text("Loading...", color = Color.White, fontSize = 10.sp)
+            Text("NO BITMAP", color = Color.Red, fontSize = 10.sp)
         }
     }
 }
