@@ -16,6 +16,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -209,7 +210,7 @@ private fun PhotoThumbnail(photo: Photo, onClick: () -> Unit, modifier: Modifier
     }
     Box(
         modifier = modifier.clip(RoundedCornerShape(6.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .background(Color(0xFF333333))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -217,8 +218,7 @@ private fun PhotoThumbnail(photo: Photo, onClick: () -> Unit, modifier: Modifier
             Image(bitmap = bitmap!!, contentDescription = null,
                 contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         } else {
-            Icon(Icons.Default.Image, null, Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+            Text("Loading...", color = Color.White, fontSize = 10.sp)
         }
     }
 }
