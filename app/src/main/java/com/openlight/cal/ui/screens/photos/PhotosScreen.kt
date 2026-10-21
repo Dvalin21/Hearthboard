@@ -1,50 +1,69 @@
 package com.openlight.cal.ui.screens.photos
 
-import android.content.Context
 import android.graphics.BitmapFactory
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.lazy.staggeredgrid.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openlight.cal.data.model.Photo
 import com.openlight.cal.data.repository.PhotoRepository
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
 
 // ─────────────────────────────────────────────────────────────
-// PhotosScreen — persisted family photo gallery
-// Photos are copied to app-private storage and tracked in Room.
+// PhotosScreen — persisted family photo gallery with date grouping
 // ─────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PhotosScreen(
-    modifier: Modifier = Modifier
-) {
+fun PhotosScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repo = remember { PhotoRepository(context) }
     val photos by repo.getAllFlow().collectAsState(initial = emptyList())
     var viewerPhoto by remember { mutableStateOf<Photo?>(null) }
+    var filter by remember { mutableStateOf("all") } // all, favorites, archived, trashed
+
+    val filteredPhotos = remember(photos, filter) {
+        when (filter) {
+            "favorites" -> photos.filter { it.isFavorite && !it.isTrashed }
+            "archived" -> photos.filter { it.isArchived && !it.isTrashed }
+            "trashed" -> photos.filter { it.isTrashed }
+            else -> photos.filter { !it.isTrashed && !it.isArchived }
+        }
+    }
+
+    // Group by month/year
+    val grouped = remember(filteredPhotos) {
+        filteredPhotos.groupBy { photo ->
+            val ts = if (photo.takenAtMs > 0) photo.takenAtMs else photo.importedAtMs
+            val cal = Calendar.getInstance().apply { timeInMillis = ts }
+            SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
+        }
+    }
 
     val picker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia()
+        contract = androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
         if (uris.isNotEmpty()) {
             scope.launch {
@@ -56,12 +75,13 @@ fun PhotosScreen(
     }
 
     if (viewerPhoto != null) {
-        FullScreenViewer(
+        PhotoViewer(
             photo = viewerPhoto!!,
             onClose = { viewerPhoto = null },
-            onDelete = {
-                scope.launch { repo.delete(viewerPhoto!!); viewerPhoto = null }
-            }
+            onDelete = { scope.launch { repo.delete(viewerPhoto!!); viewerPhoto = null } },
+            onFavorite = { scope.launch { repo.setFavorite(viewerPhoto!!.id, !viewerPhoto!!.isFavorite) } },
+            onArchive = { scope.launch { repo.setArchived(viewerPhoto!!.id, !viewerPhoto!!.isArchived); viewerPhoto = null } },
+            onTrash = { scope.launch { repo.setTrashed(viewerPhoto!!.id, !viewerPhoto!!.isTrashed); viewerPhoto = null } }
         )
         return
     }
@@ -73,61 +93,81 @@ fun PhotosScreen(
                 title = { Text("Photos") },
                 actions = {
                     IconButton(onClick = {
-                        picker.launch(PickVisualMediaRequest(
-                            ActivityResultContracts.PickVisualMedia.ImageOnly
+                        picker.launch(androidx.activity.result.PickVisualMediaRequest(
+                            androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
                         ))
                     }) {
                         Icon(Icons.Default.AddPhotoAlternate, "Add photos")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
     ) { padding ->
-        if (photos.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            // Filter chips
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.PhotoLibrary, null, Modifier.size(72.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                    Spacer(Modifier.height(16.dp))
-                    Text("Family Photos", style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(8.dp))
-                    Text("Pick photos from your device\nto display them here",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(horizontal = 48.dp), lineHeight = 20.sp)
-                    Spacer(Modifier.height(24.dp))
-                    FilledTonalButton(onClick = {
-                        picker.launch(PickVisualMediaRequest(
-                            ActivityResultContracts.PickVisualMedia.ImageOnly
-                        ))
-                    }) {
-                        Icon(Icons.Default.AddPhotoAlternate, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Browse photos")
-                    }
+                listOf("all" to "All", "favorites" to "Favorites", "archived" to "Archive", "trashed" to "Trash").forEach { (key, label) ->
+                    FilterChip(
+                        selected = filter == key,
+                        onClick = { filter = key },
+                        label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                    )
                 }
             }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 120.dp),
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                items(photos, key = { it.id }) { photo ->
-                    PhotoThumbnail(
-                        photo = photo,
-                        onClick = { viewerPhoto = photo },
-                        modifier = Modifier.aspectRatio(1f)
-                    )
+
+            if (filteredPhotos.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.PhotoLibrary, null, Modifier.size(72.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                        Spacer(Modifier.height(16.dp))
+                        Text(if (filter == "all") "Family Photos" else "No ${filter} photos",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (filter == "all") {
+                            Spacer(Modifier.height(8.dp))
+                            Text("Pick photos from your device\nto display them here",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier.padding(horizontal = 48.dp), lineHeight = 20.sp)
+                            Spacer(Modifier.height(24.dp))
+                            FilledTonalButton(onClick = {
+                                picker.launch(androidx.activity.result.PickVisualMediaRequest(
+                                    androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                                ))
+                            }) {
+                                Icon(Icons.Default.AddPhotoAlternate, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Browse photos")
+                            }
+                        }
+                    }
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 100.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    grouped.forEach { (month, monthPhotos) ->
+                        // Month header
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Text(month, style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        items(monthPhotos, key = { it.id }) { photo ->
+                            PhotoThumbnail(photo = photo, onClick = { viewerPhoto = photo },
+                                modifier = Modifier.aspectRatio(1f))
+                        }
+                    }
                 }
             }
         }
@@ -152,33 +192,92 @@ private fun PhotoThumbnail(photo: Photo, onClick: () -> Unit, modifier: Modifier
             Icon(Icons.Default.Image, null, Modifier.size(32.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
         }
+        if (photo.isFavorite) {
+            Icon(Icons.Default.Favorite, null, Modifier.align(Alignment.TopEnd).padding(4.dp).size(16.dp),
+                tint = MaterialTheme.colorScheme.error)
+        }
     }
 }
 
+// ─────────────────────────────────────────────────────────────
+// PhotoViewer — full-screen with pinch-to-zoom and actions
+// ─────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FullScreenViewer(photo: Photo, onClose: () -> Unit, onDelete: () -> Unit) {
+private fun PhotoViewer(
+    photo: Photo, onClose: () -> Unit, onDelete: () -> Unit,
+    onFavorite: () -> Unit, onArchive: () -> Unit, onTrash: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
     val bitmap by produceState<ImageBitmap?>(null, photo.localPath) {
         value = loadFullImage(photo.localPath)
     }
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var offsetY by remember { mutableFloatStateOf(0f) }
+
     Box(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim).clickable(onClick = onClose),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim)
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    scale = (scale * zoom).coerceIn(1f, 5f)
+                    if (scale > 1f) {
+                        offsetX += pan.x
+                        offsetY += pan.y
+                    } else {
+                        offsetX = 0f; offsetY = 0f
+                    }
+                }
+            }
+            .clickable(onClick = onClose),
         contentAlignment = Alignment.Center
     ) {
         if (bitmap != null) {
             Image(bitmap = bitmap!!, contentDescription = null,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize().padding(16.dp).clickable(onClick = {}))
+                modifier = Modifier.fillMaxSize().padding(16.dp)
+                    .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offsetX, translationY = offsetY)
+                    .clickable(onClick = {}))
         } else {
             CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurface)
         }
-        IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
-            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f), RoundedCornerShape(50))) {
-            Icon(Icons.Default.Close, "Close", tint = MaterialTheme.colorScheme.onSurface)
+
+        // Top bar
+        Row(
+            modifier = Modifier.align(Alignment.TopStart).fillMaxWidth()
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f))
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onClose) {
+                Icon(Icons.Default.Close, "Close", tint = MaterialTheme.colorScheme.onSurface)
+            }
+            Row {
+                IconButton(onClick = onFavorite) {
+                    Icon(if (photo.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        "Favorite", tint = if (photo.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                }
+                IconButton(onClick = onArchive) {
+                    Icon(Icons.Default.Archive, "Archive", tint = MaterialTheme.colorScheme.onSurface)
+                }
+                IconButton(onClick = onTrash) {
+                    Icon(Icons.Default.DeleteOutline, "Trash", tint = MaterialTheme.colorScheme.onSurface)
+                }
+            }
         }
-        IconButton(onClick = onDelete, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-            .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(50))) {
-            Icon(Icons.Default.DeleteOutline, "Remove photo", tint = MaterialTheme.colorScheme.onErrorContainer)
+
+        // Info bar at bottom
+        Row(
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth()
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f))
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("${photo.width}×${photo.height}", style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+            Text("${(photo.sizeBytes / 1024)} KB", style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
         }
     }
 }
@@ -186,7 +285,7 @@ private fun FullScreenViewer(photo: Photo, onClose: () -> Unit, onDelete: () -> 
 private suspend fun loadThumbnail(path: String, size: Int): ImageBitmap? =
     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
-            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = false; inSampleSize = 2 }
+            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = false; inSampleSize = 4 }
             BitmapFactory.decodeFile(path, opts)?.asImageBitmap()
         } catch (_: Exception) { null }
     }
