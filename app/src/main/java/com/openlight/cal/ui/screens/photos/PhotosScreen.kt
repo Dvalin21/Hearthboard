@@ -43,14 +43,17 @@ fun PhotosScreen(modifier: Modifier = Modifier) {
     val photos by repo.getAllFlow().collectAsState(initial = emptyList())
     var viewerPhoto by remember { mutableStateOf<Photo?>(null) }
     var filter by remember { mutableStateOf("all") } // all, favorites, archived, trashed
+    var searchQuery by remember { mutableStateOf("") }
 
-    val filteredPhotos = remember(photos, filter) {
-        when (filter) {
+    val filteredPhotos = remember(photos, filter, searchQuery) {
+        val base = when (filter) {
             "favorites" -> photos.filter { it.isFavorite && !it.isTrashed }
             "archived" -> photos.filter { it.isArchived && !it.isTrashed }
             "trashed" -> photos.filter { it.isTrashed }
             else -> photos.filter { !it.isTrashed && !it.isArchived }
         }
+        if (searchQuery.isBlank()) base
+        else base.filter { it.caption.contains(searchQuery, ignoreCase = true) || it.localPath.contains(searchQuery, ignoreCase = true) }
     }
 
     // Group by month/year
@@ -105,6 +108,18 @@ fun PhotosScreen(modifier: Modifier = Modifier) {
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            // Search bar
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search photos...", style = MaterialTheme.typography.bodySmall) },
+                leadingIcon = { Icon(Icons.Default.Search, null, Modifier.size(18.dp)) },
+                trailingIcon = if (searchQuery.isNotBlank()) { { IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Clear, null, Modifier.size(18.dp)) } } } else null,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall
+            )
+
             // Filter chips
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
