@@ -212,7 +212,7 @@ private fun PhotoThumbnail(photo: Photo, onClick: () -> Unit, modifier: Modifier
     }
     Box(
         modifier = modifier.clip(RoundedCornerShape(6.dp))
-            .background(Color(0xFF00FF00))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -220,7 +220,8 @@ private fun PhotoThumbnail(photo: Photo, onClick: () -> Unit, modifier: Modifier
             Image(bitmap = bitmap, contentDescription = null,
                 contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         } else {
-            Text("NO BITMAP", color = Color.Red, fontSize = 10.sp)
+            Icon(Icons.Filled.BrokenImage, contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(28.dp))
         }
     }
 }
