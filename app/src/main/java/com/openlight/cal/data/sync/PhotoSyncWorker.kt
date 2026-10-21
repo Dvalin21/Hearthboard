@@ -54,7 +54,10 @@ class PhotoSyncWorker(
             var anyFailed = false
             for (account in accounts) {
                 val now = System.currentTimeMillis()
-                if (account.syncBackoffUntil > now) continue
+                if (account.syncBackoffUntil > now) {
+                    android.util.Log.d("PhotoSync", "skipping ${account.username} — backoff until ${account.syncBackoffUntil}")
+                    continue
+                }
 
                 try {
                     syncAccount(account)
@@ -65,6 +68,7 @@ class PhotoSyncWorker(
                         syncBackoffUntil = 0
                     ))
                 } catch (e: Exception) {
+                    android.util.Log.e("PhotoSync", "sync failed for ${account.username}: ${e.message}", e)
                     val failCount = account.syncFailCount + 1
                     val backoff = (5L * 60 * 1000) * (1L shl minOf(failCount, 6)) // exponential
                     db.photoSyncAccountDao().update(account.copy(
@@ -89,12 +93,13 @@ class PhotoSyncWorker(
         if (account.syncMode == PhotoSyncMode.PUSH_ONLY || account.syncMode == PhotoSyncMode.TWO_WAY) {
             val pending = db.photoDao().getPendingUploads()
             for (photo in pending.take(10)) { // batch limit
-                uploadPhoto(baseUrl, token, photo)
-                db.photoDao().update(photo.copy(
-                    syncState = PhotoSyncState.SYNCED,
-                    remoteId = photo.id, // server will return actual ID
-                    updatedAtMs = System.currentTimeMillis()
-                ))
+                uploadPhoto(baseUrl, token, photo)?.let { serverId ->
+                    db.photoDao().update(photo.copy(
+                        syncState = PhotoSyncState.SYNCED,
+                        remoteId = serverId,
+                        updatedAtMs = System.currentTimeMillis()
+                    ))
+                }
             }
         }
 
@@ -106,25 +111,27 @@ class PhotoSyncWorker(
 
     private fun login(baseUrl: String, username: String, passwordEncrypted: String): String {
         val password = EncryptedPassword(applicationContext).decrypt(passwordEncrypted)
-        val body = JSONObject().apply {
+        val reqBody = JSONObject().apply {
             put("username", username)
             put("password", password)
         }
         val req = Request.Builder()
             .url("$baseUrl/api/auth/login")
-            .post(okhttp3.RequestBody.create("application/json".toMediaType(), body.toString().toByteArray()))
+            .post(okhttp3.RequestBody.create("application/json".toMediaType(), reqBody.toString().toByteArray()))
             .build()
         val resp = client.newCall(req).execute()
-        val json = JSONObject(resp.body!!.string())
-        return json.getString("access_token")
+        val body = resp.body?.string().orEmpty()
+        if (!resp.isSuccessful) throw Exception("Login failed: ${resp.code} $body")
+        return JSONObject(body).getString("access_token")
     }
 
-    private suspend fun uploadPhoto(baseUrl: String, token: String, photo: Photo) {
+    private suspend fun uploadPhoto(baseUrl: String, token: String, photo: Photo): String {
         val file = File(photo.localPath)
-        if (!file.exists()) return
+        if (!file.exists()) return photo.id
+        var remoteId = photo.id
         val requestBody = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("file", file.name, okhttp3.RequestBody.create("image/*".toMediaType(), file))
+            .addFormDataPart("file", file.name, okhttp3.RequestBody.create(photo.mimeType.ifBlank { "image/jpeg" }.toMediaType(), file))
             .build()
         val req = Request.Builder()
             .url("$baseUrl/api/photos")
@@ -133,7 +140,11 @@ class PhotoSyncWorker(
             .build()
         client.newCall(req).execute().use { resp ->
             if (!resp.isSuccessful) throw Exception("Upload failed: ${resp.code}")
+            // Server is authoritative for the id; dedup may return an existing photo.
+            val json = JSONObject(resp.body!!.string())
+            remoteId = json.optString("id")
         }
+        return remoteId
     }
 
     private suspend fun pullChanges(baseUrl: String, token: String, account: PhotoSyncAccount) {
@@ -189,9 +200,12 @@ class PhotoSyncWorker(
         if (contentHash.isNotEmpty()) {
             db.photoDao().getByHash(contentHash)?.let { return } // already have it
         }
-        // Download thumbnail
+        // Download the full-resolution content (thumbnail would degrade the photo)
+        val ext = change.optString("mime_type", "image/jpeg").substringAfterLast('/').takeIf {
+            setOf("jpeg", "png", "webp", "gif").contains(it)
+        } ?: "jpg"
         val req = Request.Builder()
-            .url("$baseUrl/api/photos/$id/thumb")
+            .url("$baseUrl/api/photos/$id/content")
             .header("Authorization", "Bearer $token")
             .get()
             .build()
@@ -199,7 +213,7 @@ class PhotoSyncWorker(
         if (!resp.isSuccessful) return
         val bytes = resp.body!!.bytes()
         val dir = File(applicationContext.filesDir, "photos").apply { mkdirs() }
-        val file = File(dir, "$id.jpg")
+        val file = File(dir, "$id.$ext")
         file.writeBytes(bytes)
         android.util.Log.d("PhotoSync", "Downloaded photo $id to ${file.absolutePath} (${bytes.size} bytes)")
         val photo = com.openlight.cal.data.model.Photo(
@@ -252,7 +266,9 @@ class PhotoSyncWorker(
                         .build()
                 )
                 .build()
-            androidx.work.WorkManager.getInstance(context).enqueue(req)
+            androidx.work.WorkManager.getInstance(context).enqueueUniqueWork(
+                "photo_sync_now", androidx.work.ExistingWorkPolicy.KEEP, req
+            )
         }
     }
 

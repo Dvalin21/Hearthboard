@@ -11,6 +11,7 @@ import com.openlight.cal.data.sync.NotificationHelper
 import com.openlight.cal.data.sync.ReminderWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -53,7 +54,20 @@ class HearthboardApp : Application() {
 
         // Schedule background CalDAV sync
         CalDAVSyncWorker.schedulePeriodicSync(this)
-        PhotoSyncWorker.schedulePeriodicSync(this)
+        PhotoSyncWorker.schedulePeriodicSync(this, 15) // WorkManager won't run shorter periods
+
+        // Sync immediately on process start (covers reboot / vivo force-stop relaunch)
+        PhotoSyncWorker.syncNow(this)
+
+        // Poll while the app process is alive so photo sync converges in ~1 min.
+        // WorkManager drifts by up to an hour on battery; this bypasses it for the
+        // always-on case. Keeps the account loop honest without killing the server.
+        CoroutineScope(Dispatchers.IO).launch {
+            while (true) {
+                delay(60_000)
+                PhotoSyncWorker.syncNow(this@HearthboardApp)
+            }
+        }
 
         // Schedule periodic reminder check (every 15 min)
         ReminderWorker.schedule(this)

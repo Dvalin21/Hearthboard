@@ -7,6 +7,7 @@ import android.net.Uri
 import com.openlight.cal.data.db.AppDatabase
 import com.openlight.cal.data.model.Photo
 import com.openlight.cal.data.model.PhotoSyncState
+import com.openlight.cal.data.sync.PhotoSyncWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -79,6 +80,9 @@ class PhotoRepository(private val context: Context) {
             updatedAtMs = System.currentTimeMillis()
         )
         photoDao.insert(photo)
+
+        // Event-driven sync: push the import as soon as possible
+        PhotoSyncWorker.syncNow(context)
         photo
     }
 

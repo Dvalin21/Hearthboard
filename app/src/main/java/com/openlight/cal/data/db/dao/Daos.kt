@@ -433,7 +433,7 @@ interface PhotoDao {
     @Query("SELECT * FROM photos WHERE isTrashed = 1 ORDER BY trashedAtMs DESC")
     fun getTrashedFlow(): Flow<List<Photo>>
 
-    @Query("SELECT * FROM photos WHERE syncState = 'PENDING_UPLOAD'")
+    @Query("SELECT * FROM photos WHERE syncState IN ('PENDING_UPLOAD','LOCAL_ONLY')")
     suspend fun getPendingUploads(): List<Photo>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
