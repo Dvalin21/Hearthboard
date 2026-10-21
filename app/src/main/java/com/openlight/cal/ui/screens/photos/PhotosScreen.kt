@@ -73,7 +73,7 @@ fun PhotosScreen(modifier: Modifier = Modifier) {
                 uris.forEach { uri ->
                     try {
                         val photo = repo.importPhoto(uri)
-                        android.util.Log.d("PhotosScreen", "Imported photo: ${photo.id} path=${photo.localPath}")
+
                     } catch (e: Exception) {
                         android.util.Log.e("PhotosScreen", "Failed to import photo: ${e.message}", e)
                     }
@@ -336,12 +336,8 @@ private fun PhotoViewer(
 private suspend fun loadThumbnail(path: String, size: Int): ImageBitmap? =
     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
-            val file = java.io.File(path)
-            android.util.Log.d("PhotosScreen", "loadThumbnail: path=$path exists=${file.exists()} size=${file.length()}")
-            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = false; inSampleSize = 4 }
-            val bmp = BitmapFactory.decodeFile(path, opts)
-            android.util.Log.d("PhotosScreen", "loadThumbnail: decoded=${bmp != null} ${bmp?.width}x${bmp?.height}")
-            bmp?.asImageBitmap()
+            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = false; inSampleSize = 2 }
+            BitmapFactory.decodeFile(path, opts)?.asImageBitmap()
         } catch (e: Exception) {
             android.util.Log.e("PhotosScreen", "loadThumbnail error: ${e.message}", e)
             null
