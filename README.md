@@ -16,6 +16,8 @@ CalDAV/VTODO sync. Material 3 adaptive design. Zero telemetry. GPL-3.0.
 | **Checklists** | Color-coded shopping, to-do, grocery lists |
 | **Meal planner** | Weekly breakfast/lunch/dinner/snack grid per person |
 | **People** | Per-person color coding and task assignment |
+| **Photos** | Persistent family photo gallery — pick, organize into albums, search, archive, trash, locked folder, collages, GIFs, map view |
+| **Photo sync** | Optional sync to [hearth-sync](https://github.com/Dvalin21/hearth-sync) server — cross-device backup, shared albums, smart search, face grouping, memories |
 | **CalDAV sync** | Google Calendar, Fastmail, Nextcloud, iCloud, any CalDAV server |
 | **Delta sync** | CTag/ETag-based — only fetches what changed |
 | **Material 3** | Light + dark mode, seed color theming |
@@ -33,7 +35,7 @@ Hearthboard is designed for users who care about who has access to their family'
 |---|---|
 | **No telemetry** | Zero analytics SDKs. No Firebase. No crash reporters. No phone-home. |
 | **No Google Play Services** | No dependency on proprietary Google libraries. Works fully on de-Googled devices. |
-| **Network** | The only network requests are HTTP calls to your CalDAV server. Nothing else. |
+| **Network** | Network requests go to your CalDAV server and optionally to your hearth-sync photo server. Nothing else. No telemetry, no analytics. |
 | **Password storage** | AES-256/GCM encryption backed by Android Keystore (hardware-backed on supported devices). Existing base64-stored passwords are transparently upgraded on first access. |
 | **Permissions** | Every permission has a documented purpose. No `REQUEST_INSTALL_PACKAGES` or other unnecessary permissions. |
 | **F-Droid compatible** | Single universal APK (no ABI split). No proprietary dependencies. GPL-3.0. |
@@ -114,6 +116,30 @@ Then build with `./gradlew assembleRelease`.
 
 ---
 
+## Photo Sync (hearth-sync)
+
+HearthBoard can optionally sync photos to a self-hosted [hearth-sync](https://github.com/Dvalin21/hearth-sync) server for cross-device backup, shared albums, smart search, and more.
+
+### Setup
+
+1. Deploy hearth-sync (see [hearth-sync README](https://github.com/Dvalin21/hearth-sync))
+2. In HearthBoard: Settings → Photo Sync → Add Sync Server
+3. Enter server URL, username, and password
+4. Tap "Test connection" to verify
+5. Choose sync mode: Push only, Pull only, or Two-way
+
+### Features enabled by photo sync
+- Cross-device photo backup and sync
+- Shared albums (invite family members)
+- Smart search (CLIP-based: search "dog on beach")
+- Face grouping and people
+- Memories (X years ago highlights)
+- Server-side collage and GIF creation
+- Free up device storage (delete local copies of synced photos)
+
+### Without a sync server
+Photos still work fully offline: pick, organize, search, archive, trash, locked folder, and device-side collage/GIF creation all work without any server.
+
 ## Architecture
 
 ```
@@ -125,6 +151,8 @@ HearthboardApp (Application class)
 │   ├── preferences/    DataStore settings + AES-256/GCM password encryption
 │   └── sync/           CalDAVClient (OkHttp), ICalParser, WorkManager sync worker
 └── ui/
+    ├── screens/
+    │   └── photos/     Photo gallery, albums, shared albums, memories, map, creations
     ├── theme/          Material 3 dynamic/seed theming
     ├── components/     Shared composables
     ├── navigation/     Adaptive nav rail / bottom bar via WindowSizeClass
