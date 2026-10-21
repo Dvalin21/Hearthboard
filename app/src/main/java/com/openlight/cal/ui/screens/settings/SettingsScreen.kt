@@ -124,6 +124,19 @@ fun SettingsScreen(
             onClick = { showAddPhotoSync = true }
         )
 
+        if (photoSyncAccounts.isNotEmpty()) {
+            SettingsClickRow(
+                icon = Icons.Filled.Sync,
+                title = "Sync now",
+                subtitle = "Push/pull photos with server",
+                onClick = {
+                    scope.launch {
+                        com.openlight.cal.data.sync.PhotoSyncWorker.syncNow(context)
+                    }
+                }
+            )
+        }
+
         SettingsToggleRow(
             icon = Icons.Filled.Wifi,
             title = "Sync on Wi-Fi only",
