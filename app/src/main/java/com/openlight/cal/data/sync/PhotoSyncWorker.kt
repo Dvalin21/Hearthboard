@@ -149,6 +149,7 @@ class PhotoSyncWorker(
             val json = JSONObject(resp.body!!.string())
             val changes = json.getJSONArray("changes")
             for (i in 0 until changes.length()) {
+                android.util.Log.d("PhotoSync", "Processing change $i: ${changes.getJSONObject(i).optString("id")}")
                 val change = changes.getJSONObject(i)
                 val id = change.getString("id")
                 if (change.optBoolean("deleted", false)) {
@@ -200,6 +201,7 @@ class PhotoSyncWorker(
         val dir = File(applicationContext.filesDir, "photos").apply { mkdirs() }
         val file = File(dir, "$id.jpg")
         file.writeBytes(bytes)
+        android.util.Log.d("PhotoSync", "Downloaded photo $id to ${file.absolutePath} (${bytes.size} bytes)")
         val photo = com.openlight.cal.data.model.Photo(
             id = id,
             contentHash = contentHash,
