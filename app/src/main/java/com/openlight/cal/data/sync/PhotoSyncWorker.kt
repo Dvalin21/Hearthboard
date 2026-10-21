@@ -1,0 +1,226 @@
+package com.openlight.cal.data.sync
+
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import androidx.work.CoroutineWorker
+import androidx.work.WorkerParameters
+import com.openlight.cal.data.db.AppDatabase
+import com.openlight.cal.data.model.Photo
+import com.openlight.cal.data.model.PhotoSyncAccount
+import com.openlight.cal.data.model.PhotoSyncMode
+import com.openlight.cal.data.model.PhotoSyncState
+import com.openlight.cal.data.preferences.AppPreferences
+import com.openlight.cal.data.preferences.EncryptedPassword
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.util.concurrent.TimeUnit
+
+// ─────────────────────────────────────────────────────────────
+// PhotoSyncWorker — periodic sync with hearth-sync server
+// Follows CalDAVSyncWorker pattern: network constraint, backoff
+// ─────────────────────────────────────────────────────────────
+class PhotoSyncWorker(
+    context: Context,
+    params: WorkerParameters
+) : CoroutineWorker(context, params) {
+
+    private val db = AppDatabase.getInstance(context)
+    private val prefs = AppPreferences(context)  // simplified; use DI in production
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .build()
+
+    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        try {
+            val accounts = db.photoSyncAccountDao().getAll()
+            if (accounts.isEmpty()) return@withContext Result.success()
+
+            // Wi-Fi check
+            val wifiOnly = accounts.any { it.wifiOnly }
+            if (wifiOnly && !isOnWifi()) {
+                return@withContext Result.retry()
+            }
+
+            var anyFailed = false
+            for (account in accounts) {
+                val now = System.currentTimeMillis()
+                if (account.syncBackoffUntil > now) continue
+
+                try {
+                    syncAccount(account)
+                    // Reset fail count on success
+                    db.photoSyncAccountDao().update(account.copy(
+                        lastSyncMs = System.currentTimeMillis(),
+                        syncFailCount = 0,
+                        syncBackoffUntil = 0
+                    ))
+                } catch (e: Exception) {
+                    val failCount = account.syncFailCount + 1
+                    val backoff = (5L * 60 * 1000) * (1L shl minOf(failCount, 6)) // exponential
+                    db.photoSyncAccountDao().update(account.copy(
+                        syncFailCount = failCount,
+                        syncBackoffUntil = System.currentTimeMillis() + backoff
+                    ))
+                    anyFailed = true
+                }
+            }
+
+            if (anyFailed) Result.retry() else Result.success()
+        } catch (e: Exception) {
+            Result.failure()
+        }
+    }
+
+    private suspend fun syncAccount(account: PhotoSyncAccount) {
+        val baseUrl = account.serverUrl.trimEnd('/')
+        val token = login(baseUrl, account.username, account.passwordEncrypted)
+
+        // PUSH: upload pending photos
+        if (account.syncMode == PhotoSyncMode.PUSH_ONLY || account.syncMode == PhotoSyncMode.TWO_WAY) {
+            val pending = db.photoDao().getPendingUploads()
+            for (photo in pending.take(10)) { // batch limit
+                uploadPhoto(baseUrl, token, photo)
+                db.photoDao().update(photo.copy(
+                    syncState = PhotoSyncState.SYNCED,
+                    remoteId = photo.id, // server will return actual ID
+                    updatedAtMs = System.currentTimeMillis()
+                ))
+            }
+        }
+
+        // PULL: download changes
+        if (account.syncMode == PhotoSyncMode.PULL_ONLY || account.syncMode == PhotoSyncMode.TWO_WAY) {
+            pullChanges(baseUrl, token, account)
+        }
+    }
+
+    private fun login(baseUrl: String, username: String, passwordEncrypted: String): String {
+        val password = EncryptedPassword(applicationContext).decrypt(passwordEncrypted)
+        val body = JSONObject().apply {
+            put("username", username)
+            put("password", password)
+        }
+        val req = Request.Builder()
+            .url("$baseUrl/api/auth/login")
+            .post(okhttp3.RequestBody.create("application/json".toMediaType(), body.toString().toByteArray()))
+            .build()
+        val resp = client.newCall(req).execute()
+        val json = JSONObject(resp.body!!.string())
+        return json.getString("access_token")
+    }
+
+    private suspend fun uploadPhoto(baseUrl: String, token: String, photo: Photo) {
+        val file = File(photo.localPath)
+        if (!file.exists()) return
+        val requestBody = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("file", file.name, okhttp3.RequestBody.create("image/*".toMediaType(), file))
+            .build()
+        val req = Request.Builder()
+            .url("$baseUrl/api/photos")
+            .header("Authorization", "Bearer $token")
+            .post(requestBody)
+            .build()
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) throw Exception("Upload failed: ${resp.code}")
+        }
+    }
+
+    private suspend fun pullChanges(baseUrl: String, token: String, account: PhotoSyncAccount) {
+        var cursor = account.cursor
+        var hasMore = true
+        while (hasMore) {
+            val req = Request.Builder()
+                .url("$baseUrl/api/sync/changes?since=$cursor&limit=200")
+                .header("Authorization", "Bearer $token")
+                .get()
+                .build()
+            val resp = client.newCall(req).execute()
+            val json = JSONObject(resp.body!!.string())
+            val changes = json.getJSONArray("changes")
+            for (i in 0 until changes.length()) {
+                val change = changes.getJSONObject(i)
+                val id = change.getString("id")
+                if (change.optBoolean("deleted", false)) {
+                    // Soft-delete locally
+                    db.photoDao().getById(id)?.let { db.photoDao().update(it.copy(isTrashed = true, trashedAtMs = System.currentTimeMillis())) }
+                } else {
+                    // Download thumbnail if not exists
+                    val photo = db.photoDao().getById(id)
+                    if (photo == null) {
+                        // New photo from server — download
+                        downloadPhoto(baseUrl, token, change)
+                    }
+                }
+            }
+            cursor = json.getLong("next_cursor")
+            hasMore = json.optBoolean("has_more", false)
+        }
+        // Update cursor
+        db.photoSyncAccountDao().update(account.copy(cursor = cursor))
+        // Ack
+        val ackBody = JSONObject().apply {
+            put("device_id", "hearthboard")
+            put("cursor", cursor)
+        }
+        val ackReq = Request.Builder()
+            .url("$baseUrl/api/sync/ack")
+            .header("Authorization", "Bearer $token")
+            .post(okhttp3.RequestBody.create("application/json".toMediaType(), ackBody.toString().toByteArray()))
+            .build()
+        client.newCall(ackReq).execute()
+    }
+
+    private suspend fun downloadPhoto(baseUrl: String, token: String, change: JSONObject) {
+        val id = change.getString("id")
+        val contentHash = change.optString("content_hash", "")
+        // Check dedup
+        if (contentHash.isNotEmpty()) {
+            db.photoDao().getByHash(contentHash)?.let { return } // already have it
+        }
+        // Download thumbnail
+        val req = Request.Builder()
+            .url("$baseUrl/api/photos/$id/thumb")
+            .header("Authorization", "Bearer $token")
+            .get()
+            .build()
+        val resp = client.newCall(req).execute()
+        if (!resp.isSuccessful) return
+        val bytes = resp.body!!.bytes()
+        val dir = File(applicationContext.filesDir, "photos").apply { mkdirs() }
+        val file = File(dir, "$id.jpg")
+        file.writeBytes(bytes)
+        val photo = com.openlight.cal.data.model.Photo(
+            id = id,
+            contentHash = contentHash,
+            localPath = file.absolutePath,
+            remoteId = id,
+            width = change.optInt("width", 0),
+            height = change.optInt("height", 0),
+            takenAtMs = change.optLong("taken_at", 0),
+            importedAtMs = System.currentTimeMillis(),
+            sizeBytes = bytes.size.toLong(),
+            mimeType = change.optString("mime_type", "image/jpeg"),
+            syncState = com.openlight.cal.data.model.PhotoSyncState.SYNCED,
+            updatedAtMs = change.optLong("updated_at", System.currentTimeMillis())
+        )
+        db.photoDao().insert(photo)
+    }
+
+    private fun isOnWifi(): Boolean {
+        val cm = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    }
+}
