@@ -132,6 +132,14 @@ class PhotoSyncWorker(
         val requestBody = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("file", file.name, okhttp3.RequestBody.create(photo.mimeType.ifBlank { "image/jpeg" }.toMediaType(), file))
+            .apply {
+                // Metadata the Photo row already carries (extracted from EXIF at import)
+                if (photo.takenAtMs > 0) addFormDataPart("taken_at", photo.takenAtMs.toString())
+                if (photo.locationLat != 0.0) addFormDataPart("location_lat", photo.locationLat.toString())
+                if (photo.locationLon != 0.0) addFormDataPart("location_lon", photo.locationLon.toString())
+                if (photo.cameraMake.isNotBlank()) addFormDataPart("camera_make", photo.cameraMake)
+                if (photo.cameraModel.isNotBlank()) addFormDataPart("camera_model", photo.cameraModel)
+            }
             .build()
         val req = Request.Builder()
             .url("$baseUrl/api/photos")

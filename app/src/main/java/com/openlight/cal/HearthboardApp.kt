@@ -52,6 +52,12 @@ class HearthboardApp : Application() {
             personRepository.seedDefaultPeople()
         }
 
+        // One-time EXIF backfill for photos imported before the metadata fix;
+        // runs before the blockers so affected rows re-push in the first cycle.
+        CoroutineScope(Dispatchers.IO).launch {
+            PhotoRepository(this@HearthboardApp).backfillExif()
+        }
+
         // Schedule background CalDAV sync
         CalDAVSyncWorker.schedulePeriodicSync(this)
         PhotoSyncWorker.schedulePeriodicSync(this, 15) // WorkManager won't run shorter periods

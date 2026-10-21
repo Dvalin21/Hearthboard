@@ -73,6 +73,11 @@ class PhotoRepository(private val context: Context) {
             localPath = file.absolutePath,
             width = opts.outWidth,
             height = opts.outHeight,
+            takenAtMs = takenAt,
+            locationLat = lat,
+            locationLon = lon,
+            cameraMake = cameraMake,
+            cameraModel = cameraModel,
             importedAtMs = System.currentTimeMillis(),
             sizeBytes = bytes.size.toLong(),
             mimeType = mimeType,
@@ -84,6 +89,49 @@ class PhotoRepository(private val context: Context) {
         // Event-driven sync: push the import as soon as possible
         PhotoSyncWorker.syncNow(context)
         photo
+    }
+
+    /** Photos imported before the EXIF fix had their metadata dropped before
+     *  it reached Room (takenAtMs/location/etc. all defaults). Re-extract it
+     *  from the local file; rows that had synced are marked LOCAL_ONLY so the
+     *  next sync re-uploads and the server backfills via its dedup UPDATE.
+     *  No-op for rows that already carry metadata. */
+    suspend fun backfillExif(): Int = withContext(Dispatchers.IO) {
+        var fixed = 0
+        for (photo in photoDao.getAll()) {
+            if (photo.takenAtMs != 0L) continue      // has metadata already
+            if (photo.localPath.isBlank()) continue   // freed-up-space row
+            val f = File(photo.localPath)
+            if (!f.exists()) continue
+            try {
+                val ei = androidx.exifinterface.media.ExifInterface(f.absolutePath)
+                var takenAt = 0L
+                ei.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME_ORIGINAL)?.let { dateStr ->
+                    try {
+                        takenAt = java.text.SimpleDateFormat("yyyy:MM:dd HH:mm:ss", java.util.Locale.getDefault())
+                            .parse(dateStr)?.time ?: 0L
+                    } catch (_: Exception) { }
+                }
+                val make = ei.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE) ?: ""
+                val model = ei.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_MODEL) ?: ""
+                val latLong = ei.latLong
+                // No EXIF at all (e.g. screenshots) — skip so we don't re-mutate every launch
+                if (takenAt == 0L && latLong == null && make.isBlank() && model.isBlank()) continue
+                val hadRemote = photo.remoteId.isNotBlank()
+                photoDao.update(photo.copy(
+                    takenAtMs = takenAt,
+                    locationLat = latLong?.get(0) ?: photo.locationLat,
+                    locationLon = latLong?.get(1) ?: photo.locationLon,
+                    cameraMake = make,
+                    cameraModel = model,
+                    syncState = if (hadRemote) PhotoSyncState.LOCAL_ONLY else photo.syncState,
+                    updatedAtMs = System.currentTimeMillis()
+                ))
+                fixed++
+            } catch (_: Exception) { }
+        }
+        if (fixed > 0) PhotoSyncWorker.syncNow(context)
+        fixed
     }
 
     suspend fun getAll(): List<Photo> = photoDao.getAll()
