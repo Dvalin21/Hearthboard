@@ -55,7 +55,6 @@ import com.openlight.cal.ui.screens.people.PeopleScreen
 import com.openlight.cal.ui.screens.photos.PhotosScreen
 import com.openlight.cal.ui.screens.photos.CreationsScreen
 import com.openlight.cal.ui.screens.photos.MapScreen
-import com.openlight.cal.ui.screens.photos.MapScreen
 import com.openlight.cal.ui.screens.photos.MemoriesScreen
 import com.openlight.cal.ui.screens.photos.AlbumsScreen
 import com.openlight.cal.ui.screens.photos.SharedAlbumsScreen
@@ -71,11 +70,12 @@ import kotlinx.coroutines.launch
 
 // ─────────────────────────────────────────────────────────────
 // Screen definitions — All Hearthboard features, Skylight visual style
-// Primary rail (top to bottom): Calendar → Lists → Tasks → Chores → Rewards → Meals → Recipes → Photos → Sleep
+// Primary rail (top to bottom): Calendar → Lists → Tasks → Chores → Rewards → Meals →
+//   Recipes → Photos → Map → Memories → Albums → Shared → Create → Sleep
 // Divider
 // Settings
 // Bottom tabs (compact): Calendar, Lists, Tasks, Chores
-// More sheet: Rewards, Meals, Recipes, Photos, Sleep, Settings
+// More sheet: Rewards, Meals, Recipes, Photos, Map, Memories, Albums, Shared, Create, Sleep, Settings
 // ─────────────────────────────────────────────────────────────
 sealed class Screen(
     val route: String,
@@ -93,7 +93,7 @@ sealed class Screen(
     object Memories : Screen("memories", "Memories", Icons.Filled.AutoAwesome,     Icons.Outlined.AutoAwesome)
     object Albums   : Screen("albums",   "Albums",   Icons.Filled.PhotoAlbum,       Icons.Outlined.PhotoAlbum)
     object SharedAlbums : Screen("shared_albums", "Shared", Icons.Filled.People, Icons.Outlined.People)
-    object Creations : Screen("creations", "Create", Icons.Filled.AutoAwesome, Icons.Outlined.AutoAwesome)
+    object Creations : Screen("creations", "Create", Icons.Filled.Brush, Icons.Outlined.Brush)
     object Lists    : Screen("lists",    "Lists",    Icons.AutoMirrored.Filled.List,             Icons.AutoMirrored.Outlined.List)
     object Sleep    : Screen("sleep",    "Sleep",    Icons.Filled.Bedtime,          Icons.Outlined.Bedtime)
     object People   : Screen("people",   "People",   Icons.Filled.Group,            Icons.Outlined.Group)
@@ -104,7 +104,7 @@ sealed class Screen(
 
     companion object {
         // Primary items — all features in user-specified order, Skylight visual style
-        val primary = listOf(Calendar, Lists, Tasks, Chores, Rewards, Meals, Recipes, Photos, Sleep)
+        val primary = listOf(Calendar, Lists, Tasks, Chores, Rewards, Meals, Recipes, Photos, PhotoMap, Memories, Albums, SharedAlbums, Creations, Sleep)
 
         // Below divider in the rail: ONLY Settings (People moved to Settings screen)
         val secondary = listOf(Settings)
@@ -113,7 +113,7 @@ sealed class Screen(
         val bottomTabs = listOf(Calendar, Lists, Tasks, Chores)
 
         // Items in the "More" bottom sheet on compact screens
-        val moreItems = listOf(Rewards, Meals, Recipes, Photos, Sleep, Settings)
+        val moreItems = listOf(Rewards, Meals, Recipes, Photos, PhotoMap, Memories, Albums, SharedAlbums, Creations, Sleep, Settings)
 
         val all = primary + secondary
     }
@@ -252,9 +252,6 @@ fun HearthboardNavHost(app: HearthboardApp) {
             composable(Screen.PhotoMap.route) {
                 MapScreen()
             }
-            composable(Screen.PhotoMap.route) {
-                MapScreen()
-            }
             composable(Screen.Memories.route) {
                 MemoriesScreen()
             }
@@ -276,7 +273,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
             composable(Screen.People.route) {
                 PeopleScreen(viewModel = personVm, database = app.database)
             }
-            composable("creations") {
+            composable(Screen.Creations.route) {
                 CreationsScreen()
             }
             composable(Screen.Settings.route) {
@@ -541,7 +538,11 @@ fun HearthboardNavHost(app: HearthboardApp) {
     // ── "More" bottom sheet (compact mode) ──────────────────────
     if (showMore && isCompact) {
         ModalBottomSheet(onDismissRequest = { showMore = false }) {
-            Column(Modifier.padding(bottom = 32.dp)) {
+            Column(
+                Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 32.dp)
+            ) {
                 Screen.moreItems.forEach { screen ->
                     val selected = currentDest?.hierarchy?.any { it.route == screen.route } == true
                     ListItem(
