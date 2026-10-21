@@ -98,7 +98,7 @@ fun PhotosScreen(modifier: Modifier = Modifier) {
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("Photos") },
+                title = { Text("Photos (${photos.size})") },
                 actions = {
                     IconButton(onClick = {
                         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
@@ -203,8 +203,9 @@ fun PhotosScreen(modifier: Modifier = Modifier) {
 
 @Composable
 private fun PhotoThumbnail(photo: Photo, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val bitmap by produceState<ImageBitmap?>(null, photo.localPath) {
-        value = loadThumbnail(photo.localPath, 300)
+    var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(photo.localPath) {
+        bitmap = loadThumbnail(photo.localPath, 300)
     }
     Box(
         modifier = modifier.clip(RoundedCornerShape(6.dp))
@@ -216,16 +217,8 @@ private fun PhotoThumbnail(photo: Photo, onClick: () -> Unit, modifier: Modifier
             Image(bitmap = bitmap!!, contentDescription = null,
                 contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         } else {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.BrokenImage, null, Modifier.size(32.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
-                Text(photo.localPath.substringAfterLast('/').take(12), style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
-            }
-        }
-        if (photo.isFavorite) {
-            Icon(Icons.Default.Favorite, null, Modifier.align(Alignment.TopEnd).padding(4.dp).size(16.dp),
-                tint = MaterialTheme.colorScheme.error)
+            Icon(Icons.Default.Image, null, Modifier.size(32.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
         }
     }
 }
@@ -343,9 +336,16 @@ private fun PhotoViewer(
 private suspend fun loadThumbnail(path: String, size: Int): ImageBitmap? =
     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
+            val file = java.io.File(path)
+            android.util.Log.d("PhotosScreen", "loadThumbnail: path=$path exists=${file.exists()} size=${file.length()}")
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = false; inSampleSize = 4 }
-            BitmapFactory.decodeFile(path, opts)?.asImageBitmap()
-        } catch (_: Exception) { null }
+            val bmp = BitmapFactory.decodeFile(path, opts)
+            android.util.Log.d("PhotosScreen", "loadThumbnail: decoded=${bmp != null} ${bmp?.width}x${bmp?.height}")
+            bmp?.asImageBitmap()
+        } catch (e: Exception) {
+            android.util.Log.e("PhotosScreen", "loadThumbnail error: ${e.message}", e)
+            null
+        }
     }
 
 private suspend fun loadFullImage(path: String): ImageBitmap? =
