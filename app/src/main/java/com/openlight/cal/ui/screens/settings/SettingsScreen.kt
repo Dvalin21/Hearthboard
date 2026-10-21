@@ -45,6 +45,7 @@ fun SettingsScreen(
     val firstDayMon  by viewModel.firstDayMon.collectAsState()
     val use24Hr      by viewModel.use24Hr.collectAsState()
     val syncWifiOnly by viewModel.syncWifiOnly.collectAsState()
+    val photoSyncEnabled by viewModel.photoSyncEnabled.collectAsState()
     val showWeekends by viewModel.showWeekends.collectAsState()
     val wallMode     by viewModel.wallMode.collectAsState()
     val wallKeepOn   by viewModel.wallKeepOn.collectAsState()
@@ -92,6 +93,32 @@ fun SettingsScreen(
         // "Syncing…" or last-sync time inline. The separate status text
         // below the accounts section was redundant.
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        // ── PHOTO SYNC ───────────────────────────────────────
+        SettingsSectionHeader("Photo Sync (Hearth Sync)", Icons.Filled.CloudSync)
+
+        SettingsToggleRow(
+            icon = Icons.Filled.CloudSync,
+            title = "Enable photo sync",
+            subtitle = "Sync photos to a Hearth Sync server",
+            checked = photoSyncEnabled,
+            onToggle = { viewModel.setPhotoSyncEnabled(it) }
+        )
+
+        SettingsClickRow(
+            icon = Icons.Filled.CloudSync,
+            title = "Sync Server",
+            subtitle = "Configure server URL and credentials",
+            onClick = { /* TODO: open photo sync config dialog */ }
+        )
+
+        SettingsToggleRow(
+            icon = Icons.Filled.Wifi,
+            title = "Sync on Wi-Fi only",
+            checked = syncWifiOnly,
+            onCheckedChange = { viewModel.setSyncWifiOnly(it) }
+        )
+
 
         // ── APPEARANCE ────────────────────────────────────────
         SettingsSectionHeader("Appearance", Icons.Filled.Palette)

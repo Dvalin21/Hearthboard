@@ -406,3 +406,114 @@ interface LabelDao {
     @Query("SELECT COUNT(*) FROM person_labels WHERE labelId = :labelId")
     suspend fun labelUsageCount(labelId: Long): Int
 }
+
+// ─────────────────────────────────────────────────────────────
+// Photo DAO
+// ─────────────────────────────────────────────────────────────
+@Dao
+interface PhotoDao {
+    @Query("SELECT * FROM photos WHERE isTrashed = 0 AND isArchived = 0 ORDER BY COALESCE(takenAtMs, importedAtMs) DESC")
+    fun getAllFlow(): Flow<List<Photo>>
+
+    @Query("SELECT * FROM photos WHERE isTrashed = 0 AND isArchived = 0 ORDER BY COALESCE(takenAtMs, importedAtMs) DESC")
+    suspend fun getAll(): List<Photo>
+
+    @Query("SELECT * FROM photos WHERE id = :id")
+    suspend fun getById(id: String): Photo?
+
+    @Query("SELECT * FROM photos WHERE contentHash = :hash LIMIT 1")
+    suspend fun getByHash(hash: String): Photo?
+
+    @Query("SELECT * FROM photos WHERE isFavorite = 1 AND isTrashed = 0 ORDER BY COALESCE(takenAtMs, importedAtMs) DESC")
+    fun getFavoritesFlow(): Flow<List<Photo>>
+
+    @Query("SELECT * FROM photos WHERE isArchived = 1 AND isTrashed = 0 ORDER BY COALESCE(takenAtMs, importedAtMs) DESC")
+    fun getArchivedFlow(): Flow<List<Photo>>
+
+    @Query("SELECT * FROM photos WHERE isTrashed = 1 ORDER BY trashedAtMs DESC")
+    fun getTrashedFlow(): Flow<List<Photo>>
+
+    @Query("SELECT * FROM photos WHERE syncState = 'PENDING_UPLOAD'")
+    suspend fun getPendingUploads(): List<Photo>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(photo: Photo)
+
+    @Update
+    suspend fun update(photo: Photo)
+
+    @Delete
+    suspend fun delete(photo: Photo)
+
+    @Query("DELETE FROM photos WHERE id = :id")
+    suspend fun deleteById(id: String)
+
+    @Query("DELETE FROM photos WHERE isTrashed = 1 AND trashedAtMs < :cutoff")
+    suspend fun purgeOldTrash(cutoff: Long)
+
+    @Query("SELECT COUNT(*) FROM photos WHERE isTrashed = 0")
+    suspend fun count(): Int
+
+    @Query("SELECT * FROM photos WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<String>): List<Photo>
+}
+
+// ─────────────────────────────────────────────────────────────
+// Album DAO
+// ─────────────────────────────────────────────────────────────
+@Dao
+interface AlbumDao {
+    @Query("SELECT * FROM albums ORDER BY updatedAtMs DESC")
+    fun getAllFlow(): Flow<List<Album>>
+
+    @Query("SELECT * FROM albums ORDER BY updatedAtMs DESC")
+    suspend fun getAll(): List<Album>
+
+    @Query("SELECT * FROM albums WHERE id = :id")
+    suspend fun getById(id: String): Album?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(album: Album)
+
+    @Update
+    suspend fun update(album: Album)
+
+    @Delete
+    suspend fun delete(album: Album)
+
+    @Query("SELECT * FROM album_photos WHERE albumId = :albumId ORDER BY addedAtMs")
+    suspend fun getPhotoIds(albumId: String): List<AlbumPhotoCrossRef>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun addPhoto(ref: AlbumPhotoCrossRef)
+
+    @Query("DELETE FROM album_photos WHERE albumId = :albumId AND photoId = :photoId")
+    suspend fun removePhoto(albumId: String, photoId: String)
+
+    @Query("SELECT COUNT(*) FROM album_photos WHERE albumId = :albumId")
+    suspend fun photoCount(albumId: String): Int
+}
+
+// ─────────────────────────────────────────────────────────────
+// Photo Sync Account DAO
+// ─────────────────────────────────────────────────────────────
+@Dao
+interface PhotoSyncAccountDao {
+    @Query("SELECT * FROM photo_sync_accounts ORDER BY serverUrl")
+    fun getAllFlow(): Flow<List<PhotoSyncAccount>>
+
+    @Query("SELECT * FROM photo_sync_accounts ORDER BY serverUrl")
+    suspend fun getAll(): List<PhotoSyncAccount>
+
+    @Query("SELECT * FROM photo_sync_accounts WHERE id = :id")
+    suspend fun getById(id: Long): PhotoSyncAccount?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(account: PhotoSyncAccount): Long
+
+    @Update
+    suspend fun update(account: PhotoSyncAccount)
+
+    @Delete
+    suspend fun delete(account: PhotoSyncAccount)
+}

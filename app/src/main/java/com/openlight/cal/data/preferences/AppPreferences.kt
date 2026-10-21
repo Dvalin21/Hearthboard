@@ -38,6 +38,9 @@ class AppPreferences(private val context: Context) {
         // Mealie integration (optional self-hosted recipe service)
         val KEY_MEALIE_URL      = stringPreferencesKey("mealie_url")
         val KEY_MEALIE_TOKEN    = stringPreferencesKey("mealie_token")
+        // Photo sync (hearth-sync server)
+        val KEY_PHOTO_SYNC_ENABLED = booleanPreferencesKey("photo_sync_enabled")
+        val KEY_PHOTO_SYNC_WIFI_ONLY = booleanPreferencesKey("photo_sync_wifi_only")
         // Wall Mode — Skylight-style permanent display
         val KEY_WALL_MODE       = booleanPreferencesKey("wall_mode")
         val KEY_WALL_KEEP_ON    = booleanPreferencesKey("wall_keep_screen_on")
@@ -70,6 +73,8 @@ class AppPreferences(private val context: Context) {
     val autoArchiveMonths: Flow<Int>  = context.dataStore.data.map { it[KEY_AUTO_ARCHIVE_MONTHS] ?: 0 }
     val mealieUrl: Flow<String>       = context.dataStore.data.map { it[KEY_MEALIE_URL] ?: "" }
     val mealieToken: Flow<String>     = context.dataStore.data.map { it[KEY_MEALIE_TOKEN] ?: "" }
+    val photoSyncEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_PHOTO_SYNC_ENABLED] ?: false }
+    val photoSyncWifiOnly: Flow<Boolean> = context.dataStore.data.map { it[KEY_PHOTO_SYNC_WIFI_ONLY] ?: true }
     val wallMode: Flow<Boolean>       = context.dataStore.data.map { it[KEY_WALL_MODE] ?: false }
     val wallKeepScreenOn: Flow<Boolean> = context.dataStore.data.map { it[KEY_WALL_KEEP_ON] ?: true }
     val wallIdleTimeoutSeconds: Flow<Int> = context.dataStore.data.map { it[KEY_WALL_IDLE_SECS] ?: 0 }

@@ -32,6 +32,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     val kioskMode      = prefs.kioskMode.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val parentalPin    = prefs.parentalPin.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val syncWifiOnly   = prefs.syncWifiOnly.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val photoSyncEnabled = prefs.photoSyncEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val defaultView    = prefs.defaultView.stateIn(viewModelScope, SharingStarted.Eagerly, "WEEK")
     val showWeekends   = prefs.showWeekends.stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val weatherLat     = prefs.weatherLat.stateIn(viewModelScope, SharingStarted.Eagerly, "")
@@ -67,6 +68,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         prefs.set(AppPreferences.KEY_PARENTAL_PIN, encryptor.encryptPin(v))
     }
     fun setSyncWifiOnly(v: Boolean)    = viewModelScope.launch { prefs.set(AppPreferences.KEY_SYNC_WIFI_ONLY, v) }
+    fun setPhotoSyncEnabled(v: Boolean) = viewModelScope.launch { prefs.set(AppPreferences.KEY_PHOTO_SYNC_ENABLED, v) }
     fun setDefaultView(v: String)      = viewModelScope.launch { prefs.set(AppPreferences.KEY_DEFAULT_VIEW, v) }
     fun setShowWeekends(v: Boolean)    = viewModelScope.launch { prefs.set(AppPreferences.KEY_SHOW_WEEKENDS, v) }
     fun setAutoArchiveMonths(v: Int)   = viewModelScope.launch { prefs.set(AppPreferences.KEY_AUTO_ARCHIVE_MONTHS, v) }

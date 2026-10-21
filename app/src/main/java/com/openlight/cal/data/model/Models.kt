@@ -262,3 +262,89 @@ data class PersonLabel(
     val personId: Long,
     val labelId: Long
 )
+
+// ─────────────────────────────────────────────────────────────
+// PHOTO  – persisted family photo (app-private storage)
+// syncState: LOCAL_ONLY, PENDING_UPLOAD, SYNCED, CONFLICT
+// ─────────────────────────────────────────────────────────────
+enum class PhotoSyncState { LOCAL_ONLY, PENDING_UPLOAD, SYNCED, CONFLICT }
+
+@Immutable
+@Entity(tableName = "photos")
+data class Photo(
+    @PrimaryKey val id: String,          // UUID
+    val contentHash: String,             // SHA-256 (identity for dedup)
+    val localPath: String,               // app-private file path (authoritative)
+    val remoteId: String = "",           // server photo ID when synced
+    val width: Int = 0,
+    val height: Int = 0,
+    val takenAtMs: Long = 0L,            // EXIF DateTimeOriginal or import time
+    val importedAtMs: Long = 0L,
+    val sizeBytes: Long = 0L,
+    val mimeType: String = "image/jpeg",
+    val isFavorite: Boolean = false,
+    val isArchived: Boolean = false,
+    val isTrashed: Boolean = false,
+    val trashedAtMs: Long = 0L,
+    val caption: String = "",
+    val locationLat: Double = 0.0,
+    val locationLon: Double = 0.0,
+    val cameraMake: String = "",
+    val cameraModel: String = "",
+    val syncState: PhotoSyncState = PhotoSyncState.LOCAL_ONLY,
+    val updatedAtMs: Long = 0L
+)
+
+// ─────────────────────────────────────────────────────────────
+// ALBUM  – photo album (local or shared)
+// ─────────────────────────────────────────────────────────────
+@Immutable
+@Entity(tableName = "albums")
+data class Album(
+    @PrimaryKey val id: String,          // UUID
+    val name: String,
+    val createdAtMs: Long = 0L,
+    val updatedAtMs: Long = 0L,
+    val coverPhotoId: String = "",
+    val isShared: Boolean = false,
+    val remoteId: String = ""
+)
+
+// ─────────────────────────────────────────────────────────────
+// ALBUM-PHOTO cross-reference
+// ─────────────────────────────────────────────────────────────
+@Entity(
+    tableName = "album_photos",
+    primaryKeys = ["albumId", "photoId"],
+    foreignKeys = [
+        ForeignKey(entity = Album::class, parentColumns = ["id"], childColumns = ["albumId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = Photo::class, parentColumns = ["id"], childColumns = ["photoId"], onDelete = ForeignKey.CASCADE)
+    ]
+)
+data class AlbumPhotoCrossRef(
+    val albumId: String,
+    val photoId: String,
+    val addedAtMs: Long = 0L
+)
+
+// ─────────────────────────────────────────────────────────────
+// PHOTO SYNC ACCOUNT  – hearth-sync server connection
+// ─────────────────────────────────────────────────────────────
+enum class PhotoSyncMode { PUSH_ONLY, PULL_ONLY, TWO_WAY }
+
+@Immutable
+@Entity(tableName = "photo_sync_accounts")
+data class PhotoSyncAccount(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val serverUrl: String = "",
+    val username: String = "",
+    val passwordEncrypted: String = "",  // AES-256/GCM via Keystore
+    val syncMode: PhotoSyncMode = PhotoSyncMode.PUSH_ONLY,
+    val wifiOnly: Boolean = true,
+    val includeVideos: Boolean = false,
+    val syncIntervalMinutes: Int = 30,
+    val lastSyncMs: Long = 0L,
+    val syncFailCount: Int = 0,
+    val syncBackoffUntil: Long = 0L,
+    val cursor: Long = 0L
+)
