@@ -228,6 +228,7 @@ private fun PhotoViewer(
         value = loadFullImage(photo.localPath)
     }
     var scale by remember { mutableFloatStateOf(1f) }
+    var showInfo by remember { mutableStateOf(false) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
 
@@ -269,6 +270,9 @@ private fun PhotoViewer(
                 Icon(Icons.Default.Close, "Close", tint = MaterialTheme.colorScheme.onSurface)
             }
             Row {
+                IconButton(onClick = { showInfo = true }) {
+                    Icon(Icons.Default.Info, "Info", tint = MaterialTheme.colorScheme.onSurface)
+                }
                 IconButton(onClick = onFavorite) {
                     Icon(if (photo.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         "Favorite", tint = if (photo.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
@@ -280,6 +284,29 @@ private fun PhotoViewer(
                     Icon(Icons.Default.DeleteOutline, "Trash", tint = MaterialTheme.colorScheme.onSurface)
                 }
             }
+        }
+
+        if (showInfo) {
+            AlertDialog(
+                onDismissRequest = { showInfo = false },
+                title = { Text("Photo info") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Dimensions: ${photo.width} × ${photo.height}", style = MaterialTheme.typography.bodySmall)
+                        Text("Size: ${(photo.sizeBytes / 1024)} KB", style = MaterialTheme.typography.bodySmall)
+                        if (photo.takenAtMs > 0) {
+                            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+                            Text("Taken: ${sdf.format(java.util.Date(photo.takenAtMs))}", style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (photo.cameraMake.isNotBlank()) Text("Camera: ${photo.cameraMake} ${photo.cameraModel}", style = MaterialTheme.typography.bodySmall)
+                        if (photo.locationLat != 0.0 || photo.locationLon != 0.0) {
+                            Text("Location: ${photo.locationLat}, ${photo.locationLon}", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text("Sync: ${photo.syncState.name}", style = MaterialTheme.typography.bodySmall)
+                    }
+                },
+                confirmButton = { TextButton(onClick = { showInfo = false }) { Text("Close") } }
+            )
         }
 
         // Info bar at bottom

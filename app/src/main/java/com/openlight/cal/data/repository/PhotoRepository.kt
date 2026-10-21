@@ -34,6 +34,31 @@ class PhotoRepository(private val context: Context) {
         // decode dimensions
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.absolutePath, opts)
+
+        // Extract EXIF metadata
+        var takenAt = 0L
+        var cameraMake = ""
+        var cameraModel = ""
+        var lat = 0.0
+        var lon = 0.0
+        try {
+            val exif = androidx.exifinterface.media.ExifInterface(file.absolutePath)
+            val dateStr = exif.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME_ORIGINAL)
+            if (dateStr != null) {
+                try {
+                    val sdf = java.text.SimpleDateFormat("yyyy:MM:dd HH:mm:ss", java.util.Locale.getDefault())
+                    takenAt = sdf.parse(dateStr)?.time ?: 0L
+                } catch (_: Exception) { }
+            }
+            cameraMake = exif.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE) ?: ""
+            cameraModel = exif.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_MODEL) ?: ""
+            val latLong = exif.latLong
+            if (latLong != null) {
+                lat = latLong[0]
+                lon = latLong[1]
+            }
+        } catch (_: Exception) { }
+
         val photo = Photo(
             id = id,
             contentHash = hash,

@@ -132,6 +132,7 @@ dependencies {
 
     // OkHttp (CalDAV HTTP requests)
     implementation(libs.okhttp)
+    implementation(libs.androidx.exifinterface)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
