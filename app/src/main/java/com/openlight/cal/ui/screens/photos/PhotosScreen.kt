@@ -195,5 +195,3 @@ private suspend fun loadFullImage(path: String): ImageBitmap? =
     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try { BitmapFactory.decodeFile(path)?.asImageBitmap() } catch (_: Exception) { null }
     }
-KOTLIN
-echo done

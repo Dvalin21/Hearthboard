@@ -78,5 +78,3 @@ class PhotoRepository(private val context: Context) {
         return md.digest(bytes).joinToString("") { "%02x".format(it) }
     }
 }
-KOTLIN
-echo done

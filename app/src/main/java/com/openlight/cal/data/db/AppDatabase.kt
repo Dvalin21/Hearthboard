@@ -58,73 +58,6 @@ abstract class AppDatabase : RoomDatabase() {
                     .build()
                     .also { INSTANCE = it }
             }
-
-        private val MIGRATION_10_11 = Migration(10, 11) { db ->
-            db.execSQL("""
-                CREATE TABLE IF NOT EXISTS photos (
-                    id TEXT NOT NULL PRIMARY KEY,
-                    contentHash TEXT NOT NULL,
-                    localPath TEXT NOT NULL,
-                    remoteId TEXT NOT NULL DEFAULT '',
-                    width INTEGER NOT NULL DEFAULT 0,
-                    height INTEGER NOT NULL DEFAULT 0,
-                    takenAtMs INTEGER NOT NULL DEFAULT 0,
-                    importedAtMs INTEGER NOT NULL DEFAULT 0,
-                    sizeBytes INTEGER NOT NULL DEFAULT 0,
-                    mimeType TEXT NOT NULL DEFAULT 'image/jpeg',
-                    isFavorite INTEGER NOT NULL DEFAULT 0,
-                    isArchived INTEGER NOT NULL DEFAULT 0,
-                    isTrashed INTEGER NOT NULL DEFAULT 0,
-                    trashedAtMs INTEGER NOT NULL DEFAULT 0,
-                    caption TEXT NOT NULL DEFAULT '',
-                    locationLat REAL NOT NULL DEFAULT 0.0,
-                    locationLon REAL NOT NULL DEFAULT 0.0,
-                    cameraMake TEXT NOT NULL DEFAULT '',
-                    cameraModel TEXT NOT NULL DEFAULT '',
-                    syncState TEXT NOT NULL DEFAULT 'LOCAL_ONLY',
-                    updatedAtMs INTEGER NOT NULL DEFAULT 0
-                )
-            """.trimIndent())
-            db.execSQL("CREATE INDEX IF NOT EXISTS idx_photos_hash ON photos(contentHash)")
-            db.execSQL("CREATE INDEX IF NOT EXISTS idx_photos_taken ON photos(takenAtMs)")
-            db.execSQL("""
-                CREATE TABLE IF NOT EXISTS albums (
-                    id TEXT NOT NULL PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    createdAtMs INTEGER NOT NULL DEFAULT 0,
-                    updatedAtMs INTEGER NOT NULL DEFAULT 0,
-                    coverPhotoId TEXT NOT NULL DEFAULT '',
-                    isShared INTEGER NOT NULL DEFAULT 0,
-                    remoteId TEXT NOT NULL DEFAULT ''
-                )
-            """.trimIndent())
-            db.execSQL("""
-                CREATE TABLE IF NOT EXISTS album_photos (
-                    albumId TEXT NOT NULL,
-                    photoId TEXT NOT NULL,
-                    addedAtMs INTEGER NOT NULL DEFAULT 0,
-                    PRIMARY KEY (albumId, photoId),
-                    FOREIGN KEY (albumId) REFERENCES albums(id) ON DELETE CASCADE,
-                    FOREIGN KEY (photoId) REFERENCES photos(id) ON DELETE CASCADE
-                )
-            """.trimIndent())
-            db.execSQL("""
-                CREATE TABLE IF NOT EXISTS photo_sync_accounts (
-                    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-                    serverUrl TEXT NOT NULL DEFAULT '',
-                    username TEXT NOT NULL DEFAULT '',
-                    passwordEncrypted TEXT NOT NULL DEFAULT '',
-                    syncMode TEXT NOT NULL DEFAULT 'PUSH_ONLY',
-                    wifiOnly INTEGER NOT NULL DEFAULT 1,
-                    includeVideos INTEGER NOT NULL DEFAULT 0,
-                    syncIntervalMinutes INTEGER NOT NULL DEFAULT 30,
-                    lastSyncMs INTEGER NOT NULL DEFAULT 0,
-                    syncFailCount INTEGER NOT NULL DEFAULT 0,
-                    syncBackoffUntil INTEGER NOT NULL DEFAULT 0,
-                    cursor INTEGER NOT NULL DEFAULT 0
-                )
-            """.trimIndent())
-        }
         }
 
         private val MIGRATION_1_2 = Migration(1, 2) { db ->
@@ -245,6 +178,15 @@ abstract class AppDatabase : RoomDatabase() {
             // Index on mealieId for sync lookups (getByMealieId in the DAO).
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_recipes_mealieId ON recipes(mealieId)")
         }
+        private val MIGRATION_10_11 = Migration(10, 11) { db ->
+            db.execSQL("CREATE TABLE IF NOT EXISTS photos (id TEXT NOT NULL PRIMARY KEY, contentHash TEXT NOT NULL, localPath TEXT NOT NULL, remoteId TEXT NOT NULL DEFAULT '', width INTEGER NOT NULL DEFAULT 0, height INTEGER NOT NULL DEFAULT 0, takenAtMs INTEGER NOT NULL DEFAULT 0, importedAtMs INTEGER NOT NULL DEFAULT 0, sizeBytes INTEGER NOT NULL DEFAULT 0, mimeType TEXT NOT NULL DEFAULT 'image/jpeg', isFavorite INTEGER NOT NULL DEFAULT 0, isArchived INTEGER NOT NULL DEFAULT 0, isTrashed INTEGER NOT NULL DEFAULT 0, trashedAtMs INTEGER NOT NULL DEFAULT 0, caption TEXT NOT NULL DEFAULT '', locationLat REAL NOT NULL DEFAULT 0.0, locationLon REAL NOT NULL DEFAULT 0.0, cameraMake TEXT NOT NULL DEFAULT '', cameraModel TEXT NOT NULL DEFAULT '', syncState TEXT NOT NULL DEFAULT 'LOCAL_ONLY', updatedAtMs INTEGER NOT NULL DEFAULT 0)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_photos_hash ON photos(contentHash)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_photos_taken ON photos(takenAtMs)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS albums (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, createdAtMs INTEGER NOT NULL DEFAULT 0, updatedAtMs INTEGER NOT NULL DEFAULT 0, coverPhotoId TEXT NOT NULL DEFAULT '', isShared INTEGER NOT NULL DEFAULT 0, remoteId TEXT NOT NULL DEFAULT '')")
+            db.execSQL("CREATE TABLE IF NOT EXISTS album_photos (albumId TEXT NOT NULL, photoId TEXT NOT NULL, addedAtMs INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (albumId, photoId), FOREIGN KEY (albumId) REFERENCES albums(id) ON DELETE CASCADE, FOREIGN KEY (photoId) REFERENCES photos(id) ON DELETE CASCADE)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS photo_sync_accounts (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, serverUrl TEXT NOT NULL DEFAULT '', username TEXT NOT NULL DEFAULT '', passwordEncrypted TEXT NOT NULL DEFAULT '', syncMode TEXT NOT NULL DEFAULT 'PUSH_ONLY', wifiOnly INTEGER NOT NULL DEFAULT 1, includeVideos INTEGER NOT NULL DEFAULT 0, syncIntervalMinutes INTEGER NOT NULL DEFAULT 30, lastSyncMs INTEGER NOT NULL DEFAULT 0, syncFailCount INTEGER NOT NULL DEFAULT 0, syncBackoffUntil INTEGER NOT NULL DEFAULT 0, cursor INTEGER NOT NULL DEFAULT 0)")
+        }
+
     }
 }
 

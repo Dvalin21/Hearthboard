@@ -116,7 +116,7 @@ fun SettingsScreen(
             icon = Icons.Filled.Wifi,
             title = "Sync on Wi-Fi only",
             checked = syncWifiOnly,
-            onCheckedChange = { viewModel.setSyncWifiOnly(it) }
+            onToggle = { viewModel.setSyncWifiOnly(it) }
         )
 
 
