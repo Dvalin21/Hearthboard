@@ -101,6 +101,13 @@ fun PhotosScreen(modifier: Modifier = Modifier) {
                 title = { Text("Photos") },
                 actions = {
                     IconButton(onClick = {
+                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                            com.openlight.cal.data.sync.PhotoSyncWorker.syncNow(context)
+                        }
+                    }) {
+                        Icon(Icons.Default.Sync, "Sync now")
+                    }
+                    IconButton(onClick = {
                         picker.launch(androidx.activity.result.PickVisualMediaRequest(
                             androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
                         ))
@@ -209,8 +216,12 @@ private fun PhotoThumbnail(photo: Photo, onClick: () -> Unit, modifier: Modifier
             Image(bitmap = bitmap!!, contentDescription = null,
                 contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         } else {
-            Icon(Icons.Default.Image, null, Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.BrokenImage, null, Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                Text(photo.localPath.substringAfterLast('/').take(12), style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+            }
         }
         if (photo.isFavorite) {
             Icon(Icons.Default.Favorite, null, Modifier.align(Alignment.TopEnd).padding(4.dp).size(16.dp),
