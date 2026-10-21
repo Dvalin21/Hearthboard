@@ -1262,7 +1262,7 @@ fun PhotoSyncAccountEditDialog(
                             val code = conn.responseCode
                             testResult = if (code == 200) "Connection successful!" else "Server returned HTTP $code"
                         } catch (e: Exception) {
-                            testResult = "Failed: ${e.message}"
+                            testResult = "Failed: ${e.message ?: e.toString()}"
                         }
                         testing = false
                     }
