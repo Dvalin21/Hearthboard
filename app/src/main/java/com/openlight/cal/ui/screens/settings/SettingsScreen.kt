@@ -52,9 +52,12 @@ fun SettingsScreen(
     val familyName   by viewModel.familyName.collectAsState()
     val tempUnit     by viewModel.tempUnit.collectAsState()
     val accounts     by viewModel.accounts.collectAsState()
+    val photoSyncAccounts by viewModel.photoSyncAccounts.collectAsState()
     val isSyncing    by viewModel.isSyncing.collectAsState()
 
     var showAddAccount by remember { mutableStateOf(false) }
+    var showAddPhotoSync by remember { mutableStateOf(false) }
+    var editPhotoSync by remember { mutableStateOf<com.openlight.cal.data.model.PhotoSyncAccount?>(null) }
     var editAccount    by remember { mutableStateOf<CalendarAccount?>(null) }
 
     Column(
@@ -105,11 +108,20 @@ fun SettingsScreen(
             onToggle = { viewModel.setPhotoSyncEnabled(it) }
         )
 
+        photoSyncAccounts.forEach { account ->
+            SettingsClickRow(
+                icon = Icons.Filled.Cloud,
+                title = account.serverUrl,
+                subtitle = "${account.username} — ${account.syncMode.name}",
+                onClick = { editPhotoSync = account }
+            )
+        }
+
         SettingsClickRow(
-            icon = Icons.Filled.CloudSync,
-            title = "Sync Server",
-            subtitle = "Configure server URL and credentials",
-            onClick = { /* TODO: open photo sync config dialog */ }
+            icon = Icons.Filled.Add,
+            title = "Add Sync Server",
+            subtitle = "Hearth Sync server URL and credentials",
+            onClick = { showAddPhotoSync = true }
         )
 
         SettingsToggleRow(
@@ -746,6 +758,34 @@ fun SettingsScreen(
             encodePassword = viewModel::encodePassword
         )
     }
+
+    if (showAddPhotoSync) {
+        PhotoSyncAccountEditDialog(
+            account = null,
+            onSave = { account ->
+                scope.launch {
+                    viewModel.savePhotoSyncAccount(account)
+                    showAddPhotoSync = false
+                }
+            },
+            onDismiss = { showAddPhotoSync = false },
+            encodePassword = viewModel::encodePassword
+        )
+    }
+
+    editPhotoSync?.let { acc ->
+        PhotoSyncAccountEditDialog(
+            account = acc,
+            onSave = { updated ->
+                scope.launch {
+                    viewModel.savePhotoSyncAccount(updated)
+                    editPhotoSync = null
+                }
+            },
+            onDismiss = { editPhotoSync = null },
+            encodePassword = viewModel::encodePassword
+        )
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1090,4 +1130,155 @@ fun AccountEditDialog(
 @Composable
 private fun ColorPickerGrid(selectedHex: String, onSelect: (String) -> Unit) {
     com.openlight.cal.ui.components.ColorPickerGrid(selectedHex = selectedHex, onSelect = onSelect)
+}
+
+// ─────────────────────────────────────────────────────────────
+// Photo Sync Account edit dialog
+// ─────────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PhotoSyncAccountEditDialog(
+    account: com.openlight.cal.data.model.PhotoSyncAccount?,
+    onSave: (com.openlight.cal.data.model.PhotoSyncAccount) -> Unit,
+    onDismiss: () -> Unit,
+    encodePassword: (String) -> String
+) {
+    val scope = rememberCoroutineScope()
+    var serverUrl by remember { mutableStateOf(account?.serverUrl ?: "") }
+    var username by remember { mutableStateOf(account?.username ?: "") }
+    var password by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
+    var syncMode by remember { mutableStateOf(account?.syncMode ?: com.openlight.cal.data.model.PhotoSyncMode.PUSH_ONLY) }
+    var wifiOnly by remember { mutableStateOf(account?.wifiOnly ?: true) }
+    var testResult by remember { mutableStateOf<String?>(null) }
+    var testing by remember { mutableStateOf(false) }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 40.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+                Text(if (account == null) "Add Sync Server" else "Edit Sync Server",
+                    style = MaterialTheme.typography.titleMedium)
+                TextButton(onClick = {
+                    val encPass = if (password.isNotBlank()) encodePassword(password)
+                                  else account?.passwordEncrypted ?: ""
+                    onSave(
+                        (account ?: com.openlight.cal.data.model.PhotoSyncAccount()).copy(
+                            serverUrl = serverUrl.trim(),
+                            username = username.trim(),
+                            passwordEncrypted = encPass,
+                            syncMode = syncMode,
+                            wifiOnly = wifiOnly
+                        )
+                    )
+                }) { Text("Save") }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = serverUrl,
+                onValueChange = { serverUrl = it },
+                label = { Text("Server URL") },
+                placeholder = { Text("https://photos.example.com or http://192.168.1.50:8080") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Filled.Cloud, null) }
+            )
+            Spacer(Modifier.height(10.dp))
+
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("Username") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Filled.Person, null) }
+            )
+            Spacer(Modifier.height(10.dp))
+
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text(if (account == null) "Password" else "Password (leave blank to keep)") },
+                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Filled.Lock, null) },
+                trailingIcon = {
+                    IconButton(onClick = { showPassword = !showPassword }) {
+                        Icon(if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, null)
+                    }
+                }
+            )
+            Spacer(Modifier.height(16.dp))
+
+            Text("Sync mode", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("Push only" to com.openlight.cal.data.model.PhotoSyncMode.PUSH_ONLY,
+                       "Pull only" to com.openlight.cal.data.model.PhotoSyncMode.PULL_ONLY,
+                       "Two-way" to com.openlight.cal.data.model.PhotoSyncMode.TWO_WAY).forEach { (label, mode) ->
+                    FilterChip(
+                        selected = syncMode == mode,
+                        onClick = { syncMode = mode },
+                        label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Wi-Fi only", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                Switch(checked = wifiOnly, onCheckedChange = { wifiOnly = it })
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Test connection button
+            OutlinedButton(
+                onClick = {
+                    testing = true
+                    testResult = null
+                    scope.launch {
+                        try {
+                            val url = serverUrl.trim().trimEnd('/')
+                            // Simple health check
+                            val conn = java.net.URL("$url/healthz").openConnection() as java.net.HttpURLConnection
+                            conn.connectTimeout = 5000
+                            conn.readTimeout = 5000
+                            conn.requestMethod = "GET"
+                            val code = conn.responseCode
+                            testResult = if (code == 200) "Connection successful!" else "Server returned HTTP $code"
+                        } catch (e: Exception) {
+                            testResult = "Failed: ${e.message}"
+                        }
+                        testing = false
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !testing && serverUrl.isNotBlank()
+            ) {
+                if (testing) CircularProgressIndicator(Modifier.size(18.dp))
+                else Text("Test connection")
+            }
+            testResult?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(it, style = MaterialTheme.typography.bodySmall,
+                    color = if (it.startsWith("Connection successful")) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.error)
+            }
+        }
+    }
 }

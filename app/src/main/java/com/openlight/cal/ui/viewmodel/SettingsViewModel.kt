@@ -6,6 +6,8 @@ import androidx.lifecycle.*
 import com.openlight.cal.HearthboardApp
 import com.openlight.cal.data.db.AppDatabase
 import com.openlight.cal.data.model.CalendarAccount
+import com.openlight.cal.data.model.PhotoSyncAccount
+import com.openlight.cal.data.model.PhotoSyncMode
 import com.openlight.cal.data.preferences.AppPreferences
 import com.openlight.cal.data.preferences.EncryptedPassword
 import com.openlight.cal.data.sync.CalDAVClient
@@ -52,6 +54,10 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     val accounts: StateFlow<List<CalendarAccount>> = accR.getAllFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val photoSyncAccounts: StateFlow<List<PhotoSyncAccount>> =
+        AppDatabase.getInstance(getApplication()).photoSyncAccountDao().getAllFlow()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _syncStatus = MutableStateFlow<String?>(null)
     val syncStatus: StateFlow<String?> = _syncStatus
 
@@ -95,6 +101,18 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteAccount(account: CalendarAccount) {
         viewModelScope.launch { accR.delete(account) }
+    }
+
+    fun savePhotoSyncAccount(account: PhotoSyncAccount) {
+        viewModelScope.launch {
+            AppDatabase.getInstance(getApplication()).photoSyncAccountDao().insert(account)
+        }
+    }
+
+    fun deletePhotoSyncAccount(account: PhotoSyncAccount) {
+        viewModelScope.launch {
+            AppDatabase.getInstance(getApplication()).photoSyncAccountDao().delete(account)
+        }
     }
 
     fun syncNow(context: Context, accountId: Long = -1L) {
