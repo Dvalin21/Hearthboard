@@ -53,6 +53,9 @@ import com.openlight.cal.ui.screens.lists.ListsScreen
 import com.openlight.cal.ui.screens.meals.MealsScreen
 import com.openlight.cal.ui.screens.people.PeopleScreen
 import com.openlight.cal.ui.screens.photos.PhotosScreen
+import com.openlight.cal.ui.screens.photos.CreationsScreen
+import com.openlight.cal.ui.screens.photos.MapScreen
+import com.openlight.cal.ui.screens.photos.MapScreen
 import com.openlight.cal.ui.screens.photos.MemoriesScreen
 import com.openlight.cal.ui.screens.photos.AlbumsScreen
 import com.openlight.cal.ui.screens.photos.SharedAlbumsScreen
@@ -86,6 +89,7 @@ sealed class Screen(
     object Rewards  : Screen("rewards",  "Rewards",  Icons.Filled.Star,             Icons.Outlined.Star)
     object Meals    : Screen("meals",    "Meals",    Icons.Filled.Restaurant,       Icons.Outlined.Restaurant)
     object Photos   : Screen("photos",   "Photos",   Icons.Filled.PhotoLibrary,     Icons.Outlined.PhotoLibrary)
+    object PhotoMap : Screen("photo_map", "Map",     Icons.Filled.Map,              Icons.Outlined.Map)
     object Memories : Screen("memories", "Memories", Icons.Filled.AutoAwesome,     Icons.Outlined.AutoAwesome)
     object Albums   : Screen("albums",   "Albums",   Icons.Filled.PhotoAlbum,       Icons.Outlined.PhotoAlbum)
     object SharedAlbums : Screen("shared_albums", "Shared", Icons.Filled.People, Icons.Outlined.People)
@@ -245,6 +249,12 @@ fun HearthboardNavHost(app: HearthboardApp) {
             composable(Screen.Photos.route) {
                 PhotosScreen()
             }
+            composable(Screen.PhotoMap.route) {
+                MapScreen()
+            }
+            composable(Screen.PhotoMap.route) {
+                MapScreen()
+            }
             composable(Screen.Memories.route) {
                 MemoriesScreen()
             }
@@ -265,6 +275,9 @@ fun HearthboardNavHost(app: HearthboardApp) {
             }
             composable(Screen.People.route) {
                 PeopleScreen(viewModel = personVm, database = app.database)
+            }
+            composable("creations") {
+                CreationsScreen()
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(viewModel = settingsVm)
