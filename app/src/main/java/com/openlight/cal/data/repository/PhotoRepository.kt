@@ -68,6 +68,65 @@ class PhotoRepository(private val context: Context) {
             photoDao.update(it.copy(isTrashed = value, trashedAtMs = if (value) System.currentTimeMillis() else 0L, updatedAtMs = System.currentTimeMillis()))
         }
     }
+    /** Delete local copies of photos that are synced to server. Keeps Room metadata. */
+    suspend fun freeUpSpace(): Int = withContext(Dispatchers.IO) {
+        var freed = 0
+        val synced = photoDao.getAll().filter { it.syncState == com.openlight.cal.data.model.PhotoSyncState.SYNCED }
+        for (photo in synced) {
+            val file = File(photo.localPath)
+            if (file.exists() && file.delete()) {
+                freed++
+                // Keep metadata but clear local path
+                photoDao.update(photo.copy(localPath = "", updatedAtMs = System.currentTimeMillis()))
+            }
+        }
+        freed
+    }
+
+    /** Simple perceptual hash (average hash) for duplicate detection. */
+    fun computePHash(bitmap: android.graphics.Bitmap): Long {
+        val small = android.graphics.Bitmap.createScaledBitmap(bitmap, 8, 8, true)
+        val pixels = IntArray(64)
+        small.getPixels(pixels, 0, 8, 0, 0, 8, 8)
+        val avg = pixels.map { (it shr 16 and 0xFF) + (it shr 8 and 0xFF) + (it and 0xFF) }.average()
+        var hash = 0L
+        for (i in pixels.indices) {
+            val gray = (pixels[i] shr 16 and 0xFF) + (pixels[i] shr 8 and 0xFF) + (pixels[i] and 0xFF)
+            if (gray > avg) hash = hash or (1L shl i)
+        }
+        return hash
+    }
+
+    /** Find duplicate photos by perceptual hash (hamming distance <= 5). */
+    suspend fun findDuplicates(): List<List<Photo>> = withContext(Dispatchers.IO) {
+        val photos = photoDao.getAll()
+        val groups = mutableMapOf<Long, MutableList<Photo>>()
+        for (photo in photos) {
+            if (photo.localPath.isEmpty()) continue
+            val bmp = android.graphics.BitmapFactory.decodeFile(photo.localPath) ?: continue
+            val hash = computePHash(bmp)
+            bmp.recycle()
+            // Find existing group with hamming distance <= 5
+            var found = false
+            for ((existingHash, group) in groups) {
+                if (hammingDistance(hash, existingHash) <= 5) {
+                    group.add(photo)
+                    found = true
+                    break
+                }
+            }
+            if (!found) groups[hash] = mutableListOf(photo)
+        }
+        groups.values.filter { it.size > 1 }.toList()
+    }
+
+    private fun hammingDistance(a: Long, b: Long): Int {
+        var x = a xor b
+        var count = 0
+        while (x != 0L) { count += (x and 1).toInt(); x = x ushr 1 }
+        return count
+    }
+
     suspend fun purgeOldTrash() {
         val cutoff = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
         photoDao.purgeOldTrash(cutoff)
