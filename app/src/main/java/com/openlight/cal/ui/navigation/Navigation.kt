@@ -53,6 +53,8 @@ import com.openlight.cal.ui.screens.lists.ListsScreen
 import com.openlight.cal.ui.screens.meals.MealsScreen
 import com.openlight.cal.ui.screens.people.PeopleScreen
 import com.openlight.cal.ui.screens.photos.PhotosScreen
+import com.openlight.cal.ui.screens.photos.AlbumsScreen
+import com.openlight.cal.ui.screens.photos.SharedAlbumsScreen
 import com.openlight.cal.ui.screens.recipes.RecipesScreen
 import com.openlight.cal.ui.screens.rewards.RewardsScreen
 import com.openlight.cal.ui.screens.settings.SettingsScreen
@@ -83,6 +85,9 @@ sealed class Screen(
     object Rewards  : Screen("rewards",  "Rewards",  Icons.Filled.Star,             Icons.Outlined.Star)
     object Meals    : Screen("meals",    "Meals",    Icons.Filled.Restaurant,       Icons.Outlined.Restaurant)
     object Photos   : Screen("photos",   "Photos",   Icons.Filled.PhotoLibrary,     Icons.Outlined.PhotoLibrary)
+    object Albums   : Screen("albums",   "Albums",   Icons.Filled.PhotoAlbum,       Icons.Outlined.PhotoAlbum)
+    object SharedAlbums : Screen("shared_albums", "Shared", Icons.Filled.People, Icons.Outlined.People)
+    object Creations : Screen("creations", "Create", Icons.Filled.AutoAwesome, Icons.Outlined.AutoAwesome)
     object Lists    : Screen("lists",    "Lists",    Icons.AutoMirrored.Filled.List,             Icons.AutoMirrored.Outlined.List)
     object Sleep    : Screen("sleep",    "Sleep",    Icons.Filled.Bedtime,          Icons.Outlined.Bedtime)
     object People   : Screen("people",   "People",   Icons.Filled.Group,            Icons.Outlined.Group)
@@ -237,6 +242,12 @@ fun HearthboardNavHost(app: HearthboardApp) {
             }
             composable(Screen.Photos.route) {
                 PhotosScreen()
+            }
+            composable(Screen.Albums.route) {
+                AlbumsScreen()
+            }
+            composable(Screen.SharedAlbums.route) {
+                SharedAlbumsScreen()
             }
             composable(Screen.Sleep.route) {
                 SleepScreen()
