@@ -223,4 +223,35 @@ class PhotoSyncWorker(
         val caps = cm.getNetworkCapabilities(network) ?: return false
         return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
     }
+    companion object {
+        const val WORK_NAME_PERIODIC = "photo_sync_periodic"
+
+        fun schedulePeriodicSync(context: Context, intervalMinutes: Long = 30) {
+            val constraints = androidx.work.Constraints.Builder()
+                .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                .build()
+            val request = androidx.work.PeriodicWorkRequestBuilder<PhotoSyncWorker>(
+                intervalMinutes, java.util.concurrent.TimeUnit.MINUTES
+            )
+                .setConstraints(constraints)
+                .build()
+            androidx.work.WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                WORK_NAME_PERIODIC,
+                androidx.work.ExistingPeriodicWorkPolicy.UPDATE,
+                request
+            )
+        }
+
+        fun syncNow(context: Context) {
+            val req = androidx.work.OneTimeWorkRequestBuilder<PhotoSyncWorker>()
+                .setConstraints(
+                    androidx.work.Constraints.Builder()
+                        .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                        .build()
+                )
+                .build()
+            androidx.work.WorkManager.getInstance(context).enqueue(req)
+        }
+    }
+
 }

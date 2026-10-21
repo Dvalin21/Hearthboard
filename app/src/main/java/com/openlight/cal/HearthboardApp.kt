@@ -6,6 +6,7 @@ import com.openlight.cal.data.preferences.AppPreferences
 import com.openlight.cal.data.preferences.EncryptedPassword
 import com.openlight.cal.data.repository.*
 import com.openlight.cal.data.sync.CalDAVSyncWorker
+import com.openlight.cal.data.sync.PhotoSyncWorker
 import com.openlight.cal.data.sync.NotificationHelper
 import com.openlight.cal.data.sync.ReminderWorker
 import kotlinx.coroutines.CoroutineScope
@@ -52,6 +53,7 @@ class HearthboardApp : Application() {
 
         // Schedule background CalDAV sync
         CalDAVSyncWorker.schedulePeriodicSync(this)
+        PhotoSyncWorker.schedulePeriodicSync(this)
 
         // Schedule periodic reminder check (every 15 min)
         ReminderWorker.schedule(this)
