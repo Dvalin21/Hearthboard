@@ -19,8 +19,14 @@ Builds:
     subdir: app
     gradle:
       - yes
+  - versionName: 1.0.3
+    versionCode: 39
+    commit: v1.0.3
+    subdir: app
+    gradle:
+      - yes
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 1.0.0
-CurrentVersionCode: 36
+CurrentVersion: 1.0.3
+CurrentVersionCode: 39

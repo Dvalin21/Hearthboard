@@ -19,6 +19,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -117,7 +118,7 @@ class PhotoSyncWorker(
         }
         val req = Request.Builder()
             .url("$baseUrl/api/auth/login")
-            .post(okhttp3.RequestBody.create("application/json".toMediaType(), reqBody.toString().toByteArray()))
+            .post(reqBody.toString().toByteArray().toRequestBody("application/json".toMediaType()))
             .build()
         val resp = client.newCall(req).execute()
         val body = resp.body?.string().orEmpty()
@@ -131,7 +132,7 @@ class PhotoSyncWorker(
         var remoteId = photo.id
         val requestBody = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("file", file.name, okhttp3.RequestBody.create(photo.mimeType.ifBlank { "image/jpeg" }.toMediaType(), file))
+            .addFormDataPart("file", file.name, file.asRequestBody(photo.mimeType.ifBlank { "image/jpeg" }.toMediaType()))
             .apply {
                 // Metadata the Photo row already carries (extracted from EXIF at import)
                 if (photo.takenAtMs > 0) addFormDataPart("taken_at", photo.takenAtMs.toString())
@@ -196,7 +197,7 @@ class PhotoSyncWorker(
         val ackReq = Request.Builder()
             .url("$baseUrl/api/sync/ack")
             .header("Authorization", "Bearer $token")
-            .post(okhttp3.RequestBody.create("application/json".toMediaType(), ackBody.toString().toByteArray()))
+            .post(ackBody.toString().toByteArray().toRequestBody("application/json".toMediaType()))
             .build()
         client.newCall(ackReq).execute()
     }

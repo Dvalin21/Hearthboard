@@ -487,7 +487,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                         .padding(vertical = 12.dp)
                 ) {
                     // Old English initial as SEPARATE item at top (not part of Calendar button)
-                    if (adminInitial != null) {
+                    if (adminInitial.isNotEmpty()) {
                         Text(
                             text       = adminInitial,
                             fontFamily = FontFamily.Serif,
