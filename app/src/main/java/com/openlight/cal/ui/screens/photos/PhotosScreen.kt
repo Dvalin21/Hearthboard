@@ -37,7 +37,7 @@ import java.util.*
 // ─────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PhotosScreen(modifier: Modifier = Modifier) {
+fun PhotosScreen(modifier: Modifier = Modifier, serverUrl: String = "", token: String = "") {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repo = remember { PhotoRepository(context) }
@@ -45,6 +45,11 @@ fun PhotosScreen(modifier: Modifier = Modifier) {
     var viewerPhoto by remember { mutableStateOf<Photo?>(null) }
     var filter by remember { mutableStateOf("all") } // all, favorites, archived, trashed
     var searchQuery by remember { mutableStateOf("") }
+    var showMenu by remember { mutableStateOf(false) }
+    var freeUpResult by remember { mutableStateOf<String?>(null) }
+    var dupResult by remember { mutableStateOf<String?>(null) }
+    var showPeople by remember { mutableStateOf(false) }
+    var peopleGroups by remember { mutableStateOf<List<String>>(emptyList()) }
 
     val filteredPhotos = remember(photos, filter, searchQuery) {
         val base = when (filter) {
@@ -115,12 +120,64 @@ fun PhotosScreen(modifier: Modifier = Modifier) {
                     }) {
                         Icon(Icons.Default.AddPhotoAlternate, "Add photos")
                     }
+                    Box {
+                        IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, "More") }
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            DropdownMenuItem(text = { Text("Free up space") }, onClick = {
+                                showMenu = false
+                                scope.launch {
+                                    val n = repo.freeUpSpace()
+                                    freeUpResult = "Freed $n photo(s)"
+                                }
+                            })
+                            DropdownMenuItem(text = { Text("Find duplicates") }, onClick = {
+                                showMenu = false
+                                scope.launch {
+                                    val groups = repo.findDuplicates()
+                                    dupResult = if (groups.isEmpty()) "No duplicates found" else "Found ${groups.size} duplicate group(s)"
+                                }
+                            })
+                            DropdownMenuItem(text = { Text("Empty trash (30 days)") }, onClick = {
+                                showMenu = false
+                                scope.launch { repo.purgeOldTrash() }
+                            })
+                            if (serverUrl.isNotBlank() && token.isNotBlank()) {
+                                DropdownMenuItem(text = { Text("Face groups") }, onClick = {
+                                    showMenu = false
+                                    scope.launch {
+                                        try {
+                                            val client = okhttp3.OkHttpClient.Builder().connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS).build()
+                                            val req = okhttp3.Request.Builder()
+                                                .url("${serverUrl.trimEnd('/')}/api/ml/people")
+                                                .header("Authorization", "Bearer $token")
+                                                .build()
+                                            val resp = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { client.newCall(req).execute() }
+                                            if (resp.isSuccessful) {
+                                                val json = org.json.JSONObject(resp.body!!.string())
+                                                val arr = json.optJSONArray("people") ?: org.json.JSONArray()
+                                                peopleGroups = (0 until arr.length()).map { arr.getJSONObject(it).optString("name", "Person ${it+1}") + " (" + arr.getJSONObject(it).optInt("photo_count", 0) + " photos)" }
+                                                showPeople = true
+                                            }
+                                        } catch (_: Exception) { }
+                                    }
+                                })
+                            }
+                        }
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            freeUpResult?.let { r ->
+                Text(r, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+            }
+            dupResult?.let { r ->
+                Text(r, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+            }
             // Search bar
             OutlinedTextField(
                 value = searchQuery,
@@ -200,6 +257,18 @@ fun PhotosScreen(modifier: Modifier = Modifier) {
             }
         }
     }
+    if (showPeople) {
+        AlertDialog(
+            onDismissRequest = { showPeople = false },
+            title = { Text("Face groups") },
+            text = {
+                if (peopleGroups.isEmpty()) Text("No face groups yet. Run face detection on the server first.")
+                else Column { peopleGroups.forEach { Text(it) } }
+            },
+            confirmButton = { TextButton(onClick = { showPeople = false }) { Text("Close") } }
+        )
+    }
+
 }
 
 @Composable

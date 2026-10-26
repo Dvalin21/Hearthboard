@@ -268,7 +268,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                 )
             }
             composable(Screen.Photos.route) {
-                PhotosScreen()
+                PhotosScreen(serverUrl = syncServerUrl, token = syncToken)
             }
             composable(Screen.PhotoMap.route) {
                 MapScreen()

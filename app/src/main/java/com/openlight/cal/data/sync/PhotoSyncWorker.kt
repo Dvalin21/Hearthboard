@@ -104,8 +104,17 @@ class PhotoSyncWorker(
             }
         }
 
-        // PULL: download changes
+        // PUSH metadata changes for already-synced photos
+        if (account.syncMode == PhotoSyncMode.PUSH_ONLY || account.syncMode == PhotoSyncMode.TWO_WAY) {
+            pushMetadataChanges(baseUrl, token, account)
+        }
+
+        // ALBUM SYNC: push local albums, pull remote albums
+        if (account.syncMode == PhotoSyncMode.PUSH_ONLY || account.syncMode == PhotoSyncMode.TWO_WAY) {
+            pushAlbums(baseUrl, token)
+        }
         if (account.syncMode == PhotoSyncMode.PULL_ONLY || account.syncMode == PhotoSyncMode.TWO_WAY) {
+            pullAlbums(baseUrl, token)
             pullChanges(baseUrl, token, account)
         }
     }
@@ -166,6 +175,14 @@ class PhotoSyncWorker(
                     if (photo == null) {
                         // New photo from server — download
                         downloadPhoto(baseUrl, token, change)
+                    } else {
+                        // Apply metadata changes (favorite/archive/trash) for existing photos
+                        db.photoDao().update(photo.copy(
+                            isFavorite = change.optBoolean("is_favorite", photo.isFavorite),
+                            isArchived = change.optBoolean("is_archived", photo.isArchived),
+                            isTrashed = change.optBoolean("is_trashed", photo.isTrashed),
+                            updatedAtMs = change.optLong("updated_at", photo.updatedAtMs)
+                        ))
                     }
                 }
             }
@@ -233,6 +250,92 @@ class PhotoSyncWorker(
         val caps = cm.getNetworkCapabilities(network) ?: return false
         return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
     }
+
+    private suspend fun pushAlbums(baseUrl: String, token: String) {
+        val albumDao = db.albumDao()
+        val albums = albumDao.getAll()
+        for (album in albums) {
+            if (album.remoteId.isNotBlank()) continue
+            try {
+                val body = org.json.JSONObject().apply { put("name", album.name) }
+                val req = Request.Builder()
+                    .url("$baseUrl/api/albums")
+                    .header("Authorization", "Bearer $token")
+                    .post(body.toString().toByteArray().toRequestBody("application/json".toMediaType()))
+                    .build()
+                val resp = client.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val json = org.json.JSONObject(resp.body?.string().orEmpty())
+                    val rid = json.optString("id", "")
+                    if (rid.isNotBlank()) albumDao.update(album.copy(remoteId = rid, updatedAtMs = System.currentTimeMillis()))
+                }
+            } catch (_: Exception) { }
+        }
+    }
+
+    private suspend fun pullAlbums(baseUrl: String, token: String) {
+        val albumDao = db.albumDao()
+        try {
+            val req = Request.Builder()
+                .url("$baseUrl/api/albums")
+                .header("Authorization", "Bearer $token")
+                .build()
+            val resp = client.newCall(req).execute()
+            if (!resp.isSuccessful) return
+            val arr = org.json.JSONArray(resp.body?.string().orEmpty())
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                val rid = o.getString("id")
+                val name = o.getString("name")
+                // skip if already present by remoteId
+                if (albumDao.getByRemoteId(rid) != null) continue
+                val album = com.openlight.cal.data.model.Album(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = name,
+                    createdAtMs = System.currentTimeMillis(),
+                    updatedAtMs = System.currentTimeMillis(),
+                    remoteId = rid
+                )
+                albumDao.insert(album)
+            }
+        } catch (_: Exception) { }
+    }
+
+
+    private suspend fun pushMetadataChanges(baseUrl: String, token: String, account: PhotoSyncAccount) {
+        val changed = db.photoDao().getAll().filter {
+            it.syncState == PhotoSyncState.SYNCED && it.remoteId.isNotBlank() && it.updatedAtMs > account.lastSyncMs
+        }
+        if (changed.isEmpty()) return
+        val items = org.json.JSONArray()
+        for (p in changed) {
+            items.put(org.json.JSONObject().apply {
+                put("id", p.remoteId)
+                put("content_hash", p.contentHash)
+                put("width", p.width)
+                put("height", p.height)
+                put("taken_at", p.takenAtMs)
+                put("imported_at", p.importedAtMs)
+                put("size_bytes", p.sizeBytes)
+                put("mime_type", p.mimeType)
+                put("is_favorite", p.isFavorite)
+                put("is_archived", p.isArchived)
+                put("is_trashed", p.isTrashed)
+                put("caption", p.caption)
+                put("updated_at", p.updatedAtMs)
+            })
+        }
+        val body = org.json.JSONObject().apply { put("items", items) }
+        try {
+            val req = Request.Builder()
+                .url("$baseUrl/api/sync/push")
+                .header("Authorization", "Bearer $token")
+                .post(body.toString().toByteArray().toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(req).execute()
+        } catch (_: Exception) { }
+    }
+
     companion object {
         const val WORK_NAME_PERIODIC = "photo_sync_periodic"
 

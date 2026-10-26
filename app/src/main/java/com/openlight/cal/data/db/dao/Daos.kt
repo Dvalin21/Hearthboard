@@ -472,6 +472,9 @@ interface AlbumDao {
     @Query("SELECT * FROM albums WHERE id = :id")
     suspend fun getById(id: String): Album?
 
+    @Query("SELECT * FROM albums WHERE remoteId = :remoteId LIMIT 1")
+    suspend fun getByRemoteId(remoteId: String): Album?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(album: Album)
 
