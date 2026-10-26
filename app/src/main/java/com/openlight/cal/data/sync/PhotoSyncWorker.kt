@@ -88,7 +88,7 @@ class PhotoSyncWorker(
 
     private suspend fun syncAccount(account: PhotoSyncAccount) {
         val baseUrl = account.serverUrl.trimEnd('/')
-        val token = login(baseUrl, account.username, account.passwordEncrypted)
+        val token = PhotoSyncAuth.login(applicationContext, baseUrl, account.username, account.passwordEncrypted)
 
         // PUSH: upload pending photos
         if (account.syncMode == PhotoSyncMode.PUSH_ONLY || account.syncMode == PhotoSyncMode.TWO_WAY) {
@@ -110,21 +110,6 @@ class PhotoSyncWorker(
         }
     }
 
-    private fun login(baseUrl: String, username: String, passwordEncrypted: String): String {
-        val password = EncryptedPassword(applicationContext).decrypt(passwordEncrypted)
-        val reqBody = JSONObject().apply {
-            put("username", username)
-            put("password", password)
-        }
-        val req = Request.Builder()
-            .url("$baseUrl/api/auth/login")
-            .post(reqBody.toString().toByteArray().toRequestBody("application/json".toMediaType()))
-            .build()
-        val resp = client.newCall(req).execute()
-        val body = resp.body?.string().orEmpty()
-        if (!resp.isSuccessful) throw Exception("Login failed: ${resp.code} $body")
-        return JSONObject(body).getString("access_token")
-    }
 
     private suspend fun uploadPhoto(baseUrl: String, token: String, photo: Photo): String {
         val file = File(photo.localPath)
@@ -281,4 +266,27 @@ class PhotoSyncWorker(
         }
     }
 
+}
+
+
+object PhotoSyncAuth {
+    fun login(context: Context, baseUrl: String, username: String, passwordEncrypted: String): String {
+        val password = EncryptedPassword(context).decrypt(passwordEncrypted)
+        val reqBody = JSONObject().apply {
+            put("username", username)
+            put("password", password)
+        }
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
+        val req = Request.Builder()
+            .url("$baseUrl/api/auth/login")
+            .post(reqBody.toString().toByteArray().toRequestBody("application/json".toMediaType()))
+            .build()
+        val resp = client.newCall(req).execute()
+        val body = resp.body?.string().orEmpty()
+        if (!resp.isSuccessful) throw Exception("Login failed: ${resp.code} $body")
+        return JSONObject(body).getString("access_token")
+    }
 }

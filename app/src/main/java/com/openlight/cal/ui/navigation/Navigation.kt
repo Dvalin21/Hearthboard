@@ -38,6 +38,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.window.core.layout.WindowWidthSizeClass
 import com.openlight.cal.HearthboardApp
+import com.openlight.cal.data.sync.PhotoSyncAuth
 import com.openlight.cal.data.model.CalendarEvent
 import com.openlight.cal.data.model.MealPlan
 import com.openlight.cal.data.model.MealSlot
@@ -156,6 +157,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
 
     val people by personVm.people.collectAsState()
     val accounts by settingsVm.accounts.collectAsState()
+    val photoSyncAccounts by settingsVm.photoSyncAccounts.collectAsState()
     val familyName by app.preferences.familyName.collectAsStateWithLifecycle(initialValue = "Family")
     val tempUnit by app.preferences.tempUnit.collectAsStateWithLifecycle(initialValue = "F")
     val wallMode by settingsVm.wallMode.collectAsState()
@@ -172,6 +174,25 @@ fun HearthboardNavHost(app: HearthboardApp) {
     val adminInitial = adminPerson?.name?.firstOrNull()?.uppercase() ?: "?"
     val adminLastName = adminPerson?.name?.split(" ")?.lastOrNull() ?: "Family"
     val displayFamilyName = "The $adminLastName Family"
+
+    // Photo sync session: serverUrl + token for the first configured sync account
+    var syncServerUrl by remember { mutableStateOf("") }
+    var syncToken by remember { mutableStateOf("") }
+    LaunchedEffect(photoSyncAccounts) {
+        val acct = photoSyncAccounts.firstOrNull()
+        if (acct != null) {
+            syncServerUrl = acct.serverUrl
+            try {
+                syncToken = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    PhotoSyncAuth.login(
+                        app, acct.serverUrl.trimEnd('/'), acct.username, acct.passwordEncrypted
+                    )
+                }
+            } catch (_: Exception) { syncToken = "" }
+        } else {
+            syncServerUrl = ""; syncToken = ""
+        }
+    }
     // ── Setup check: show onboarding on first launch ──────────
     val setupDone by app.preferences.setupDone.collectAsStateWithLifecycle(initialValue = false)
     if (!setupDone) {
@@ -253,13 +274,13 @@ fun HearthboardNavHost(app: HearthboardApp) {
                 MapScreen()
             }
             composable(Screen.Memories.route) {
-                MemoriesScreen()
+                MemoriesScreen(serverUrl = syncServerUrl, token = syncToken)
             }
             composable(Screen.Albums.route) {
                 AlbumsScreen()
             }
             composable(Screen.SharedAlbums.route) {
-                SharedAlbumsScreen()
+                SharedAlbumsScreen(serverUrl = syncServerUrl, token = syncToken)
             }
             composable(Screen.Sleep.route) {
                 SleepScreen()
@@ -274,7 +295,7 @@ fun HearthboardNavHost(app: HearthboardApp) {
                 PeopleScreen(viewModel = personVm, database = app.database)
             }
             composable(Screen.Creations.route) {
-                CreationsScreen()
+                CreationsScreen(serverUrl = syncServerUrl, token = syncToken)
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(viewModel = settingsVm)
