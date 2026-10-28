@@ -36,10 +36,10 @@ class PhotoSyncWorker(
 
     private val db = AppDatabase.getInstance(context)
     private val prefs = AppPreferences(context)  // simplified; use DI in production
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .build()
+    // Shared per process, not per worker instance: WorkManager builds a new
+    // worker for every run (every 60s while the app is alive), and a client
+    // owns a connection pool plus a dispatcher thread pool.
+    private val client: OkHttpClient get() = sharedClient
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
@@ -125,10 +125,16 @@ class PhotoSyncWorker(
     }
 
 
-    private suspend fun uploadPhoto(baseUrl: String, token: String, photo: Photo): String {
+    private suspend fun uploadPhoto(baseUrl: String, token: String, photo: Photo): String? {
         val file = File(photo.localPath)
-        if (!file.exists()) return photo.id
-        var remoteId = photo.id
+        // The local file is gone (freed space, external cleanup). Reporting the
+        // local UUID as a remote id marked the row SYNCED with a bogus server
+        // id, which then went out on every metadata push.
+        if (photo.localPath.isBlank() || !file.exists()) {
+            android.util.Log.w("PhotoSync", "cannot upload ${photo.id}: local file missing")
+            return null
+        }
+        var remoteId = ""
         val requestBody = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("file", file.name, file.asRequestBody(photo.mimeType.ifBlank { "image/jpeg" }.toMediaType()))
@@ -152,6 +158,7 @@ class PhotoSyncWorker(
             val json = JSONObject(resp.body!!.string())
             remoteId = json.optString("id")
         }
+        if (remoteId.isBlank()) throw Exception("Upload returned no id for ${photo.id}")
         return remoteId
     }
 
@@ -164,8 +171,10 @@ class PhotoSyncWorker(
                 .header("Authorization", "Bearer $token")
                 .get()
                 .build()
-            val resp = client.newCall(req).execute()
-            val json = JSONObject(resp.body!!.string())
+            val json = client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw Exception("sync/changes failed: ${resp.code}")
+                JSONObject(resp.body!!.string())
+            }
             val changes = json.getJSONArray("changes")
             for (i in 0 until changes.length()) {
                 android.util.Log.d("PhotoSync", "Processing change $i: ${changes.getJSONObject(i).optString("id")}")
@@ -207,7 +216,7 @@ class PhotoSyncWorker(
             .header("Authorization", "Bearer $token")
             .post(ackBody.toString().toByteArray().toRequestBody("application/json".toMediaType()))
             .build()
-        client.newCall(ackReq).execute()
+        client.newCall(ackReq).execute().close()
     }
 
     private suspend fun downloadPhoto(baseUrl: String, token: String, change: JSONObject) {
@@ -226,9 +235,10 @@ class PhotoSyncWorker(
             .header("Authorization", "Bearer $token")
             .get()
             .build()
-        val resp = client.newCall(req).execute()
-        if (!resp.isSuccessful) return
-        val bytes = resp.body!!.bytes()
+        val bytes = client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) return
+            resp.body!!.bytes()
+        }
         val dir = File(applicationContext.filesDir, "photos").apply { mkdirs() }
         val file = File(dir, "$id.$ext")
         file.writeBytes(bytes)
@@ -269,11 +279,12 @@ class PhotoSyncWorker(
                     .header("Authorization", "Bearer $token")
                     .post(body.toString().toByteArray().toRequestBody("application/json".toMediaType()))
                     .build()
-                val resp = client.newCall(req).execute()
-                if (resp.isSuccessful) {
-                    val json = org.json.JSONObject(resp.body?.string().orEmpty())
-                    val rid = json.optString("id", "")
-                    if (rid.isNotBlank()) albumDao.update(album.copy(remoteId = rid, updatedAtMs = System.currentTimeMillis()))
+                client.newCall(req).execute().use { resp ->
+                    if (resp.isSuccessful) {
+                        val json = org.json.JSONObject(resp.body?.string().orEmpty())
+                        val rid = json.optString("id", "")
+                        if (rid.isNotBlank()) albumDao.update(album.copy(remoteId = rid, updatedAtMs = System.currentTimeMillis()))
+                    }
                 }
             } catch (_: Exception) { }
         }
@@ -286,9 +297,10 @@ class PhotoSyncWorker(
                 .url("$baseUrl/api/albums")
                 .header("Authorization", "Bearer $token")
                 .build()
-            val resp = client.newCall(req).execute()
-            if (!resp.isSuccessful) return
-            val arr = org.json.JSONArray(resp.body?.string().orEmpty())
+            val arr = client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return
+                org.json.JSONArray(resp.body?.string().orEmpty())
+            }
             for (i in 0 until arr.length()) {
                 val o = arr.getJSONObject(i)
                 val rid = o.getString("id")
@@ -338,12 +350,21 @@ class PhotoSyncWorker(
                 .header("Authorization", "Bearer $token")
                 .post(body.toString().toByteArray().toRequestBody("application/json".toMediaType()))
                 .build()
-            client.newCall(req).execute()
+            client.newCall(req).execute().close()
         } catch (_: Exception) { }
     }
 
     companion object {
         const val WORK_NAME_PERIODIC = "photo_sync_periodic"
+
+        /** One OkHttpClient for the whole process. Every worker run used to
+         *  build its own, leaking a connection pool and a thread pool per run. */
+        private val sharedClient: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
+                .build()
+        }
 
         fun schedulePeriodicSync(context: Context, intervalMinutes: Long = 30) {
             val constraints = androidx.work.Constraints.Builder()
@@ -379,23 +400,30 @@ class PhotoSyncWorker(
 
 
 object PhotoSyncAuth {
+    /** One client for the process. A fresh client per login leaked a
+     *  connection pool and a dispatcher thread pool on every sync. */
+    private val client: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
+    }
+
     fun login(context: Context, baseUrl: String, username: String, passwordEncrypted: String): String {
         val password = EncryptedPassword(context).decrypt(passwordEncrypted)
         val reqBody = JSONObject().apply {
             put("username", username)
             put("password", password)
         }
-        val client = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .build()
         val req = Request.Builder()
             .url("$baseUrl/api/auth/login")
             .post(reqBody.toString().toByteArray().toRequestBody("application/json".toMediaType()))
             .build()
-        val resp = client.newCall(req).execute()
-        val body = resp.body?.string().orEmpty()
-        if (!resp.isSuccessful) throw Exception("Login failed: ${resp.code} $body")
+        val body = client.newCall(req).execute().use { resp ->
+            val text = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) throw Exception("Login failed: ${resp.code} $text")
+            text
+        }
         return JSONObject(body).getString("access_token")
     }
 }
