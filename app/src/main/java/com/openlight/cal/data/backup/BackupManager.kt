@@ -2,6 +2,7 @@ package com.openlight.cal.data.backup
 
 import android.content.Context
 import android.net.Uri
+import androidx.room.withTransaction
 import com.openlight.cal.HearthboardApp
 import com.openlight.cal.data.db.AppDatabase
 import com.openlight.cal.data.model.*
@@ -139,85 +140,89 @@ object BackupManager {
 
             val db = AppDatabase.getInstance(context)
 
-            // Clear existing data. Room's clearAllTables() drops every row
-            // in every table while preserving schema; FK constraint order is
-            // handled by Room itself, so this is safer than the per-table
-            // cascade that the original (uncommitted) cleanupDao would have
-            // implemented.
-            db.clearAllTables()
+            // clearAllTables() + every insert is one transaction. Without it, a
+            // malformed backup empties the database and then fails, leaving the
+            // user with "Restore failed" and no data — the backup being the only
+            // copy. clearAllTables() has its own nested transaction and skips
+            // VACUUM when one is already active.
+            val (eventCount, taskCount) = db.withTransaction {
+                db.clearAllTables()
 
-            // People
-            val peopleArr = json.optJSONArray("people") ?: JSONArray()
-            for (i in 0 until peopleArr.length()) {
-                db.personDao().insert(personFromJson(peopleArr.getJSONObject(i)))
+                // People
+                val peopleArr = json.optJSONArray("people") ?: JSONArray()
+                for (i in 0 until peopleArr.length()) {
+                    db.personDao().insert(personFromJson(peopleArr.getJSONObject(i)))
+                }
+
+                // Calendar accounts (user must re-enter passwords)
+                val accountsArr = json.optJSONArray("calendarAccounts") ?: JSONArray()
+                for (i in 0 until accountsArr.length()) {
+                    db.calendarAccountDao().insert(accountFromJson(accountsArr.getJSONObject(i)))
+                }
+
+                // Events
+                val eventsArr = json.optJSONArray("calendarEvents") ?: JSONArray()
+                for (i in 0 until eventsArr.length()) {
+                    db.calendarEventDao().insert(eventFromJson(eventsArr.getJSONObject(i)))
+                }
+
+                // Tasks
+                val tasksArr = json.optJSONArray("tasks") ?: JSONArray()
+                for (i in 0 until tasksArr.length()) {
+                    db.taskDao().insert(taskFromJson(tasksArr.getJSONObject(i)))
+                }
+
+                // Checklists
+                val listsArr = json.optJSONArray("checklists") ?: JSONArray()
+                for (i in 0 until listsArr.length()) {
+                    db.checkListDao().insertList(listFromJson(listsArr.getJSONObject(i)))
+                }
+
+                val itemsArr = json.optJSONArray("checklistItems") ?: JSONArray()
+                for (i in 0 until itemsArr.length()) {
+                    db.checkListDao().insertItem(listItemFromJson(itemsArr.getJSONObject(i)))
+                }
+
+                // Meal plans
+                val mealsArr = json.optJSONArray("mealPlans") ?: JSONArray()
+                for (i in 0 until mealsArr.length()) {
+                    db.mealPlanDao().upsert(mealFromJson(mealsArr.getJSONObject(i)))
+                }
+
+                // Recipes
+                val recipesArr = json.optJSONArray("recipes") ?: JSONArray()
+                for (i in 0 until recipesArr.length()) {
+                    db.recipeDao().upsert(recipeFromJson(recipesArr.getJSONObject(i)))
+                }
+
+                // Rewards
+                val rewardsArr = json.optJSONArray("rewards") ?: JSONArray()
+                for (i in 0 until rewardsArr.length()) {
+                    db.rewardDao().upsert(rewardFromJson(rewardsArr.getJSONObject(i)))
+                }
+
+                // Redemption history
+                val redeemedArr = json.optJSONArray("redeemedRewards") ?: JSONArray()
+                for (i in 0 until redeemedArr.length()) {
+                    db.redeemedRewardDao().insert(redeemedFromJson(redeemedArr.getJSONObject(i)))
+                }
+
+                val labelsArr = json.optJSONArray("labels") ?: JSONArray()
+                for (i in 0 until labelsArr.length()) {
+                    db.labelDao().upsert(labelFromJson(labelsArr.getJSONObject(i)))
+                }
+
+                val personLabelsArr = json.optJSONArray("personLabels") ?: JSONArray()
+                for (i in 0 until personLabelsArr.length()) {
+                    val pl = personLabelFromJson(personLabelsArr.getJSONObject(i))
+                    db.labelDao().assignLabel(pl)
+                }
+
+                eventsArr.length() to tasksArr.length()
             }
 
-            // Calendar accounts (user must re-enter passwords)
-            val accountsArr = json.optJSONArray("calendarAccounts") ?: JSONArray()
-            for (i in 0 until accountsArr.length()) {
-                db.calendarAccountDao().insert(accountFromJson(accountsArr.getJSONObject(i)))
-            }
-
-            // Events
-            val eventsArr = json.optJSONArray("calendarEvents") ?: JSONArray()
-            for (i in 0 until eventsArr.length()) {
-                db.calendarEventDao().insert(eventFromJson(eventsArr.getJSONObject(i)))
-            }
-
-            // Tasks
-            val tasksArr = json.optJSONArray("tasks") ?: JSONArray()
-            for (i in 0 until tasksArr.length()) {
-                db.taskDao().insert(taskFromJson(tasksArr.getJSONObject(i)))
-            }
-
-            // Checklists
-            val listsArr = json.optJSONArray("checklists") ?: JSONArray()
-            for (i in 0 until listsArr.length()) {
-                db.checkListDao().insertList(listFromJson(listsArr.getJSONObject(i)))
-            }
-
-            val itemsArr = json.optJSONArray("checklistItems") ?: JSONArray()
-            for (i in 0 until itemsArr.length()) {
-                db.checkListDao().insertItem(listItemFromJson(itemsArr.getJSONObject(i)))
-            }
-
-            // Meal plans
-            val mealsArr = json.optJSONArray("mealPlans") ?: JSONArray()
-            for (i in 0 until mealsArr.length()) {
-                db.mealPlanDao().upsert(mealFromJson(mealsArr.getJSONObject(i)))
-            }
-
-            // Recipes
-            val recipesArr = json.optJSONArray("recipes") ?: JSONArray()
-            for (i in 0 until recipesArr.length()) {
-                db.recipeDao().upsert(recipeFromJson(recipesArr.getJSONObject(i)))
-            }
-
-            // Rewards
-            val rewardsArr = json.optJSONArray("rewards") ?: JSONArray()
-            for (i in 0 until rewardsArr.length()) {
-                db.rewardDao().upsert(rewardFromJson(rewardsArr.getJSONObject(i)))
-            }
-
-            // Redemption history
-            val redeemedArr = json.optJSONArray("redeemedRewards") ?: JSONArray()
-            for (i in 0 until redeemedArr.length()) {
-                db.redeemedRewardDao().insert(redeemedFromJson(redeemedArr.getJSONObject(i)))
-            }
-
-            val labelsArr = json.optJSONArray("labels") ?: JSONArray()
-            for (i in 0 until labelsArr.length()) {
-                db.labelDao().upsert(labelFromJson(labelsArr.getJSONObject(i)))
-            }
-
-            val personLabelsArr = json.optJSONArray("personLabels") ?: JSONArray()
-            for (i in 0 until personLabelsArr.length()) {
-                val pl = personLabelFromJson(personLabelsArr.getJSONObject(i))
-                db.labelDao().assignLabel(pl)
-            }
-
-            BackupResult(true, "Restore complete — ${eventsArr.length()} events, ${tasksArr.length()} tasks restored",
-                eventCount = eventsArr.length(), taskCount = tasksArr.length())
+            BackupResult(true, "Restore complete — $eventCount events, $taskCount tasks restored",
+                eventCount = eventCount, taskCount = taskCount)
         } catch (e: Exception) {
             BackupResult(false, "Restore failed: ${e.message}")
         }
