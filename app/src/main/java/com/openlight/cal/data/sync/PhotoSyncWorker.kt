@@ -62,20 +62,25 @@ class PhotoSyncWorker(
 
                 try {
                     syncAccount(account)
-                    // Reset fail count on success
-                    db.photoSyncAccountDao().update(account.copy(
+                    // Only the sync bookkeeping columns. Writing the whole row
+                    // back from `account` (read before the sync) used to undo
+                    // the cursor pullChanges() had just stored.
+                    db.photoSyncAccountDao().updateSyncResult(
+                        id = account.id,
                         lastSyncMs = System.currentTimeMillis(),
                         syncFailCount = 0,
                         syncBackoffUntil = 0
-                    ))
+                    )
                 } catch (e: Exception) {
                     android.util.Log.e("PhotoSync", "sync failed for ${account.username}: ${e.message}", e)
                     val failCount = account.syncFailCount + 1
                     val backoff = (5L * 60 * 1000) * (1L shl minOf(failCount, 6)) // exponential
-                    db.photoSyncAccountDao().update(account.copy(
+                    db.photoSyncAccountDao().updateSyncResult(
+                        id = account.id,
+                        lastSyncMs = account.lastSyncMs,
                         syncFailCount = failCount,
                         syncBackoffUntil = System.currentTimeMillis() + backoff
-                    ))
+                    )
                     anyFailed = true
                 }
             }
@@ -189,8 +194,9 @@ class PhotoSyncWorker(
             cursor = json.getLong("next_cursor")
             hasMore = json.optBoolean("has_more", false)
         }
-        // Update cursor
-        db.photoSyncAccountDao().update(account.copy(cursor = cursor))
+        // Update cursor — narrow update so a later write elsewhere cannot
+        // restore a stale snapshot of this row.
+        db.photoSyncAccountDao().updateCursor(account.id, cursor)
         // Ack
         val ackBody = JSONObject().apply {
             put("device_id", "hearthboard")

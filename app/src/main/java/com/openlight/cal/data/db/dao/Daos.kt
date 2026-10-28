@@ -517,6 +517,18 @@ interface PhotoSyncAccountDao {
     @Update
     suspend fun update(account: PhotoSyncAccount)
 
+    // Narrow updates for the sync worker. Writing the whole row back from a
+    // snapshot taken before the sync silently restored the previous cursor,
+    // because pullChanges() had already advanced it.
+    @Query("UPDATE photo_sync_accounts SET cursor = :cursor WHERE id = :id")
+    suspend fun updateCursor(id: Long, cursor: Long)
+
+    @Query(
+        "UPDATE photo_sync_accounts SET lastSyncMs = :lastSyncMs, " +
+            "syncFailCount = :syncFailCount, syncBackoffUntil = :syncBackoffUntil WHERE id = :id"
+    )
+    suspend fun updateSyncResult(id: Long, lastSyncMs: Long, syncFailCount: Int, syncBackoffUntil: Long)
+
     @Delete
     suspend fun delete(account: PhotoSyncAccount)
 }
