@@ -318,7 +318,16 @@ class CalDAVClient internal constructor(
         val contentType: String
     )
 
-    fun getETagList(calendarPath: String): List<ETagEntry> {
+    /**
+     * Resource hrefs + etags for one calendar.
+     *
+     * `null` means the server did not answer (non-2xx, timeout, parse error).
+     * An empty list means the calendar answered and really is empty. The two
+     * must stay distinguishable: the caller prunes cached events against this
+     * list, and pruning against a calendar that failed to answer deletes every
+     * cached event in it.
+     */
+    fun getETagList(calendarPath: String): List<ETagEntry>? {
         return try {
             propfindResources(calendarPath).mapNotNull { rsrc ->
                 if (rsrc.href.isNotBlank() && rsrc.etag.isNotBlank())
@@ -326,8 +335,8 @@ class CalDAVClient internal constructor(
                 else null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "getETagList exception (${e::class.simpleName}): ${e.message}", e)
-            emptyList()
+            Log.e(TAG, "getETagList failed (${e::class.simpleName}): ${e.message}", e)
+            null
         }
     }
 
@@ -351,33 +360,21 @@ class CalDAVClient internal constructor(
             .method("PROPFIND", xml.toRequestBody(XML_MEDIA_TYPE))
             .header("Depth", "1")
             .build()
-        return try {
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) {
-                    Log.w(
-                        TAG,
-                        "PROPFIND resources failed: ${resp.code} ${resp.message} on $url"
-                    )
-                    return@use emptyList()
-                }
-                val body = resp.body?.string().orEmpty()
-                if (body.isBlank()) {
-                    Log.w(TAG, "PROPFIND returned empty body from $url")
-                    return@use emptyList()
-                }
-                Log.d(
-                    TAG,
-                    "PROPFIND response (first 600 chars): ${body.take(600)}"
-                )
-                parsePropfindMultistatus(body)
+        // No catch here: callers must be able to tell "the server did not
+        // answer" (throws) from "the calendar is empty" (empty list).
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                throw IOException("PROPFIND $url failed: ${resp.code} ${resp.message}")
             }
-        } catch (e: Exception) {
-            Log.e(
+            val body = resp.body?.string().orEmpty()
+            if (body.isBlank()) {
+                throw IOException("PROPFIND $url returned an empty body")
+            }
+            Log.d(
                 TAG,
-                "propfindResources exception (${e::class.simpleName}): ${e.message}",
-                e
+                "PROPFIND response (first 600 chars): ${body.take(600)}"
             )
-            emptyList()
+            return parsePropfindMultistatus(body)
         }
     }
 

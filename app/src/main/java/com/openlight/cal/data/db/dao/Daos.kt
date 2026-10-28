@@ -51,6 +51,21 @@ interface CalendarAccountDao {
     @Update
     suspend fun update(account: CalendarAccount)
 
+    // Narrow updates for the sync pass. A full-row @Update from a snapshot
+    // read before the pass silently reverts columns the pass itself moved:
+    // CalDAVSyncEngine stores the discovered calendarPath mid-pass, and the
+    // worker then wrote the pre-pass row back, leaving calendarPath = "".
+    // pushIcsToCalDAV() bails out on a blank calendarPath, so locally created
+    // events were never uploaded and nothing reported a problem.
+    @Query("UPDATE calendar_accounts SET ctag = :ctag, calendarPath = :calendarPath WHERE id = :id")
+    suspend fun updateSyncTarget(id: Long, ctag: String, calendarPath: String)
+
+    @Query(
+        "UPDATE calendar_accounts SET lastSyncMs = :lastSyncMs, " +
+            "syncFailCount = :syncFailCount, syncBackoffUntil = :syncBackoffUntil WHERE id = :id"
+    )
+    suspend fun updateSyncState(id: Long, lastSyncMs: Long, syncFailCount: Int, syncBackoffUntil: Long)
+
     @Delete
     suspend fun delete(account: CalendarAccount)
 }

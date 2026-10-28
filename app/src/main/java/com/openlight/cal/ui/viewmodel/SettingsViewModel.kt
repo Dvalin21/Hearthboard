@@ -127,7 +127,14 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 } else {
                     listOfNotNull(db.calendarAccountDao().getById(accountId))
                 }
-                accounts.map { engine.syncAccount(it) }
+                accounts.map { acc ->
+                    val result = engine.syncAccount(acc)
+                    // Same bookkeeping as the periodic worker: a manual pass
+                    // that succeeds clears the failure backoff, and one that
+                    // fails counts towards it.
+                    engine.recordOutcome(acc, result)
+                    result
+                }
             }
             _syncStatus.value = summarize(result)
             _isSyncing.value = false

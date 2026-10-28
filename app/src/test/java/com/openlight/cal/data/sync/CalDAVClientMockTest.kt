@@ -141,12 +141,31 @@ class CalDAVClientMockTest {
         """.trimIndent()
         server.enqueue(MockResponse().setBody(body).setResponseCode(207))
 
-        val list = client().getETagList("/cal/primary/")
+        val list = client().getETagList("/cal/primary/")!!
         org.junit.Assert.assertEquals(2, list.size)
         org.junit.Assert.assertEquals("/cal/primary/a.ics", list[0].href)
         org.junit.Assert.assertEquals("etag-a", list[0].etag)
         org.junit.Assert.assertEquals("/cal/primary/b.ics", list[1].href)
         org.junit.Assert.assertEquals("etag-b", list[1].etag)
+    }
+
+    @Test
+    fun `getETagList returns null when the server errors`() {
+        server.enqueue(MockResponse().setResponseCode(500))
+        org.junit.Assert.assertNull(
+            "A failed PROPFIND must not look like an empty calendar",
+            client().getETagList("/cal/primary/")
+        )
+    }
+
+    @Test
+    fun `getETagList returns empty for a calendar that answers with no resources`() {
+        val body = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <D:multistatus xmlns:D="DAV:"></D:multistatus>
+        """.trimIndent()
+        server.enqueue(MockResponse().setBody(body).setResponseCode(207))
+        org.junit.Assert.assertEquals(0, client().getETagList("/cal/primary/")?.size)
     }
 
     @Test

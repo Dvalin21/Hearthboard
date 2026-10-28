@@ -21,8 +21,7 @@ import kotlinx.coroutines.withContext
  */
 class CalDAVSyncEngine(
     private val db: AppDatabase,
-    private val encryptor: EncryptedPassword,
-    private val nowMs: Long = System.currentTimeMillis()
+    private val encryptor: EncryptedPassword
 ) {
 
     data class SyncResult(
@@ -45,13 +44,20 @@ class CalDAVSyncEngine(
 
                 val allCalendars = client.discoverCalendars()
                 if (allCalendars.isEmpty()) {
+                    // Not a success. Discovery swallows its own errors and
+                    // returns an empty list for a rejected password, an
+                    // unreachable host and a genuinely empty account alike.
+                    // Reporting success here reset the failure counter, stamped
+                    // lastSyncMs and showed "Synced" while nothing had synced,
+                    // so the account never backed off.
                     Log.w(TAG, "No calendars discovered for ${account.displayName}")
                     return@withContext SyncResult(
                         accountId = account.id,
                         accountName = account.displayName,
                         eventsImported = 0,
                         tasksImported = 0,
-                        calendarsExamined = 0
+                        calendarsExamined = 0,
+                        error = "No calendars found — check the server URL and password"
                     )
                 }
 
@@ -66,11 +72,20 @@ class CalDAVSyncEngine(
                     .associateBy { it.email.lowercase() }
 
                 val masterServerHrefs = mutableSetOf<String>()
+                // A calendar that did not answer is not an empty calendar. One
+                // failed PROPFIND in a multi-calendar account must not authorise
+                // deleting that calendar's cached events.
+                var anyCalendarFailed = false
                 var eventsImported = 0
                 var tasksImported = 0
 
                 for (cal in allCalendars) {
                     val serverEtags = client.getETagList(cal.path)
+                    if (serverEtags == null) {
+                        Log.w(TAG, "Calendar ${cal.path} did not answer — skipping it")
+                        anyCalendarFailed = true
+                        continue
+                    }
                     masterServerHrefs.addAll(serverEtags.map { it.href })
                     if (serverEtags.isEmpty()) continue
 
@@ -133,17 +148,22 @@ class CalDAVSyncEngine(
                 }
 
                 // Deletion pass: drop local rows absent from every server calendar.
-                // Only run when the server actually returned data — a transient
-                // empty response (network blip / 5xx) must not wipe the cache.
-                if (masterServerHrefs.isNotEmpty()) {
-                    for (event in localEvents) {
+                // Only when every calendar answered: a partial or transient view
+                // must not wipe the cache.
+                if (masterServerHrefs.isNotEmpty() && !anyCalendarFailed) {
+                    // Re-read from the DB, not from the pre-pass snapshot: an
+                    // event whose href changed on the server was re-inserted
+                    // above under its new path, and pruning the snapshot would
+                    // delete that row by id (the snapshot still holds the old
+                    // path, which is no longer in masterServerHrefs).
+                    for (event in db.calendarEventDao().getByAccount(account.id)) {
                         if (event.calendarPath.isNotBlank()
                             && event.calendarPath !in masterServerHrefs
                         ) {
                             db.calendarEventDao().delete(event)
                         }
                     }
-                    for (task in localTasks) {
+                    for (task in db.taskDao().getByAccount(account.id)) {
                         if (task.calendarPath.isNotBlank()
                             && task.calendarPath !in masterServerHrefs
                         ) {
@@ -152,15 +172,16 @@ class CalDAVSyncEngine(
                     }
                 }
 
-                // Update ctag + primary calendar path + lastSyncMs
+                // Record what the server told us. Narrow write: the pass
+                // outcome (lastSyncMs, fail count, backoff) belongs to the
+                // caller and must not be written from here, and nothing else
+                // in the row may be reverted from a pre-pass snapshot.
                 val primaryPath = allCalendars.first().path
                 val newCtag = client.getCTag(primaryPath)
-                db.calendarAccountDao().update(
-                    account.copy(
-                        ctag         = if (newCtag.isNotBlank()) newCtag else account.ctag,
-                        calendarPath = primaryPath,
-                        lastSyncMs   = nowMs
-                    )
+                db.calendarAccountDao().updateSyncTarget(
+                    id           = account.id,
+                    ctag         = if (newCtag.isNotBlank()) newCtag else account.ctag,
+                    calendarPath = primaryPath
                 )
 
                 SyncResult(
@@ -182,4 +203,30 @@ class CalDAVSyncEngine(
                 )
             }
         }
+
+    /**
+     * Persist the outcome of one pass. The bookkeeping columns are written
+     * narrow so a pass can never revert the calendarPath/ctag the engine just
+     * stored, and a failed pass does not claim a successful lastSyncMs.
+     */
+    suspend fun recordOutcome(account: CalendarAccount, result: SyncResult) {
+        val dao = db.calendarAccountDao()
+        if (result.isSuccess) {
+            dao.updateSyncState(
+                id               = account.id,
+                lastSyncMs       = System.currentTimeMillis(),
+                syncFailCount    = 0,
+                syncBackoffUntil = 0L
+            )
+        } else {
+            val failCount = account.syncFailCount + 1
+            dao.updateSyncState(
+                id               = account.id,
+                lastSyncMs       = account.lastSyncMs,
+                syncFailCount    = failCount,
+                syncBackoffUntil = System.currentTimeMillis() +
+                    CalDAVSyncWorker.backoffMs(failCount)
+            )
+        }
+    }
 }

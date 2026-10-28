@@ -86,24 +86,11 @@ class CalDAVSyncWorker(
             }
 
             val result = engine.syncAccount(account)
-
-            val updated = if (result.isSuccess) {
-                account.copy(
-                    lastSyncMs    = now,
-                    syncFailCount = 0,
-                    syncBackoffUntil = 0L
-                )
-            } else {
-                val newFailCount = account.syncFailCount + 1
-                val delayMs = backoffMs(newFailCount)
+            if (!result.isSuccess) {
                 Log.e(TAG, "Sync failed for ${account.displayName} " +
-                        "(fail #$newFailCount, backoff ${delayMs / 60_000}min): ${result.error}")
-                account.copy(
-                    syncFailCount    = newFailCount,
-                    syncBackoffUntil = now + delayMs
-                )
+                        "(fail #${account.syncFailCount + 1}): ${result.error}")
             }
-            db.calendarAccountDao().update(updated)
+            engine.recordOutcome(account, result)
         }
 
         Result.success()
