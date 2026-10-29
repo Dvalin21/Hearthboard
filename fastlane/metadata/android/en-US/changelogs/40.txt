@@ -1,0 +1,9 @@
+Photo sync: the cursor no longer resets after every run, so syncs stay incremental instead of re-downloading everything.
+
+CalDAV: local edits are uploaded, a failed server query no longer wipes cached events, and a renamed collection no longer deletes the fresh row.
+
+Backup restore is atomic now, so a corrupt backup cannot empty the app.
+
+Photo sync closes its connections and never reports a missing file as uploaded.
+
+Free-up-space, duplicate detection and face groups are in the photo screens.
