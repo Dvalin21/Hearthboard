@@ -10,21 +10,22 @@ android {
     compileSdk = 34
 
     // ── Signing ────────────────────────────────────────────────
-    // Release signing reads from env vars (for CI/release builds).
-    // Falls back to the standard Android debug keystore so that
-    // `./gradlew assembleRelease` produces an *installable* APK
-    // even without a release key. To use a real release key, set:
+    // Release signing reads from env vars (CI or a local release build):
     //   RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD,
     //   RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD
+    // With no key set, assembleRelease produces an *unsigned* APK, which is
+    // what F-Droid builds and signs itself. It must never fall back to the
+    // debug keystore: that key is public, so anyone could sign an "update"
+    // that Android would happily install over ours.
     signingConfigs {
-        create("release") {
-            storeFile = file(
-                System.getenv("RELEASE_STORE_FILE")
-                    ?: "${System.getProperty("user.home")}/.android/debug.keystore"
-            )
-            storePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: "android"
-            keyAlias      = System.getenv("RELEASE_KEY_ALIAS")      ?: "androiddebugkey"
-            keyPassword   = System.getenv("RELEASE_KEY_PASSWORD")   ?: "android"
+        val storeFilePath = System.getenv("RELEASE_STORE_FILE")
+        if (!storeFilePath.isNullOrBlank()) {
+            create("release") {
+                storeFile     = file(storeFilePath)
+                storePassword = System.getenv("RELEASE_STORE_PASSWORD")
+                keyAlias      = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword   = System.getenv("RELEASE_KEY_PASSWORD")
+            }
         }
     }
 
@@ -32,8 +33,8 @@ android {
         applicationId = "com.openlight.cal"
         minSdk = 31          // Android 12+ (was 26 for Android 8.0)
         targetSdk = 34
-        versionCode = 40
-        versionName = "1.0.4"
+        versionCode = 41
+        versionName = "1.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -45,7 +46,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
