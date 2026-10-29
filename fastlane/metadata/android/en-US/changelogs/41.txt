@@ -1,0 +1,3 @@
+Releases are now signed with a dedicated HearthBoard release key instead of the public Android debug key.
+
+If you installed 1.0.4 or earlier from GitHub, uninstall it once before installing this build: Android refuses an update signed with a different key. F-Droid builds are unaffected and update normally.
